@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptWise — Developer Guide</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1a2d;color:#ccdaed;line-height:1.7;font-size:15px}
+a{color:#00b4d8;text-decoration:none}
+a:hover{text-decoration:underline}
+
+.layout{display:flex;min-height:100vh}
+nav{width:270px;background:#08111e;border-right:1px solid #1a2f44;padding:2rem 0;position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+.content{flex:1;padding:3rem 4rem;max-width:960px}
+
+.nav-logo{padding:0 1.5rem 2rem;border-bottom:1px solid #1a2f44;margin-bottom:1.5rem}
+.nav-logo .brand{font-size:1.3rem;font-weight:800;color:white}
+.nav-logo .brand span{color:#00b4d8}
+.nav-logo .ver{font-size:.75rem;color:#4a6a8a;font-family:monospace}
+.nav-section{padding:.25rem 1.5rem;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#3a5a7a;margin-top:1.2rem}
+.nav-item{display:block;padding:.35rem 1.5rem;font-size:.85rem;color:#8aace4;transition:color .2s,background .2s;border-left:2px solid transparent}
+.nav-item:hover{color:#00b4d8;background:rgba(0,180,216,.06);border-left-color:rgba(0,180,216,.3)}
+.nav-item.active{color:#00b4d8;border-left-color:#00b4d8;background:rgba(0,180,216,.08)}
+
+h1{font-size:2.2rem;font-weight:800;color:white;margin-bottom:.5rem}
+h2{font-size:1.5rem;font-weight:700;color:#00b4d8;margin:2.5rem 0 1rem;padding-top:2rem;border-top:1px solid #1a2f44}
+h2:first-of-type{border-top:none;padding-top:0}
+h3{font-size:1.05rem;font-weight:700;color:white;margin:1.5rem 0 .5rem}
+h4{font-size:.95rem;font-weight:600;color:#7dd3fc;margin:1.2rem 0 .4rem}
+p{margin-bottom:1rem;color:#9ab4d4}
+.lead{font-size:1.05rem;color:#8aace4;margin-bottom:1.5rem}
+strong{color:#ccdaed}
+ul,ol{padding-left:1.5rem;color:#9ab4d4;margin-bottom:1rem}
+li{margin-bottom:.3rem}
+
+pre,code{font-family:'Consolas','Courier New',monospace}
+code{background:#060f1a;color:#7dd3fc;padding:.1rem .35rem;border-radius:3px;font-size:.85rem}
+pre{background:#060f1a;border:1px solid #1a2f44;border-radius:8px;padding:1.2rem 1.5rem;overflow-x:auto;font-size:.82rem;line-height:1.65;color:#b8cfe8;margin:1rem 0}
+pre .key{color:#00b4d8}
+pre .val{color:#a8e6cf}
+pre .cmt{color:#3a5a7a;font-style:italic}
+pre .kw{color:#c792ea}
+pre .fn{color:#82aaff}
+pre .str{color:#c3e88d}
+pre .dec{color:#f78c6c}
+
+.badge{display:inline-block;background:rgba(0,180,216,.15);border:1px solid rgba(0,180,216,.3);color:#00b4d8;padding:.2rem .6rem;border-radius:4px;font-family:monospace;font-size:.82rem}
+.tag{display:inline-block;background:rgba(100,200,100,.1);border:1px solid rgba(100,200,100,.25);color:#6fd36f;padding:.15rem .5rem;border-radius:3px;font-size:.78rem;margin-right:.3rem}
+
+.info-box{background:rgba(0,180,216,.05);border:1px solid rgba(0,180,216,.2);border-radius:8px;padding:1rem 1.2rem;margin:1rem 0;font-size:.88rem}
+.warn-box{background:rgba(255,190,50,.04);border:1px solid rgba(255,190,50,.2);border-radius:8px;padding:1rem 1.2rem;margin:1rem 0;font-size:.88rem;color:#d4b46a}
+.tip-box{background:rgba(0,200,150,.04);border:1px solid rgba(0,200,150,.2);border-radius:8px;padding:1rem 1.2rem;margin:1rem 0;font-size:.88rem;color:#6fd3b4}
+
+/* Module table */
+.mod-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:1rem 0}
+.mod-table th{background:#0a1624;padding:.5rem .75rem;text-align:left;color:#4a6a8a;font-weight:600;border-bottom:1px solid #1a2f44}
+.mod-table td{padding:.5rem .75rem;border-bottom:1px solid #0f1e30;vertical-align:top}
+.mod-table tr:last-child td{border-bottom:none}
+.mod-table td:first-child{font-family:monospace;color:#7dd3fc;white-space:nowrap}
+
+/* Data flow */
+.flow{display:flex;flex-direction:column;gap:0;margin:1rem 0;font-size:.85rem}
+.flow-row{display:flex;align-items:stretch}
+.flow-box{background:#0a1624;border:1px solid #1a2f44;border-radius:6px;padding:.6rem 1rem;flex:1;color:#ccdaed}
+.flow-box small{color:#4a6a8a;display:block;font-size:.78rem;margin-top:.2rem}
+.flow-arrow{width:3rem;display:flex;align-items:center;justify-content:center;color:#3a5a7a;font-size:.8rem;flex-shrink:0}
+.flow-label{font-size:.72rem;color:#3a5a7a;text-align:center}
+
+/* DB schema */
+.schema-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:.5rem 0}
+.schema-table th{background:#0a1624;padding:.4rem .6rem;text-align:left;color:#4a6a8a;font-size:.78rem;font-weight:600;border-bottom:1px solid #1a2f44}
+.schema-table td{padding:.35rem .6rem;border-bottom:1px solid #0f1e30;vertical-align:top}
+.schema-table td:first-child{font-family:monospace;color:#7dd3fc;white-space:nowrap}
+.schema-table td:nth-child(2){color:#f78c6c;white-space:nowrap}
+.schema-table td:nth-child(3){color:#9ab4d4}
+.schema-table tr:last-child td{border-bottom:none}
+.schema-pk{color:#ffd700;font-size:.7rem;font-weight:700;background:rgba(255,215,0,.1);padding:.05rem .3rem;border-radius:2px}
+.schema-fk{color:#82aaff;font-size:.7rem;font-weight:700;background:rgba(130,170,255,.1);padding:.05rem .3rem;border-radius:2px}
+.schema-idx{color:#00c896;font-size:.7rem;font-weight:700;background:rgba(0,200,150,.1);padding:.05rem .3rem;border-radius:2px}
+
+/* Config hierarchy */
+.cfg-box{background:#0a1624;border:1px solid #1a2f44;border-radius:8px;padding:1rem 1.2rem;margin:.5rem 0;font-size:.85rem}
+.cfg-file{font-family:monospace;color:#00b4d8;font-weight:700}
+.cfg-model{font-family:monospace;color:#c792ea}
+.cfg-field{font-family:monospace;color:#7dd3fc}
+
+/* Steps */
+.steps{counter-reset:step;list-style:none;margin:1rem 0}
+.steps li{counter-increment:step;display:flex;gap:.75rem;margin-bottom:.8rem;font-size:.9rem}
+.steps li::before{content:counter(step);width:24px;height:24px;border-radius:50%;background:rgba(0,180,216,.2);border:1px solid rgba(0,180,216,.4);color:#00b4d8;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.75rem;font-weight:700;margin-top:.15rem}
+
+.page-header{margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid #1a2f44}
+.subtitle{color:#4a6a8a;font-size:.85rem;font-family:monospace;margin-top:.3rem}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid #1a2f44;color:#3a5a7a;font-size:.8rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav>
+  <div class="nav-logo">
+    <div class="brand">Prompt<span>Wise</span></div>
+    <div class="ver">v1.1.0 · Developer Guide</div>
+  </div>
+
+  <div class="nav-section">Architecture</div>
+  <a class="nav-item" href="#overview">System Overview</a>
+  <a class="nav-item" href="#data-flow">Data Flow</a>
+  <a class="nav-item" href="#module-map">Module Map</a>
+  <a class="nav-item" href="#di-pattern">DI Pattern</a>
+
+  <div class="nav-section">Config System</div>
+  <a class="nav-item" href="#config-pipeline">YAML → Pydantic</a>
+  <a class="nav-item" href="#config-models">Config Models</a>
+  <a class="nav-item" href="#config-validation">Validation Rules</a>
+
+  <div class="nav-section">Core Modules</div>
+  <a class="nav-item" href="#mod-server">server.py</a>
+  <a class="nav-item" href="#mod-router">router.py</a>
+  <a class="nav-item" href="#mod-rewriter">rewriter.py</a>
+  <a class="nav-item" href="#mod-optimizer">optimizer.py</a>
+  <a class="nav-item" href="#mod-cache-planner">cache_planner.py</a>
+  <a class="nav-item" href="#mod-batcher">batcher.py</a>
+  <a class="nav-item" href="#mod-summarizer">summarizer.py</a>
+  <a class="nav-item" href="#mod-stats">stats.py</a>
+  <a class="nav-item" href="#mod-session">session_manager.py</a>
+  <a class="nav-item" href="#mod-tokenizer">tokenizer.py</a>
+  <a class="nav-item" href="#mod-db">db.py</a>
+  <a class="nav-item" href="#mod-types">types.py</a>
+
+  <div class="nav-section">Database</div>
+  <a class="nav-item" href="#db-schema">Schema</a>
+  <a class="nav-item" href="#db-migrations">Migrations</a>
+
+  <div class="nav-section">Extending</div>
+  <a class="nav-item" href="#add-tool">Adding a Tool</a>
+  <a class="nav-item" href="#add-provider">Adding a Provider</a>
+  <a class="nav-item" href="#add-role">Adding a Role</a>
+  <a class="nav-item" href="#update-pricing">Updating Pricing</a>
+
+  <div class="nav-section">Testing</div>
+  <a class="nav-item" href="#test-structure">Test Structure</a>
+  <a class="nav-item" href="#test-patterns">Test Patterns</a>
+
+  <div class="nav-section">Plugin</div>
+  <a class="nav-item" href="#plugin-structure">Plugin Layout</a>
+  <a class="nav-item" href="#plugin-mcp">MCP Entry Point</a>
+</nav>
+
+<div class="content">
+
+<div class="page-header">
+  <h1>PromptWise Developer Guide</h1>
+  <div class="subtitle">Architecture · Extension · Testing · Plugin Structure</div>
+  <p style="margin-top:.8rem">This guide covers PromptWise internals for contributors and integrators. It explains the architecture, module responsibilities, database schema, and step-by-step instructions for adding new tools, providers, or roles.</p>
+</div>
+
+<!-- System Overview -->
+<h2 id="overview">System Overview</h2>
+
+<p>PromptWise is a Python MCP (Model Context Protocol) server that exposes 13 tools to Claude Code. It runs as a subprocess launched by the Claude Code harness when the plugin is installed.</p>
+
+<div class="flow">
+  <div class="flow-row">
+    <div class="flow-box">Claude Code<small>User sends message / skill fires</small></div>
+    <div class="flow-arrow">→ MCP →</div>
+    <div class="flow-box">server.py<small>stdio MCP transport, tool dispatch</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">Service layer<small>Router, Rewriter, Optimizer, …</small></div>
+  </div>
+  <div class="flow-row" style="margin-top:.5rem">
+    <div class="flow-box">YAML files<small>pricing.yaml, providers.yaml, roles.yaml</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">config.py<small>Pydantic validation → AppConfig</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">AppConfig<small>Injected into all services at startup</small></div>
+  </div>
+  <div class="flow-row" style="margin-top:.5rem">
+    <div class="flow-box">Service layer<small>Pure computation, no I/O</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">stats.py<small>async SQLite writes via aiosqlite</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">~/.promptwise/history.db<small>SQLite, schema v2</small></div>
+  </div>
+</div>
+
+<div class="info-box">
+  <strong>No external calls.</strong> PromptWise does not call any LLM or external API. Token counting uses tiktoken locally. All pricing is read from YAML files on disk.
+</div>
+
+<!-- Data Flow -->
+<h2 id="data-flow">Data Flow: Single Tool Call</h2>
+
+<pre><span class="cmt">1. Claude Code → MCP stdio → server._call_tool(name, arguments)</span>
+   name = "route_request"
+   arguments = {"text": "Extract entities...", "intent": "extract"}
+
+<span class="cmt">2. call_tool() dispatches to ctx.router.route(...)</span>
+   Router detects intent, stakes, tool-chain depth
+   Selects tier → looks up model_id in config.providers
+   Counts tokens via tokenizer.count_tokens()
+   Returns RouteResult (frozen dataclass)
+
+<span class="cmt">3. call_tool() records to stats</span>
+   await ctx.stats.record(tool="route_request", model=result.recommended_model, ...)
+   → async INSERT INTO history
+
+<span class="cmt">4. call_tool() returns JSON string</span>
+   json.dumps({recommended_model, reason, estimated_input_cost_usd, ...})
+   → [TextContent(type="text", text=result)]
+   → MCP stdio → Claude Code</pre>
+
+<!-- Module Map -->
+<h2 id="module-map">Module Map</h2>
+
+<table class="mod-table">
+  <tr><th>Module</th><th>Role</th><th>I/O</th></tr>
+  <tr><td>server.py</td><td>MCP server entry point. <code>list_tools()</code> + <code>call_tool()</code> dispatch. Builds <code>ServerContext</code> at startup.</td><td>stdio MCP, async</td></tr>
+  <tr><td>config.py</td><td>YAML loading + Pydantic validation. Exports <code>AppConfig</code>, <code>load_config()</code>. <code>ConfigError</code> raised on any invalid YAML.</td><td>File reads only</td></tr>
+  <tr><td>router.py</td><td>Intent detection, stakes detection, tier selection, cost estimation, compare_providers(). Pure computation.</td><td>None (reads config)</td></tr>
+  <tr><td>rewriter.py</td><td>Preamble stripping, filler-word removal, role prefix injection. Pure computation.</td><td>None</td></tr>
+  <tr><td>optimizer.py</td><td>Sentence scoring and extractive compression to a token budget. Pure computation.</td><td>None</td></tr>
+  <tr><td>cache_planner.py</td><td>Message-list analysis, TTL assignment, savings calculation. Pure computation.</td><td>None</td></tr>
+  <tr><td>batcher.py</td><td>Merges 2–5 task strings into a numbered combined prompt. Pure computation.</td><td>None</td></tr>
+  <tr><td>summarizer.py</td><td>Extractive summarization of conversation text; generates reset_prompt. Pure computation.</td><td>None</td></tr>
+  <tr><td>stats.py</td><td>Async CRUD on history table. <code>record()</code>, <code>snapshot()</code>, <code>clear_old()</code>, <code>export()</code>. Contains <code>calc_cost()</code> static method.</td><td>SQLite (aiosqlite)</td></tr>
+  <tr><td>session_manager.py</td><td>Session ping (upsert) and timeout check against sessions table. Async.</td><td>SQLite (aiosqlite)</td></tr>
+  <tr><td>tokenizer.py</td><td>Wraps tiktoken. <code>count_tokens(text, model)</code> returns <code>TokenCount</code>. Fallback to whitespace split if tiktoken unavailable.</td><td>Local CPU only</td></tr>
+  <tr><td>db.py</td><td>Schema migrations. <code>init_db(path)</code> applies v1 + v2 idempotently. <code>get_db_path()</code> resolves <code>~/.promptwise/history.db</code>.</td><td>SQLite (aiosqlite)</td></tr>
+  <tr><td>types.py</td><td>All frozen dataclasses: <code>TokenCount</code>, <code>RewriteResult</code>, <code>RouteResult</code>, <code>CacheBreakpoint</code>, <code>CachePlanResult</code>, <code>BatchResult</code>, <code>SummaryResult</code>, <code>StatsSnapshot</code>, <code>SessionPingResult</code>, <code>TimeoutCheckResult</code>, <code>ClearHistoryResult</code>.</td><td>None</td></tr>
+  <tr><td>evaluator.py</td><td>Test-facing utility for scoring a batch of prompt rewrites. Not exposed as MCP tool.</td><td>None</td></tr>
+  <tr><td>cli.py</td><td>Optional CLI interface. Not required for MCP operation.</td><td>stdin/stdout</td></tr>
+</table>
+
+<!-- DI Pattern -->
+<h2 id="di-pattern">Dependency Injection Pattern</h2>
+
+<p><code>ServerContext</code> is a simple dataclass that holds all initialized service instances. It is constructed once in <code>main()</code> and passed to every tool handler via closure:</p>
+
+<pre><span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">ServerContext</span>:
+    config: <span class="fn">AppConfig</span>
+    rewriter: <span class="fn">Rewriter</span>
+    optimizer: <span class="fn">Optimizer</span>
+    router: <span class="fn">Router</span>
+    cache_planner: <span class="fn">CachePlanner</span>
+    batcher: <span class="fn">Batcher</span>
+    summarizer: <span class="fn">Summarizer</span>
+    stats: <span class="fn">StatsService</span>
+    session_manager: <span class="fn">SessionManager</span>
+
+<span class="cmt"># In main():</span>
+ctx = <span class="fn">ServerContext</span>(
+    config=<span class="fn">load_config</span>(config_dir),
+    rewriter=<span class="fn">Rewriter</span>(config),
+    ...
+)
+
+<span class="cmt"># Handler closure captures ctx:</span>
+<span class="kw">@server</span>.call_tool()
+<span class="kw">async def</span> <span class="fn">_call_tool</span>(name, arguments):
+    result = <span class="kw">await</span> <span class="fn">call_tool</span>(ctx, name, arguments)
+    ...</pre>
+
+<div class="info-box">
+  <strong>Why this pattern?</strong> Services are stateless and read <code>AppConfig</code> at construction. <code>reload_config</code> hot-swaps <code>ctx.config</code>, <code>ctx.rewriter</code>, and <code>ctx.optimizer</code> in-place. The closure-based handler avoids global state.
+</div>
+
+<!-- Config Pipeline -->
+<h2 id="config-pipeline">Config Pipeline: YAML → Pydantic → AppConfig</h2>
+
+<pre><span class="cmt">load_config(config_dir) workflow:</span>
+
+pricing.yaml  → <span class="fn">_load_yaml()</span> → <span class="kw">dict</span> → <span class="fn">PricingYAML</span>(**data)
+providers.yaml → <span class="fn">_load_yaml()</span> → <span class="kw">dict</span> → <span class="fn">ProvidersYAML</span>(**data)
+roles.yaml    → <span class="fn">_load_yaml()</span> → <span class="kw">dict</span> → <span class="fn">RolesYAML</span>(**data)
+
+<span class="fn">_validate_provider_tiers</span>(providers, pricing)
+  → checks every tier model_id exists in pricing.models
+
+promptwise.yaml (optional) → <span class="fn">TimeoutConfig</span>
+
+→ <span class="fn">AppConfig</span>(pricing, providers, roles, default_model, last_verified, timeout)</pre>
+
+<div class="tip-box">
+  All <code>ConfigError</code> exceptions surface at server startup — before any MCP tool is called. This fail-fast approach prevents runtime surprises from malformed YAML.
+</div>
+
+<!-- Config Models -->
+<h2 id="config-models">Pydantic Config Models</h2>
+
+<div class="cfg-box">
+  <div><span class="cfg-file">pricing.yaml</span> → <span class="cfg-model">PricingYAML</span></div>
+  <ul style="margin-top:.5rem;font-size:.83rem">
+    <li><span class="cfg-field">schema_version</span>: int — migration guard</li>
+    <li><span class="cfg-field">last_verified</span>: str (ISO date) — staleness check (90-day warning)</li>
+    <li><span class="cfg-field">default_model</span>: str — model ID used when none specified</li>
+    <li><span class="cfg-field">models</span>: dict[str, ModelPricing] — keyed by model ID</li>
+  </ul>
+  <div style="margin-top:.75rem"><span class="cfg-model">ModelPricing</span> fields:</div>
+  <ul style="font-size:.83rem">
+    <li><span class="cfg-field">display_name</span>, <span class="cfg-field">provider</span>, <span class="cfg-field">tier</span></li>
+    <li><span class="cfg-field">context_window</span>, <span class="cfg-field">max_output</span> (both validated &gt; 0)</li>
+    <li><span class="cfg-field">rates</span>: RateSpec (7 rate fields, all &gt; 0)</li>
+    <li><span class="cfg-field">tokenizer</span>: TokenizerSpec (family, inflation_vs_baseline)</li>
+    <li><span class="cfg-field">notes</span>: str (optional, shown in compare_providers)</li>
+  </ul>
+</div>
+
+<div class="cfg-box">
+  <div><span class="cfg-file">providers.yaml</span> → <span class="cfg-model">ProvidersYAML</span></div>
+  <ul style="margin-top:.5rem;font-size:.83rem">
+    <li><span class="cfg-field">providers</span>: dict[str, ProviderConfig]</li>
+    <li><span class="cfg-model">ProviderConfig</span>: <span class="cfg-field">tiers</span> (fast/balanced/powerful → model ID), <span class="cfg-field">peak_hours_utc</span>, <span class="cfg-field">aliases</span>, <span class="cfg-field">feature_warnings</span></li>
+    <li><span class="cfg-field">aliases</span> validated: lowercase, no spaces</li>
+    <li><span class="cfg-field">peak_hours_utc</span> validated: each value 0–23</li>
+  </ul>
+</div>
+
+<div class="cfg-box">
+  <div><span class="cfg-file">roles.yaml</span> → <span class="cfg-model">RolesYAML</span></div>
+  <ul style="margin-top:.5rem;font-size:.83rem">
+    <li><span class="cfg-field">preamble_phrases</span>: list[str] — stripped from prompt start</li>
+    <li><span class="cfg-field">filler_words</span>: list[str] — removed from all positions</li>
+    <li><span class="cfg-field">roles</span>: dict[str, RoleSpec] — each has display_name, prefix, description</li>
+  </ul>
+</div>
+
+<!-- Config Validation -->
+<h2 id="config-validation">Cross-File Validation</h2>
+
+<p><code>_validate_provider_tiers()</code> runs after all three YAML files are loaded. It checks that every model ID referenced in <code>providers.yaml</code> tiers exists as a key in <code>pricing.yaml</code> models:</p>
+
+<pre><span class="kw">for</span> provider_name, provider <span class="kw">in</span> providers_config.providers.items():
+    <span class="kw">for</span> tier_name, model_id <span class="kw">in</span> provider.tiers.model_dump().items():
+        <span class="kw">if</span> model_id <span class="kw">not in</span> pricing_models:
+            <span class="kw">raise</span> <span class="fn">ConfigError</span>(
+                <span class="str">f"providers.{provider_name}.tiers.{tier_name} references '{model_id}' "</span>
+                <span class="str">f"which is not in pricing.yaml models"</span>
+            )</pre>
+
+<!-- server.py -->
+<h2 id="mod-server">server.py — MCP Entry Point</h2>
+
+<p>Two module-level functions handle all MCP operations. They are module-level (not methods) so tests can call them directly without starting the full server:</p>
+
+<ul>
+  <li><code>list_tools(ctx)</code> — returns <code>list[Tool]</code> with JSON schema for each tool's input</li>
+  <li><code>call_tool(ctx, name, arguments)</code> — dispatches by name, returns JSON string. All errors caught and returned as <code>{"error": ..., "type": ..., "tool": ...}</code></li>
+</ul>
+
+<p>The <code>main()</code> async function wires everything together:</p>
+<ol class="steps">
+  <li>Resolves config directory as 2 levels above <code>__file__</code> (project root)</li>
+  <li>Calls <code>init_db()</code> to apply migrations idempotently</li>
+  <li>Constructs <code>ServerContext</code> with all services</li>
+  <li>Registers <code>@server.list_tools()</code> and <code>@server.call_tool()</code> closures</li>
+  <li>Starts <code>stdio_server()</code> — blocks until Claude Code disconnects</li>
+</ol>
+
+<!-- router.py -->
+<h2 id="mod-router">router.py — Model Routing</h2>
+
+<p><code>Router.route()</code> uses keyword matching on <code>INTENT_KEYWORDS</code> and <code>STAKES_HIGH</code>/<code>STAKES_LOW</code> lists to detect intent and stakes. The <code>DEFAULT_TIERS</code> dict maps intent → tier, with three overrides:</p>
+
+<ul>
+  <li>If intent is <code>summarize</code> and input &gt; 100K tokens → upgrade to <code>balanced</code></li>
+  <li>If intent is <code>code</code> and "multi-file" in text or tool chain depth ≥ 3 → upgrade to <code>powerful</code></li>
+  <li>If intent is <code>agent_loop</code> and tool chain depth &gt; 5 → upgrade to <code>powerful</code></li>
+</ul>
+
+<p>Stakes override: <code>high</code> forces <code>powerful</code>; <code>low</code> downgrades <code>balanced</code> → <code>fast</code>.</p>
+
+<p>Budget guard: if <code>monthly_budget_usd</code> is provided and projected monthly spend exceeds 110% of budget, <code>_downgrade_tier()</code> reduces tier by one step.</p>
+
+<h4>compare_providers()</h4>
+<p>Iterates all configured providers and tiers, estimates input + output cost for the given text (using 20% of input tokens as output estimate), and returns a list sorted by <code>total_cost_usd</code>.</p>
+
+<!-- rewriter.py -->
+<h2 id="mod-rewriter">rewriter.py — Prompt Rewriting</h2>
+
+<p><code>Rewriter.__init__</code> builds <code>self.preamble_phrases</code> (lowercased list) and <code>self.filler_words</code> (set) from config at construction time — not per-call.</p>
+
+<p><code>rewrite()</code> pipeline:</p>
+<ol class="steps">
+  <li>Count original tokens</li>
+  <li>Strip matching preamble (first match only, from start of text)</li>
+  <li>Remove filler words from all positions via word-by-word filter</li>
+  <li>Prepend role prefix (if role has one)</li>
+  <li>Count rewritten tokens, compute saving_pct</li>
+  <li>Warn if rewritten text collapsed to &lt;8 tokens (likely over-stripped)</li>
+</ol>
+
+<div class="warn-box">
+  Filler removal is word-boundary based (strips punctuation before comparison). It won't damage compound words or code identifiers.
+</div>
+
+<!-- optimizer.py -->
+<h2 id="mod-optimizer">optimizer.py — Context Optimization</h2>
+
+<p>Splits text into sentences (by <code>.!?</code> with minimum 10-char sentences). Scores each sentence using term frequency weighted by sentence position (earlier = higher weight). Greedily selects top-scored sentences until the token budget is reached.</p>
+
+<pre><span class="cmt">Scoring weights:</span>
+position_weight = 1.0 / (1 + sentence_index)   <span class="cmt"># earlier sentences score higher</span>
+tf_score = sum(word_freq[w] for w in sentence_words) / len(sentence_words)
+final_score = tf_score * position_weight</pre>
+
+<p>Returns <code>OptimizeResult</code> with <code>optimized</code> text, <code>saving_pct</code>, and <code>chunks_dropped</code>.</p>
+
+<!-- cache_planner.py -->
+<h2 id="mod-cache-planner">cache_planner.py — Cache Planning</h2>
+
+<p><code>CachePlanner.plan()</code> iterates messages and assigns TTL based on role + label combinations (see User Guide). It then calls two cost calculators:</p>
+
+<ul>
+  <li><code>_calc_cost_without_cache()</code> — standard input rate × total tokens × reuse count</li>
+  <li><code>_calc_cost_with_cache()</code> — cache_write_5m rate for first write + cache_hit rate × (reuse-1) for cached tokens + standard rate for uncached</li>
+</ul>
+
+<p>The 5-minute TTL is always used for cost calculation (conservative). The 1-hour TTL is available for stable content (system prompts, tool definitions).</p>
+
+<!-- batcher.py -->
+<h2 id="mod-batcher">batcher.py — Prompt Batching</h2>
+
+<p>Constructs a numbered task list with role framing. The savings come from eliminating per-task context-reload overhead tokens. Token savings are calculated as:</p>
+
+<pre>individual_tokens = sum(count_tokens(t) for t in tasks)
+batched_tokens = count_tokens(batched_prompt)
+saving_pct = (individual_tokens - batched_tokens) / individual_tokens * 100</pre>
+
+<!-- summarizer.py -->
+<h2 id="mod-summarizer">summarizer.py — Thread Summarization</h2>
+
+<p>Uses the same sentence-scoring algorithm as <code>optimizer.py</code> but adds a <code>reset_prompt</code> generation step. The reset prompt is formatted as:</p>
+
+<pre><span class="str">"Continue from: {summary}\nNext step: {last_sentence}"</span></pre>
+
+<p>where <code>last_sentence</code> is the last sentence from the original conversation (preserved to maintain continuity).</p>
+
+<!-- stats.py -->
+<h2 id="mod-stats">stats.py — Statistics &amp; Cost Tracking</h2>
+
+<p><code>StatsService.record()</code> calculates cost using <code>calc_cost()</code> and writes to the <code>history</code> table asynchronously. Errors are printed to stderr (not re-raised) so a failed stats write never breaks a tool call.</p>
+
+<p><code>calc_cost()</code> is a static method that handles two modes:</p>
+<ul>
+  <li><strong>batch mode</strong>: uses <code>batch_input_per_mtok</code> / <code>batch_output_per_mtok</code></li>
+  <li><strong>standard mode</strong>: separates uncached input (<code>input_tokens - cached_input_tokens</code>) billed at full rate, cached input billed at <code>cache_hit_per_mtok</code></li>
+</ul>
+
+<!-- session_manager.py -->
+<h2 id="mod-session">session_manager.py — Session Tracking</h2>
+
+<p>Uses an async upsert on the <code>sessions</code> table (SQLite <code>INSERT OR REPLACE</code>). <code>check_timeout()</code> computes idle minutes from <code>last_ping_ts</code> and applies thresholds:</p>
+
+<pre>idle_minutes = (now - last_ping_ts).total_seconds() / 60
+
+if idle_minutes >= idle_threshold: status = "expired"
+elif idle_minutes >= warn_threshold: status = "warn"
+else: status = "active"</pre>
+
+<!-- tokenizer.py -->
+<h2 id="mod-tokenizer">tokenizer.py — Token Counting</h2>
+
+<p>Uses tiktoken's <code>cl100k_base</code> encoding (shared by all currently-configured models). The <code>inflation_vs_baseline</code> field in <code>TokenizerSpec</code> allows per-model adjustment (Opus 4.7 uses 1.20, meaning its tokens count 20% higher for the same text).</p>
+
+<p>Falls back to <code>len(text.split()) * 1.3</code> whitespace estimate if tiktoken is unavailable.</p>
+
+<!-- db.py -->
+<h2 id="mod-db">db.py — Database Migrations</h2>
+
+<p>Two migration sets applied idempotently at every startup. Each version is gated by a row in <code>schema_version</code>:</p>
+
+<pre><span class="cmt">V1: Initial schema</span>
+  schema_version, history (id, ts, tool, model, tokens, cost, saving_pct)
+  Indexes: idx_history_ts, idx_history_tool
+
+<span class="cmt">V2: FinOps + sessions</span>
+  ALTER TABLE history ADD COLUMN duration_ms
+  ALTER TABLE history ADD COLUMN project
+  ALTER TABLE history ADD COLUMN team
+  CREATE TABLE sessions (session_id, started_ts, last_ping_ts)</pre>
+
+<p>V2 migration catches <code>duplicate column name</code> errors to be idempotent (safe to re-run).</p>
+
+<!-- types.py -->
+<h2 id="mod-types">types.py — Shared Types</h2>
+
+<p>All return types are frozen dataclasses (immutable after creation). This eliminates a class of bugs where a service accidentally mutates a result. Key types:</p>
+
+<table class="mod-table">
+  <tr><th>Type</th><th>Returned by</th><th>Key fields</th></tr>
+  <tr><td>TokenCount</td><td>tokenizer.count_tokens()</td><td>value, method, model</td></tr>
+  <tr><td>RewriteResult</td><td>Rewriter.rewrite()</td><td>rewritten, saving_pct, warning</td></tr>
+  <tr><td>OptimizeResult</td><td>Optimizer.optimize()</td><td>optimized, saving_pct, chunks_dropped</td></tr>
+  <tr><td>RouteResult</td><td>Router.route()</td><td>recommended_model, intent_detected, alternatives, batch_recommended</td></tr>
+  <tr><td>CachePlanResult</td><td>CachePlanner.plan()</td><td>breakpoints, savings_pct</td></tr>
+  <tr><td>BatchResult</td><td>Batcher.batch()</td><td>batched_prompt, saving_pct</td></tr>
+  <tr><td>SummaryResult</td><td>Summarizer.summarize()</td><td>summary, reset_prompt, saving_pct</td></tr>
+  <tr><td>StatsSnapshot</td><td>StatsService.snapshot()</td><td>total_cost_usd, cache_hit_rate, calls_by_tool</td></tr>
+  <tr><td>SessionPingResult</td><td>SessionManager.ping()</td><td>session_id, is_new, last_ping_ts</td></tr>
+  <tr><td>TimeoutCheckResult</td><td>SessionManager.check_timeout()</td><td>status, idle_minutes, recommended_action</td></tr>
+</table>
+
+<!-- DB Schema -->
+<h2 id="db-schema">Database Schema</h2>
+
+<h3>history table (v1 + v2)</h3>
+<table class="schema-table">
+  <tr><th>Column</th><th>Type</th><th>Notes</th></tr>
+  <tr><td>id</td><td>INTEGER</td><td><span class="schema-pk">PK</span> AUTOINCREMENT</td></tr>
+  <tr><td>ts</td><td>TEXT</td><td>ISO 8601 UTC timestamp <span class="schema-idx">IDX</span></td></tr>
+  <tr><td>tool</td><td>TEXT</td><td>Tool name (e.g. "route_request") <span class="schema-idx">IDX</span></td></tr>
+  <tr><td>model</td><td>TEXT</td><td>Model ID, nullable</td></tr>
+  <tr><td>input_tokens</td><td>INTEGER</td><td>Raw input token count</td></tr>
+  <tr><td>cached_input_tokens</td><td>INTEGER</td><td>Default 0; set when cache was hit</td></tr>
+  <tr><td>output_tokens</td><td>INTEGER</td><td>Default 0</td></tr>
+  <tr><td>cost_usd</td><td>REAL</td><td>Calculated by stats.calc_cost()</td></tr>
+  <tr><td>saving_pct</td><td>REAL</td><td>% reduction in tokens achieved</td></tr>
+  <tr><td>metadata_json</td><td>TEXT</td><td>JSON blob for extension data</td></tr>
+  <tr><td>duration_ms</td><td>INTEGER</td><td><em>(v2)</em> Wall-clock time for tool call</td></tr>
+  <tr><td>project</td><td>TEXT</td><td><em>(v2)</em> Cost allocation: project name</td></tr>
+  <tr><td>team</td><td>TEXT</td><td><em>(v2)</em> Cost allocation: team name</td></tr>
+</table>
+
+<h3>sessions table (v2)</h3>
+<table class="schema-table">
+  <tr><th>Column</th><th>Type</th><th>Notes</th></tr>
+  <tr><td>session_id</td><td>TEXT</td><td><span class="schema-pk">PK</span> UUID string</td></tr>
+  <tr><td>started_ts</td><td>TEXT</td><td>ISO 8601 when session was created</td></tr>
+  <tr><td>last_ping_ts</td><td>TEXT</td><td>Updated on every ping_session call</td></tr>
+  <tr><td>metadata_json</td><td>TEXT</td><td>Reserved for future use</td></tr>
+</table>
+
+<h3>schema_version table</h3>
+<table class="schema-table">
+  <tr><th>Column</th><th>Type</th><th>Notes</th></tr>
+  <tr><td>version</td><td>INTEGER</td><td><span class="schema-pk">PK</span> 1 or 2</td></tr>
+  <tr><td>applied_at</td><td>TEXT</td><td>DEFAULT CURRENT_TIMESTAMP</td></tr>
+</table>
+
+<!-- DB Migrations -->
+<h2 id="db-migrations">Adding a Migration (v3+)</h2>
+
+<ol class="steps">
+  <li>Increment <code>SCHEMA_VERSION = 3</code> in <code>db.py</code></li>
+  <li>Define <code>MIGRATIONS_V3</code> list of SQL strings</li>
+  <li>Write <code>async def _apply_v3(db)</code> following the pattern of <code>_apply_v2</code>: check for existing version row, run migrations idempotently (catch <code>duplicate column name</code> for ALTERs), insert version row</li>
+  <li>Call <code>await _apply_v3(db)</code> from <code>init_db()</code></li>
+  <li>Add a test in <code>tests/test_db.py</code> that runs migration on a fresh in-memory database</li>
+</ol>
+
+<!-- Adding a Tool -->
+<h2 id="add-tool">Adding a New Tool</h2>
+
+<p>Five touch points, all in <code>server.py</code> and the new service file:</p>
+
+<ol class="steps">
+  <li>
+    <strong>Create the service.</strong> Add <code>src/promptwise/my_service.py</code>. Return a frozen dataclass from <code>types.py</code> (add the dataclass there first).
+    <pre><span class="kw">class</span> <span class="fn">MyService</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, config: <span class="fn">AppConfig</span>): ...
+    <span class="kw">def</span> <span class="fn">process</span>(self, text: str) -> <span class="fn">MyResult</span>: ...</pre>
+  </li>
+  <li>
+    <strong>Add to ServerContext.</strong> Add <code>my_service: MyService</code> field and construct it in <code>main()</code>.
+  </li>
+  <li>
+    <strong>Register in list_tools().</strong> Add a <code>Tool(...)</code> entry with name, description, and <code>inputSchema</code>.
+  </li>
+  <li>
+    <strong>Dispatch in call_tool().</strong> Add an <code>elif name == "my_tool":</code> branch. Call the service, record to stats, return <code>json.dumps({...})</code>.
+    <pre><span class="kw">elif</span> name == <span class="str">"my_tool"</span>:
+    result = ctx.my_service.process(arguments.get(<span class="str">"text"</span>, <span class="str">""</span>))
+    <span class="kw">await</span> ctx.stats.record(tool=<span class="str">"my_tool"</span>, saving_pct=result.saving_pct)
+    <span class="kw">return</span> json.dumps({<span class="str">"output"</span>: result.output, <span class="str">"saving_pct"</span>: result.saving_pct})</pre>
+  </li>
+  <li>
+    <strong>Write tests.</strong> Add <code>tests/test_my_service.py</code> with at least: happy path, edge case (empty input, over-budget input), and expected saving_pct bounds.
+  </li>
+</ol>
+
+<div class="info-box">
+  The <code>call_tool()</code> function wraps everything in a try/except and returns <code>{"error": ..., "type": ..., "tool": ...}</code> on any exception. You don't need per-service error handling — just let exceptions propagate to the top-level handler.
+</div>
+
+<!-- Adding a Provider -->
+<h2 id="add-provider">Adding a Provider</h2>
+
+<ol class="steps">
+  <li>Add model entries to <code>pricing.yaml</code> with the new provider's model IDs and rates. Set <code>provider</code> field to your new provider name.</li>
+  <li>Add a provider block to <code>providers.yaml</code> with <code>tiers.fast/balanced/powerful</code> pointing to the model IDs you defined.</li>
+  <li>Call <code>reload_config</code> (or restart). PromptWise will validate the cross-references.</li>
+  <li>The new provider will appear automatically in <code>compare_providers</code> output.</li>
+</ol>
+
+<pre><span class="cmt">pricing.yaml — add model:</span>
+my-model-fast:
+  display_name: "MyProvider Fast"
+  provider: myprovider
+  tier: fast
+  context_window: 200000
+  max_output: 8192
+  rates:
+    input_per_mtok: 0.50
+    ...
+
+<span class="cmt">providers.yaml — add provider:</span>
+myprovider:
+  display_name: "My Provider"
+  aliases: [myp]
+  tiers:
+    fast: my-model-fast
+    balanced: my-model-balanced
+    powerful: my-model-powerful
+  peak_hours_utc: []
+  feature_warnings: []</pre>
+
+<!-- Adding a Role -->
+<h2 id="add-role">Adding a Role</h2>
+
+<p>Add an entry to <code>roles.yaml</code> under <code>roles:</code>:</p>
+
+<pre>legal:
+  display_name: "Legal"
+  prefix: "With precision and attention to regulatory detail, "
+  description: "Contract review, compliance, risk analysis"</pre>
+
+<p>Then call <code>reload_config</code>. The new role will be accepted by <code>rewrite_prompt</code> immediately.</p>
+
+<!-- Updating Pricing -->
+<h2 id="update-pricing">Updating Pricing</h2>
+
+<ol class="steps">
+  <li>Edit the relevant model's <code>rates</code> block in <code>pricing.yaml</code>.</li>
+  <li>Update <code>last_verified</code> to today's date (<code>YYYY-MM-DD</code>).</li>
+  <li>Call <code>reload_config</code> — no server restart needed.</li>
+</ol>
+
+<div class="warn-box">
+  Verify rates at the official pricing pages: Anthropic → anthropic.com/pricing, OpenAI → platform.openai.com/pricing, Gemini → ai.google.dev/pricing. Rates in the bundled <code>pricing.yaml</code> were last verified 2026-05-12.
+</div>
+
+<!-- Test Structure -->
+<h2 id="test-structure">Test Structure</h2>
+
+<table class="mod-table">
+  <tr><th>Test file</th><th>What it tests</th></tr>
+  <tr><td>test_config.py</td><td>YAML loading, Pydantic validation, cross-reference checks, ConfigError paths</td></tr>
+  <tr><td>test_tokenizer.py</td><td>count_tokens() accuracy, fallback path, model inflation factor</td></tr>
+  <tr><td>test_router.py</td><td>Intent detection, stakes detection, tier selection, budget guard, compare_providers</td></tr>
+  <tr><td>test_rewriter.py</td><td>Preamble stripping, filler removal, role prefix injection, near-empty warning</td></tr>
+  <tr><td>test_optimizer.py</td><td>Sentence scoring, token budget compliance, chunks_dropped count</td></tr>
+  <tr><td>test_cache_planner.py</td><td>TTL assignment by label/role, savings calculation, edge cases (no breakpoints)</td></tr>
+  <tr><td>test_batcher.py</td><td>Numbered prompt construction, saving_pct calculation, 2-task and 5-task cases</td></tr>
+  <tr><td>test_summarizer.py</td><td>Summary token budget compliance, reset_prompt format, saving_pct</td></tr>
+  <tr><td>test_stats.py</td><td>record() + snapshot() round-trip, clear_old(), export() JSON/CSV format, cost calculation</td></tr>
+  <tr><td>test_session_manager.py</td><td>ping() creates new session, updates existing; check_timeout() active/warn/expired states</td></tr>
+  <tr><td>test_db.py</td><td>init_db() idempotency, v1 and v2 migrations on fresh DB, duplicate column handling</td></tr>
+  <tr><td>test_evaluator.py</td><td>Batch prompt scoring utility</td></tr>
+  <tr><td>test_server_smoke.py</td><td>list_tools() returns expected 13 tools; call_tool() handles unknown name; error format</td></tr>
+</table>
+
+<!-- Test Patterns -->
+<h2 id="test-patterns">Test Patterns</h2>
+
+<h3>Config fixture</h3>
+<p>Most tests use a minimal config fixture rather than loading real YAML files:</p>
+
+<pre><span class="kw">@pytest.fixture</span>
+<span class="kw">def</span> <span class="fn">config</span>(tmp_path):
+    <span class="cmt"># Write minimal valid YAML files to tmp_path</span>
+    (tmp_path / <span class="str">"pricing.yaml"</span>).write_text(<span class="str">"""..."""</span>)
+    (tmp_path / <span class="str">"providers.yaml"</span>).write_text(<span class="str">"""..."""</span>)
+    (tmp_path / <span class="str">"roles.yaml"</span>).write_text(<span class="str">"""..."""</span>)
+    <span class="kw">return</span> <span class="fn">load_config</span>(tmp_path)</pre>
+
+<h3>Async DB tests</h3>
+<p>Stats and session tests use <code>pytest-asyncio</code> with a temporary DB path:</p>
+
+<pre><span class="kw">@pytest.mark.asyncio</span>
+<span class="kw">async def</span> <span class="fn">test_record_and_snapshot</span>(config, tmp_path):
+    db_path = tmp_path / <span class="str">"test.db"</span>
+    <span class="kw">await</span> <span class="fn">init_db</span>(db_path)
+    svc = <span class="fn">StatsService</span>(config, db_path)
+    <span class="kw">await</span> svc.record(tool=<span class="str">"route_request"</span>, model=<span class="str">"claude-sonnet-4-6"</span>, input_tokens=<span class="dec">100</span>)
+    snap = <span class="kw">await</span> svc.snapshot()
+    <span class="kw">assert</span> snap.total_calls == <span class="dec">1</span></pre>
+
+<h3>Running tests</h3>
+<pre>cd C:\test\PromptWise
+python -m pytest tests/ -v</pre>
+
+<!-- Plugin Structure -->
+<h2 id="plugin-structure">Plugin Layout</h2>
+
+<pre>C:\test\PromptWise\
+├── plugin.json               <span class="cmt"># root plugin definition (for Claude Code)</span>
+├── marketplace.json          <span class="cmt"># marketplace catalog (root, required for directory marketplace)</span>
+├── .claude-plugin\
+│   ├── plugin.json           <span class="cmt"># alternate plugin definition</span>
+│   └── marketplace.json      <span class="cmt"># marketplace catalog (backup location)</span>
+├── skills\promptwise\
+│   └── SKILL.md              <span class="cmt"># skill definition loaded by Claude Code</span>
+├── src\promptwise\
+│   ├── __init__.py           <span class="cmt"># version: "1.1.0"</span>
+│   ├── server.py             <span class="cmt"># MCP entry point</span>
+│   ├── config.py             <span class="cmt"># YAML → Pydantic → AppConfig</span>
+│   ├── types.py              <span class="cmt"># frozen dataclasses</span>
+│   ├── tokenizer.py          <span class="cmt"># tiktoken wrapper</span>
+│   ├── router.py             <span class="cmt"># model routing</span>
+│   ├── rewriter.py           <span class="cmt"># prompt rewriting</span>
+│   ├── optimizer.py          <span class="cmt"># context compression</span>
+│   ├── cache_planner.py      <span class="cmt"># cache planning</span>
+│   ├── batcher.py            <span class="cmt"># prompt batching</span>
+│   ├── summarizer.py         <span class="cmt"># thread summarization</span>
+│   ├── stats.py              <span class="cmt"># usage tracking</span>
+│   ├── session_manager.py    <span class="cmt"># session ping + timeout</span>
+│   ├── db.py                 <span class="cmt"># SQLite migrations</span>
+│   ├── evaluator.py          <span class="cmt"># test utility</span>
+│   └── cli.py                <span class="cmt"># optional CLI</span>
+├── tests\
+│   ├── test_*.py             <span class="cmt"># 116 tests across 13 test files</span>
+│   └── __init__.py
+├── pricing.yaml              <span class="cmt"># model rates (source of truth)</span>
+├── providers.yaml            <span class="cmt"># provider tier mappings</span>
+├── roles.yaml                <span class="cmt"># role prefixes + filler words</span>
+├── pyproject.toml            <span class="cmt"># Python package config</span>
+└── docs\
+    ├── user_guide.html       <span class="cmt"># this guide's companion</span>
+    └── developer_guide.html  <span class="cmt"># you are here</span></pre>
+
+<!-- MCP Entry Point -->
+<h2 id="plugin-mcp">MCP Entry Point</h2>
+
+<p>The MCP server is launched by Claude Code using the <code>mcpServers</code> block in <code>plugin.json</code>:</p>
+
+<pre>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"promptwise"</span>: {
+      <span class="key">"command"</span>: <span class="str">"python"</span>,
+      <span class="key">"args"</span>: [<span class="str">"-m"</span>, <span class="str">"promptwise.server"</span>],
+      <span class="key">"cwd"</span>: <span class="str">"${pluginDir}"</span>
+    }
+  }
+}</pre>
+
+<p><code>${pluginDir}</code> resolves to <code>C:\test\PromptWise</code> (the plugin install location). The server module is resolved from <code>src/promptwise/server.py</code> because <code>src/</code> is on the Python path via the <code>pyproject.toml</code> package declaration.</p>
+
+<p>The config directory is resolved at runtime as 2 levels up from <code>__file__</code> (<code>src/promptwise/server.py</code> → <code>src/</code> → project root), so <code>pricing.yaml</code>, <code>providers.yaml</code>, and <code>roles.yaml</code> are always loaded from the project root regardless of the working directory.</p>
+
+<footer>PromptWise v1.1.0 · <a href="user_guide.html">User Guide</a> · Local MCP Plugin · Tests: 116 across 13 modules</footer>
+</div>
+</div>
+
+<script>
+const sections = document.querySelectorAll('h2[id]');
+const navItems = document.querySelectorAll('.nav-item');
+function highlight() {
+  let cur = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) cur = s.id; });
+  navItems.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+  });
+}
+window.addEventListener('scroll', highlight, {passive: true});
+highlight();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "promptwise-local",
+  "description": "Local marketplace for PromptWise — token-aware prompt routing and cost optimization",
+  "owner": {
+    "name": "Anil Devarasetti",
+    "email": "u2anil@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "promptwise",
+      "description": "Token-aware prompt routing and cost optimization for Claude Code",
+      "source": "./"
+    }
+  ]
+}

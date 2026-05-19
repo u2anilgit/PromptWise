@@ -1,0 +1,193 @@
+schema_version: 1
+last_verified: "2026-05-12"
+default_model: claude-sonnet-4-6
+
+models:
+  claude-opus-4-7:
+    display_name: "Opus 4.7"
+    provider: claude
+    tier: powerful
+    context_window: 1000000
+    max_output: 128000
+    rates:
+      input_per_mtok: 5.00
+      output_per_mtok: 25.00
+      cache_write_5m_per_mtok: 6.25
+      cache_write_1h_per_mtok: 10.00
+      cache_hit_per_mtok: 0.50
+      batch_input_per_mtok: 2.50
+      batch_output_per_mtok: 12.50
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.20
+    notes: "Task budgets supported. New tokenizer ~20% denser on average."
+
+  claude-opus-4-6:
+    display_name: "Opus 4.6"
+    provider: claude
+    tier: powerful
+    context_window: 1000000
+    max_output: 128000
+    rates:
+      input_per_mtok: 5.00
+      output_per_mtok: 25.00
+      cache_write_5m_per_mtok: 6.25
+      cache_write_1h_per_mtok: 10.00
+      cache_hit_per_mtok: 0.50
+      batch_input_per_mtok: 2.50
+      batch_output_per_mtok: 12.50
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+
+  claude-sonnet-4-6:
+    display_name: "Sonnet 4.6"
+    provider: claude
+    tier: balanced
+    context_window: 1000000
+    max_output: 128000
+    rates:
+      input_per_mtok: 3.00
+      output_per_mtok: 15.00
+      cache_write_5m_per_mtok: 3.75
+      cache_write_1h_per_mtok: 6.00
+      cache_hit_per_mtok: 0.30
+      batch_input_per_mtok: 1.50
+      batch_output_per_mtok: 7.50
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+
+  claude-haiku-4-5-20251001:
+    display_name: "Haiku 4.5"
+    provider: claude
+    tier: fast
+    context_window: 200000
+    max_output: 64000
+    rates:
+      input_per_mtok: 1.00
+      output_per_mtok: 5.00
+      cache_write_5m_per_mtok: 1.25
+      cache_write_1h_per_mtok: 2.00
+      cache_hit_per_mtok: 0.10
+      batch_input_per_mtok: 0.50
+      batch_output_per_mtok: 2.50
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+
+  # OpenAI models (pricing as of 2026-05-12, verify at platform.openai.com/pricing)
+  gpt-4o-mini:
+    display_name: "GPT-4o mini"
+    provider: openai
+    tier: fast
+    context_window: 128000
+    max_output: 16384
+    rates:
+      input_per_mtok: 0.15
+      output_per_mtok: 0.60
+      cache_write_5m_per_mtok: 0.15
+      cache_write_1h_per_mtok: 0.15
+      cache_hit_per_mtok: 0.075
+      batch_input_per_mtok: 0.075
+      batch_output_per_mtok: 0.30
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Pricing approximate. Verify at platform.openai.com/pricing."
+
+  gpt-4o:
+    display_name: "GPT-4o"
+    provider: openai
+    tier: balanced
+    context_window: 128000
+    max_output: 16384
+    rates:
+      input_per_mtok: 2.50
+      output_per_mtok: 10.00
+      cache_write_5m_per_mtok: 2.50
+      cache_write_1h_per_mtok: 2.50
+      cache_hit_per_mtok: 1.25
+      batch_input_per_mtok: 1.25
+      batch_output_per_mtok: 5.00
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Pricing approximate. Verify at platform.openai.com/pricing."
+
+  o3:
+    display_name: "o3"
+    provider: openai
+    tier: powerful
+    context_window: 200000
+    max_output: 100000
+    rates:
+      input_per_mtok: 10.00
+      output_per_mtok: 40.00
+      cache_write_5m_per_mtok: 10.00
+      cache_write_1h_per_mtok: 10.00
+      cache_hit_per_mtok: 2.50
+      batch_input_per_mtok: 5.00
+      batch_output_per_mtok: 20.00
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Reasoning model. Output tokens include thinking tokens. Pricing approximate."
+
+  # Google Gemini models (pricing as of 2026-05-12, verify at ai.google.dev/pricing)
+  gemini-2.0-flash:
+    display_name: "Gemini 2.0 Flash"
+    provider: gemini
+    tier: fast
+    context_window: 1000000
+    max_output: 8192
+    rates:
+      input_per_mtok: 0.10
+      output_per_mtok: 0.40
+      cache_write_5m_per_mtok: 0.025
+      cache_write_1h_per_mtok: 0.025
+      cache_hit_per_mtok: 0.025
+      batch_input_per_mtok: 0.05
+      batch_output_per_mtok: 0.20
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Pricing approximate. Verify at ai.google.dev/pricing."
+
+  gemini-2.5-pro:
+    display_name: "Gemini 2.5 Pro"
+    provider: gemini
+    tier: balanced
+    context_window: 1000000
+    max_output: 65536
+    rates:
+      input_per_mtok: 1.25
+      output_per_mtok: 10.00
+      cache_write_5m_per_mtok: 0.3125
+      cache_write_1h_per_mtok: 0.3125
+      cache_hit_per_mtok: 0.3125
+      batch_input_per_mtok: 0.625
+      batch_output_per_mtok: 5.00
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Pricing approximate. Verify at ai.google.dev/pricing."
+
+  gemini-2.5-pro-thinking:
+    display_name: "Gemini 2.5 Pro Thinking"
+    provider: gemini
+    tier: powerful
+    context_window: 1000000
+    max_output: 65536
+    rates:
+      input_per_mtok: 3.50
+      output_per_mtok: 10.50
+      cache_write_5m_per_mtok: 0.875
+      cache_write_1h_per_mtok: 0.875
+      cache_hit_per_mtok: 0.875
+      batch_input_per_mtok: 1.75
+      batch_output_per_mtok: 5.25
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Thinking model. Output tokens include thinking. Pricing approximate."

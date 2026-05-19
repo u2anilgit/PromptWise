@@ -1,0 +1,65 @@
+schema_version: 1
+
+preamble_phrases:
+  - "could you please"
+  - "can you please"
+  - "would you mind"
+  - "i was wondering if"
+  - "i need help with"
+  - "i'm trying to"
+  - "i'd like to"
+  - "hi claude,"
+  - "hello,"
+  - "hey there,"
+  - "hey claude,"
+  - "thanks in advance,"
+  - "if it's not too much trouble,"
+
+filler_words:
+  - just
+  - basically
+  - simply
+  - really
+  - very
+  - actually
+  - quite
+  - essentially
+  - literally
+  - kind of
+  - sort of
+
+roles:
+  general:
+    display_name: "General"
+    prefix: ""
+    description: "No role framing applied"
+
+  developer:
+    display_name: "Developer"
+    prefix: "From a software engineering perspective, "
+    description: "Code, debugging, refactoring, architecture"
+
+  analyst:
+    display_name: "Analyst"
+    prefix: "With supporting data and structured analysis, "
+    description: "Data analysis, metrics, reporting"
+
+  manager:
+    display_name: "Manager"
+    prefix: "For strategic decision-making, "
+    description: "Planning, prioritization, executive summary"
+
+  researcher:
+    display_name: "Researcher"
+    prefix: "With methodical analysis and evidence-based reasoning, "
+    description: "Academic, investigative, citation-aware"
+
+  writer:
+    display_name: "Writer"
+    prefix: "With clear prose and narrative flow, "
+    description: "Content, copywriting, storytelling"
+
+  designer:
+    display_name: "Designer"
+    prefix: "From a user experience and visual design perspective, "
+    description: "UX, UI, design systems"

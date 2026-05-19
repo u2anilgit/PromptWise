@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptWise — User Guide</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1a2d;color:#ccdaed;line-height:1.7;font-size:15px}
+a{color:#00b4d8;text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Layout */
+.layout{display:flex;min-height:100vh}
+nav{width:260px;background:#08111e;border-right:1px solid #1a2f44;padding:2rem 0;position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+.content{flex:1;padding:3rem 4rem;max-width:900px}
+
+/* Nav */
+.nav-logo{padding:0 1.5rem 2rem;border-bottom:1px solid #1a2f44;margin-bottom:1.5rem}
+.nav-logo .brand{font-size:1.3rem;font-weight:800;color:white}
+.nav-logo .brand span{color:#00b4d8}
+.nav-logo .ver{font-size:.75rem;color:#4a6a8a;font-family:monospace}
+.nav-section{padding:.25rem 1.5rem;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#3a5a7a;margin-top:1.2rem}
+.nav-item{display:block;padding:.35rem 1.5rem;font-size:.85rem;color:#8aace4;transition:color .2s,background .2s;border-left:2px solid transparent}
+.nav-item:hover{color:#00b4d8;background:rgba(0,180,216,.06);border-left-color:rgba(0,180,216,.3)}
+.nav-item.active{color:#00b4d8;border-left-color:#00b4d8;background:rgba(0,180,216,.08)}
+
+/* Typography */
+h1{font-size:2.2rem;font-weight:800;color:white;margin-bottom:.5rem}
+h2{font-size:1.5rem;font-weight:700;color:#00b4d8;margin:2.5rem 0 1rem;padding-top:2rem;border-top:1px solid #1a2f44}
+h2:first-of-type{border-top:none;padding-top:0}
+h3{font-size:1.05rem;font-weight:700;color:white;margin:1.5rem 0 .5rem}
+p{margin-bottom:1rem;color:#9ab4d4}
+.lead{font-size:1.05rem;color:#8aace4;margin-bottom:1.5rem}
+strong{color:#ccdaed}
+
+/* Components */
+.badge{display:inline-block;background:rgba(0,180,216,.15);border:1px solid rgba(0,180,216,.3);color:#00b4d8;padding:.2rem .6rem;border-radius:4px;font-family:monospace;font-size:.82rem}
+.tag{display:inline-block;background:rgba(100,200,100,.1);border:1px solid rgba(100,200,100,.25);color:#6fd36f;padding:.15rem .5rem;border-radius:3px;font-size:.78rem;margin-right:.3rem}
+.tag.warn{background:rgba(255,190,50,.08);border-color:rgba(255,190,50,.25);color:#ffc832}
+.tag.save{background:rgba(0,200,150,.1);border-color:rgba(0,200,150,.25);color:#00c896}
+
+pre,code{font-family:'Consolas','Courier New',monospace}
+code{background:#060f1a;color:#7dd3fc;padding:.1rem .35rem;border-radius:3px;font-size:.85rem}
+pre{background:#060f1a;border:1px solid #1a2f44;border-radius:8px;padding:1.2rem 1.5rem;overflow-x:auto;font-size:.82rem;line-height:1.65;color:#b8cfe8;margin:1rem 0}
+pre .key{color:#00b4d8}
+pre .val{color:#a8e6cf}
+pre .cmt{color:#3a5a7a;font-style:italic}
+pre .save{color:#00c896;font-weight:700}
+
+/* Cards */
+.tool-card{background:#0a1624;border:1px solid #1a2f44;border-radius:10px;padding:1.5rem;margin:1.2rem 0;transition:border-color .2s}
+.tool-card:hover{border-color:rgba(0,180,216,.35)}
+.tool-header{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
+.tool-icon{font-size:1.4rem}
+.tool-name{font-family:monospace;font-size:.95rem;color:#00b4d8;font-weight:700}
+.tool-desc{font-size:.88rem;color:#94b4d4;margin-bottom:1rem}
+.tool-when{font-size:.82rem;color:#4a8a7a;background:rgba(0,200,150,.05);border-left:2px solid rgba(0,200,150,.4);padding:.4rem .75rem;border-radius:0 4px 4px 0;margin-bottom:1rem}
+
+/* Params table */
+.param-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:.5rem 0}
+.param-table th{text-align:left;padding:.4rem .6rem;color:#4a6a8a;font-weight:600;border-bottom:1px solid #1a2f44}
+.param-table td{padding:.4rem .6rem;border-bottom:1px solid #0f1e30;vertical-align:top}
+.param-table td:first-child{font-family:monospace;color:#7dd3fc;white-space:nowrap}
+.param-table td:nth-child(2){color:#6aaa8a;width:70px}
+.param-table td:nth-child(3){color:#9ab4d4}
+.param-table tr:last-child td{border-bottom:none}
+
+/* Info box */
+.info-box{background:rgba(0,180,216,.05);border:1px solid rgba(0,180,216,.2);border-radius:8px;padding:1rem 1.2rem;margin:1rem 0;font-size:.88rem}
+.warn-box{background:rgba(255,190,50,.04);border:1px solid rgba(255,190,50,.2);border-radius:8px;padding:1rem 1.2rem;margin:1rem 0;font-size:.88rem;color:#d4b46a}
+.tip-box{background:rgba(0,200,150,.04);border:1px solid rgba(0,200,150,.2);border-radius:8px;padding:1rem 1.2rem;margin:1rem 0;font-size:.88rem;color:#6fd3b4}
+
+/* Step list */
+.steps{counter-reset:step;list-style:none;margin:1rem 0}
+.steps li{counter-increment:step;display:flex;gap:.75rem;margin-bottom:.75rem;font-size:.9rem}
+.steps li::before{content:counter(step);width:24px;height:24px;border-radius:50%;background:rgba(0,180,216,.2);border:1px solid rgba(0,180,216,.4);color:#00b4d8;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.75rem;font-weight:700;margin-top:.1rem}
+
+/* Workflow */
+.workflow{display:flex;flex-direction:column;gap:.5rem;margin:1rem 0}
+.wf-step{display:flex;align-items:flex-start;gap:.75rem;font-size:.88rem;padding:.6rem .8rem;background:#0a1624;border-radius:6px;border:1px solid #1a2f44}
+.wf-arrow{color:#3a5a7a;align-self:center;font-size:.7rem}
+
+/* Model tier table */
+.tier-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:1rem 0}
+.tier-table th{background:#0a1624;padding:.5rem .75rem;text-align:left;color:#4a6a8a;font-weight:600;border-bottom:1px solid #1a2f44}
+.tier-table td{padding:.5rem .75rem;border-bottom:1px solid #0f1e30;vertical-align:top}
+.tier-table tr:last-child td{border-bottom:none}
+.tier-fast{color:#6fd36f}
+.tier-balanced{color:#00b4d8}
+.tier-powerful{color:#b4a0ff}
+
+/* TOC */
+.page-header{margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid #1a2f44}
+.subtitle{color:#4a6a8a;font-size:.85rem;font-family:monospace;margin-top:.3rem}
+
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid #1a2f44;color:#3a5a7a;font-size:.8rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- Sidebar nav -->
+<nav>
+  <div class="nav-logo">
+    <div class="brand">Prompt<span>Wise</span></div>
+    <div class="ver">v1.1.0 · User Guide</div>
+  </div>
+
+  <div class="nav-section">Getting Started</div>
+  <a class="nav-item" href="#overview">Overview</a>
+  <a class="nav-item" href="#install">Installation</a>
+  <a class="nav-item" href="#quickstart">Quick Start</a>
+
+  <div class="nav-section">Core Tools</div>
+  <a class="nav-item" href="#route-request">route_request</a>
+  <a class="nav-item" href="#rewrite-prompt">rewrite_prompt</a>
+  <a class="nav-item" href="#optimize-context">optimize_context</a>
+  <a class="nav-item" href="#plan-cache">plan_cache</a>
+  <a class="nav-item" href="#batch-prompts">batch_prompts</a>
+  <a class="nav-item" href="#summarize-thread">summarize_thread</a>
+  <a class="nav-item" href="#compare-providers">compare_providers</a>
+
+  <div class="nav-section">Stats &amp; Data</div>
+  <a class="nav-item" href="#get-session-stats">get_session_stats</a>
+  <a class="nav-item" href="#export-stats">export_stats</a>
+  <a class="nav-item" href="#clear-history">clear_history</a>
+
+  <div class="nav-section">Session</div>
+  <a class="nav-item" href="#ping-session">ping_session</a>
+  <a class="nav-item" href="#check-session-timeout">check_session_timeout</a>
+
+  <div class="nav-section">Config</div>
+  <a class="nav-item" href="#reload-config">reload_config</a>
+  <a class="nav-item" href="#config-files">Config Files</a>
+  <a class="nav-item" href="#model-tiers">Model Tiers</a>
+
+  <div class="nav-section">Workflows</div>
+  <a class="nav-item" href="#workflow-rag">RAG / Agentic Apps</a>
+  <a class="nav-item" href="#workflow-cost">Cost Reduction</a>
+  <a class="nav-item" href="#workflow-finops">FinOps Reporting</a>
+</nav>
+
+<!-- Main content -->
+<div class="content">
+
+<div class="page-header">
+  <h1>PromptWise User Guide</h1>
+  <div class="subtitle">Token-aware prompt routing and cost optimization · Claude Code MCP Plugin</div>
+  <p style="margin-top:.8rem">PromptWise is a Claude Code MCP plugin that reduces LLM costs through smart model routing, prompt compression, prompt-cache planning, and usage tracking — all running locally with no external API calls.</p>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">What PromptWise Does</h2>
+<p>Every LLM call has three cost levers you can pull:</p>
+
+<div class="workflow">
+  <div class="wf-step">🎯 <div><strong>Right model</strong> — Haiku for extraction is 5× cheaper than Sonnet. Sonnet for multi-step agents is safer than Haiku.</div></div>
+  <div class="wf-step">✂️ <div><strong>Fewer tokens</strong> — Preamble phrases and filler words can account for 10–30% of a prompt. Strip them before sending.</div></div>
+  <div class="wf-step">💾 <div><strong>Cached tokens</strong> — Repeated system prompts and reference documents cost 10× less when cached (0.10/MTok vs 1.00/MTok for Haiku).</div></div>
+</div>
+
+<p>PromptWise provides 13 MCP tools that address each lever. Claude Code can call them automatically during your session, or you can invoke them explicitly via the <code>/promptwise</code> skill.</p>
+
+<div class="info-box">
+  <strong>All local.</strong> PromptWise stores usage history in <code>~/.promptwise/history.db</code> (SQLite). No data leaves your machine. Pricing data is in <code>pricing.yaml</code> inside the plugin directory.
+</div>
+
+<!-- Install -->
+<h2 id="install">Installation</h2>
+
+<ol class="steps">
+  <li>Add the local marketplace (one-time, already done if you see this guide):
+    <pre>! /plugin add marketplace --directory C:\test\PromptWise promptwise-local</pre>
+  </li>
+  <li>Install the plugin:
+    <pre>! /plugin install promptwise @ promptwise-local</pre>
+  </li>
+  <li>Reload plugins:
+    <pre>! /reload-plugins</pre>
+  </li>
+  <li>Verify the MCP server started — you should see <code>promptwise</code> in the MCP list, and the <code>promptwise:promptwise</code> skill in the skills list.</li>
+</ol>
+
+<div class="warn-box">
+  <strong>Python requirement:</strong> PromptWise runs as <code>python -m promptwise.server</code>. Requires Python 3.11+ with <code>mcp</code>, <code>pydantic</code>, <code>pyyaml</code>, <code>aiosqlite</code>, and <code>tiktoken</code> installed. Run <code>pip install -e .</code> from the project root.
+</div>
+
+<!-- Quick Start -->
+<h2 id="quickstart">Quick Start</h2>
+
+<p>The fastest way to use PromptWise is to describe what you want. Claude Code will pick the right tool automatically when the <code>promptwise:promptwise</code> skill is active:</p>
+
+<pre><span class="cmt">— "Which model should I use for this classification task?"</span>
+→ route_request called automatically
+
+<span class="cmt">— "This prompt is too verbose, tighten it up"</span>
+→ rewrite_prompt called automatically
+
+<span class="cmt">— "I'm building a chatbot that reuses the same system prompt 100×/day"</span>
+→ plan_cache called automatically
+
+<span class="cmt">— "How much have I spent this session?"</span>
+→ get_session_stats called automatically</pre>
+
+<p>Or invoke directly via the slash menu:</p>
+<pre>! /promptwise:promptwise route_request</pre>
+
+<!-- route_request -->
+<h2 id="route-request">route_request</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">🎯</span>
+    <span class="tool-name">route_request</span>
+  </div>
+  <div class="tool-desc">Picks the right model tier (fast / balanced / powerful) based on your task's intent, stakes, and optional budget constraints.</div>
+  <div class="tool-when">Use when: choosing between Haiku, Sonnet, and Opus; budget is tight; task stakes matter (production vs. scratch).</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>text</td><td class="tag">req</td><td>Describe the task or paste the prompt you're about to send</td></tr>
+    <tr><td>intent</td><td><span class="tag">opt</span></td><td><code>auto</code> (default) or one of: <code>extract</code>, <code>classify</code>, <code>summarize</code>, <code>question</code>, <code>code</code>, <code>analysis</code>, <code>agent_loop</code>, <code>research</code></td></tr>
+    <tr><td>stakes</td><td><span class="tag">opt</span></td><td><code>auto</code> (default), <code>low</code>, <code>medium</code>, <code>high</code>. High stakes force Opus.</td></tr>
+    <tr><td>monthly_budget_usd</td><td><span class="tag">opt</span></td><td>Your monthly budget. If burn rate exceeds it, model is auto-downgraded.</td></tr>
+    <tr><td>days_elapsed_in_month</td><td><span class="tag">opt</span></td><td>Paired with monthly_budget_usd to calculate projected monthly spend.</td></tr>
+  </table>
+
+  <h3>Example</h3>
+  <pre><span class="cmt">Input:</span>
+{
+  <span class="key">"text"</span>: <span class="val">"Extract all company names and their revenue from this earnings report"</span>,
+  <span class="key">"intent"</span>: <span class="val">"extract"</span>,
+  <span class="key">"stakes"</span>: <span class="val">"medium"</span>
+}
+
+<span class="cmt">Output:</span>
+{
+  <span class="key">"recommended_model"</span>: <span class="val">"claude-haiku-4-5-20251001"</span>,
+  <span class="key">"reason"</span>: <span class="val">"Intent: extract, Stakes: medium, Tool chain: 0"</span>,
+  <span class="key">"estimated_input_cost_usd"</span>: <span class="val">0.000042</span>,
+  <span class="key">"context_window_pct"</span>: <span class="val">0.2</span>,
+  <span class="key">"batch_recommended"</span>: <span class="val">true</span>,
+  <span class="key">"batch_recommendation_note"</span>: <span class="val">"Batch API available: 50% cost reduction..."</span>,
+  <span class="key">"alternatives"</span>: [...]
+}</pre>
+
+  <div class="tip-box">
+    <strong>Budget guard:</strong> if you pass <code>monthly_budget_usd: 50</code> and <code>days_elapsed_in_month: 25</code>, PromptWise projects your spend to month-end and downgrades the tier if you're over 110% of budget.
+  </div>
+</div>
+
+<!-- rewrite_prompt -->
+<h2 id="rewrite-prompt">rewrite_prompt</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">✂️</span>
+    <span class="tool-name">rewrite_prompt</span>
+  </div>
+  <div class="tool-desc">Strips preamble phrases ("could you please", "I was wondering if") and filler words ("just", "basically", "really"), then optionally prepends a role-specific frame.</div>
+  <div class="tool-when">Use when: prompt has conversational padding; want role-specific framing; want to reduce input tokens before a repeated call.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>text</td><td class="tag">req</td><td>The original prompt to rewrite</td></tr>
+    <tr><td>role</td><td><span class="tag">opt</span></td><td><code>general</code> (default), <code>developer</code>, <code>analyst</code>, <code>writer</code>, <code>manager</code>, <code>researcher</code>, <code>designer</code></td></tr>
+    <tr><td>model</td><td><span class="tag">opt</span></td><td>Model for token counting (default: <code>claude-sonnet-4-6</code>)</td></tr>
+  </table>
+
+  <h3>Role Prefixes</h3>
+  <table class="param-table">
+    <tr><th>Role</th><th colspan="2">Prefix added</th></tr>
+    <tr><td>developer</td><td colspan="2"><em>"From a software engineering perspective, "</em></td></tr>
+    <tr><td>analyst</td><td colspan="2"><em>"With supporting data and structured analysis, "</em></td></tr>
+    <tr><td>manager</td><td colspan="2"><em>"For strategic decision-making, "</em></td></tr>
+    <tr><td>researcher</td><td colspan="2"><em>"With methodical analysis and evidence-based reasoning, "</em></td></tr>
+    <tr><td>writer</td><td colspan="2"><em>"With clear prose and narrative flow, "</em></td></tr>
+    <tr><td>designer</td><td colspan="2"><em>"From a user experience and visual design perspective, "</em></td></tr>
+  </table>
+
+  <h3>Example</h3>
+  <pre><span class="cmt">Input text:</span>
+"Hey Claude, could you please just basically help me debug this Python function?
+I was wondering if you could really look at the logic here."
+
+<span class="cmt">Output:</span>
+{
+  <span class="key">"rewritten"</span>: <span class="val">"From a software engineering perspective, help me debug this Python function? look at the logic here."</span>,
+  <span class="key">"saving_pct"</span>: <span class="save">28.6</span>,
+  <span class="key">"warning"</span>: <span class="val">null</span>
+}</pre>
+</div>
+
+<!-- optimize_context -->
+<h2 id="optimize-context">optimize_context</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">📦</span>
+    <span class="tool-name">optimize_context</span>
+  </div>
+  <div class="tool-desc">Trims a large context block (document, codebase, conversation history) to fit a token budget by dropping low-value sentences.</div>
+  <div class="tool-when">Use when: pasting a large document; context exceeds 80% of the model's window; wanting to reduce cost on a repeated reference.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>context</td><td class="tag">req</td><td>The text to compress</td></tr>
+    <tr><td>token_budget</td><td><span class="tag">opt</span></td><td>Target max tokens (default: 2000, min: 100)</td></tr>
+    <tr><td>model</td><td><span class="tag">opt</span></td><td>Model for token counting</td></tr>
+  </table>
+
+  <pre><span class="cmt">Output:</span>
+{
+  <span class="key">"optimized"</span>: <span class="val">"... compressed text ..."</span>,
+  <span class="key">"saving_pct"</span>: <span class="save">61.3</span>,
+  <span class="key">"chunks_dropped"</span>: <span class="val">14</span>
+}</pre>
+
+  <div class="warn-box">
+    <strong>Note:</strong> optimize_context uses extractive sentence scoring — it keeps the highest-scored sentences up to the token budget. For documents where every sentence matters (legal, medical), review the output before use.
+  </div>
+</div>
+
+<!-- plan_cache -->
+<h2 id="plan-cache">plan_cache</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">💾</span>
+    <span class="tool-name">plan_cache</span>
+  </div>
+  <div class="tool-desc">Analyzes a message list and recommends where to place Anthropic prompt-cache breakpoints (cache_control markers). Shows projected savings vs. no caching.</div>
+  <div class="tool-when">Use when: building a chatbot, RAG app, or agentic loop that reuses the same system prompt or reference document across many calls.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>messages</td><td class="tag">req</td><td>Array of <code>{role, content, label?}</code>. Labels: <code>tool_definitions</code>, <code>reference</code>, <code>conversation_history</code></td></tr>
+    <tr><td>expected_reuse_count</td><td><span class="tag">opt</span></td><td>How many times this message set will be sent (default: 2)</td></tr>
+    <tr><td>model</td><td><span class="tag">opt</span></td><td>Model for token counting and pricing</td></tr>
+  </table>
+
+  <h3>Cache TTL rules</h3>
+  <table class="param-table">
+    <tr><th>Message type</th><th>TTL</th><th>Why</th></tr>
+    <tr><td><code>role: system</code></td><td>1h</td><td>Always stable across calls</td></tr>
+    <tr><td><code>label: tool_definitions</code></td><td>1h</td><td>Tool schemas rarely change mid-session</td></tr>
+    <tr><td><code>label: reference</code> ≥ 1000 tok</td><td>1h</td><td>Break-even at 2 reuses; profitable with more</td></tr>
+    <tr><td><code>label: conversation_history</code> &gt; 2000 tok</td><td>5m</td><td>History changes per turn; short TTL appropriate</td></tr>
+  </table>
+
+  <pre><span class="cmt">Example output:</span>
+{
+  <span class="key">"breakpoints"</span>: [
+    { <span class="key">"message_index"</span>: 0, <span class="key">"ttl"</span>: <span class="val">"1h"</span>, <span class="key">"rationale"</span>: <span class="val">"system prompt (stable across calls)"</span> },
+    { <span class="key">"message_index"</span>: 1, <span class="key">"ttl"</span>: <span class="val">"1h"</span>, <span class="key">"rationale"</span>: <span class="val">"large reference (4200 tokens, break-even at 2 reuses)"</span> }
+  ],
+  <span class="key">"savings_pct"</span>: <span class="save">72.4</span>
+}</pre>
+</div>
+
+<!-- batch_prompts -->
+<h2 id="batch-prompts">batch_prompts</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">📋</span>
+    <span class="tool-name">batch_prompts</span>
+  </div>
+  <div class="tool-desc">Merges 2–5 related small tasks into a single numbered prompt, saving the per-call overhead tokens (role framing, context reload).</div>
+  <div class="tool-when">Use when: you have 2–5 similar classification, extraction, or summarization tasks to run back-to-back.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>tasks</td><td class="tag">req</td><td>Array of 2–5 task strings</td></tr>
+    <tr><td>role</td><td><span class="tag">opt</span></td><td>Role framing for the combined prompt (default: <code>general</code>)</td></tr>
+    <tr><td>model</td><td><span class="tag">opt</span></td><td>Model for token counting</td></tr>
+  </table>
+
+  <pre><span class="cmt">Input tasks:</span>
+["Summarize this article in 3 bullets", "Extract the 5 key dates mentioned", "Rate the sentiment: positive/neutral/negative"]
+
+<span class="cmt">Output:</span>
+{
+  <span class="key">"batched_prompt"</span>: <span class="val">"Complete all 3 tasks:\n1. Summarize this article in 3 bullets\n2. Extract the 5 key dates mentioned\n3. Rate the sentiment..."</span>,
+  <span class="key">"saving_pct"</span>: <span class="save">18.4</span>
+}</pre>
+</div>
+
+<!-- summarize_thread -->
+<h2 id="summarize-thread">summarize_thread</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">🧵</span>
+    <span class="tool-name">summarize_thread</span>
+  </div>
+  <div class="tool-desc">Compresses a long conversation into a compact summary and generates a reset prompt you can paste at the start of a new thread.</div>
+  <div class="tool-when">Use when: a conversation is approaching context limits; wrapping up a long debugging session; handing off to a fresh thread.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>conversation</td><td class="tag">req</td><td>The conversation text to summarize</td></tr>
+    <tr><td>max_tokens</td><td><span class="tag">opt</span></td><td>Target summary length in tokens (default: 500, max: 2000)</td></tr>
+    <tr><td>model</td><td><span class="tag">opt</span></td><td>Model for token counting</td></tr>
+  </table>
+
+  <pre><span class="cmt">Output:</span>
+{
+  <span class="key">"summary"</span>: <span class="val">"We debugged the auth middleware. Root cause: JWT expiry check used strict less-than..."</span>,
+  <span class="key">"reset_prompt"</span>: <span class="val">"Continue from: [summary]. Next step: write the unit test."</span>,
+  <span class="key">"saving_pct"</span>: <span class="save">84.2</span>
+}</pre>
+</div>
+
+<!-- compare_providers -->
+<h2 id="compare-providers">compare_providers</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">⚖️</span>
+    <span class="tool-name">compare_providers</span>
+  </div>
+  <div class="tool-desc">Estimates the cost of a given prompt across all configured providers and tiers, sorted cheapest first. Includes context-window fit check.</div>
+  <div class="tool-when">Use when: evaluating whether to switch providers for a workload; responding to "is this cheaper on GPT?"</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>text</td><td class="tag">req</td><td>The prompt to cost-compare</td></tr>
+    <tr><td>model</td><td><span class="tag">opt</span></td><td>Model used for token counting (default: <code>claude-sonnet-4-6</code>)</td></tr>
+  </table>
+
+  <pre><span class="cmt">Output (sorted by total_cost_usd):</span>
+{ <span class="key">"comparisons"</span>: [
+  { <span class="key">"provider"</span>: <span class="val">"gemini"</span>, <span class="key">"tier"</span>: <span class="val">"fast"</span>, <span class="key">"model"</span>: <span class="val">"gemini-2.0-flash"</span>, <span class="key">"total_cost_usd"</span>: <span class="val">0.0000048</span> },
+  { <span class="key">"provider"</span>: <span class="val">"openai"</span>, <span class="key">"tier"</span>: <span class="val">"fast"</span>, <span class="key">"model"</span>: <span class="val">"gpt-4o-mini"</span>, <span class="key">"total_cost_usd"</span>: <span class="val">0.0000216</span> },
+  { <span class="key">"provider"</span>: <span class="val">"claude"</span>, <span class="key">"tier"</span>: <span class="val">"fast"</span>, <span class="key">"model"</span>: <span class="val">"claude-haiku-4-5-20251001"</span>, <span class="key">"total_cost_usd"</span>: <span class="val">0.000072</span> },
+  ...
+]}</pre>
+
+  <div class="warn-box">OpenAI and Gemini pricing in <code>pricing.yaml</code> is approximate. Verify against official pricing pages before making production decisions.</div>
+</div>
+
+<!-- get_session_stats -->
+<h2 id="get-session-stats">get_session_stats</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">📊</span>
+    <span class="tool-name">get_session_stats</span>
+  </div>
+  <div class="tool-desc">Returns cumulative usage statistics: total cost, savings, cache hit rate, calls by tool, and cost by model.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>since</td><td><span class="tag">opt</span></td><td>ISO 8601 timestamp to filter results (e.g. <code>2026-05-01T00:00:00Z</code>)</td></tr>
+  </table>
+
+  <pre><span class="cmt">Output:</span>
+{
+  <span class="key">"total_calls"</span>: 47,
+  <span class="key">"total_cost_usd"</span>: 0.004821,
+  <span class="key">"total_savings_usd"</span>: 0.001923,
+  <span class="key">"avg_saving_pct"</span>: 28.5,
+  <span class="key">"cache_hit_rate"</span>: 0.64,
+  <span class="key">"calls_by_tool"</span>: { <span class="val">"route_request"</span>: 12, <span class="val">"rewrite_prompt"</span>: 18, ... },
+  <span class="key">"cost_by_model"</span>: { <span class="val">"claude-haiku-4-5"</span>: 0.0012, ... },
+  <span class="key">"stale_pricing_warning"</span>: null
+}</pre>
+
+  <div class="info-box">If <code>pricing.yaml</code> was last verified more than 90 days ago, a <code>stale_pricing_warning</code> is included in the response reminding you to update rates.</div>
+</div>
+
+<!-- export_stats -->
+<h2 id="export-stats">export_stats</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">📤</span>
+    <span class="tool-name">export_stats</span>
+  </div>
+  <div class="tool-desc">Exports the full usage history as JSON or CSV. Includes all columns: timestamp, tool, model, tokens, cost, savings, project, team, duration_ms.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>format</td><td><span class="tag">opt</span></td><td><code>json</code> (default) or <code>csv</code></td></tr>
+    <tr><td>since</td><td><span class="tag">opt</span></td><td>ISO 8601 timestamp to filter from</td></tr>
+  </table>
+</div>
+
+<!-- clear_history -->
+<h2 id="clear-history">clear_history</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">🗑️</span>
+    <span class="tool-name">clear_history</span>
+  </div>
+  <div class="tool-desc">Deletes usage history records older than N days. Useful for data retention policies.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>older_than_days</td><td class="tag">req</td><td>Minimum 1. Deletes all records with <code>ts</code> older than this many days.</td></tr>
+  </table>
+</div>
+
+<!-- ping_session -->
+<h2 id="ping-session">ping_session</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">🔔</span>
+    <span class="tool-name">ping_session</span>
+  </div>
+  <div class="tool-desc">Creates or updates a session record. Returns a <code>session_id</code> you can pass to subsequent calls to track idle time.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>session_id</td><td><span class="tag">opt</span></td><td>Omit to create a new session; pass existing ID to update last-ping timestamp</td></tr>
+  </table>
+
+  <pre><span class="cmt">First call (new session):</span>
+{ <span class="key">"session_id"</span>: <span class="val">"sess_abc123"</span>, <span class="key">"is_new"</span>: <span class="val">true</span>, <span class="key">"started_ts"</span>: <span class="val">"2026-05-19T10:00:00Z"</span> }
+
+<span class="cmt">Subsequent call (update):</span>
+{ <span class="key">"session_id"</span>: <span class="val">"sess_abc123"</span>, <span class="key">"is_new"</span>: <span class="val">false</span>, <span class="key">"last_ping_ts"</span>: <span class="val">"2026-05-19T10:14:23Z"</span> }</pre>
+</div>
+
+<!-- check_session_timeout -->
+<h2 id="check-session-timeout">check_session_timeout</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">⏱️</span>
+    <span class="tool-name">check_session_timeout</span>
+  </div>
+  <div class="tool-desc">Checks how long a session has been idle and returns a status: <code>active</code>, <code>warn</code>, or <code>expired</code>.</div>
+
+  <table class="param-table">
+    <tr><th>Parameter</th><th>Required</th><th>Description</th></tr>
+    <tr><td>session_id</td><td class="tag">req</td><td>From a prior <code>ping_session</code> call</td></tr>
+    <tr><td>idle_threshold_minutes</td><td><span class="tag">opt</span></td><td>Minutes before expiry (default from <code>promptwise.yaml</code>: 30)</td></tr>
+    <tr><td>warn_threshold_minutes</td><td><span class="tag">opt</span></td><td>Minutes before warning (default: 20)</td></tr>
+  </table>
+
+  <table class="param-table" style="margin-top:.5rem">
+    <tr><th>Status</th><th>idle_minutes</th><th>recommended_action</th></tr>
+    <tr><td><span class="tag save">active</span></td><td>&lt; warn threshold</td><td><code>continue</code></td></tr>
+    <tr><td><span class="tag warn">warn</span></td><td>warn ≤ idle &lt; expire</td><td><code>prompt_user</code></td></tr>
+    <tr><td><span class="tag">expired</span></td><td>≥ expire threshold</td><td><code>summarize_thread</code></td></tr>
+  </table>
+</div>
+
+<!-- reload_config -->
+<h2 id="reload-config">reload_config</h2>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-icon">🔄</span>
+    <span class="tool-name">reload_config</span>
+  </div>
+  <div class="tool-desc">Hot-reloads <code>pricing.yaml</code>, <code>providers.yaml</code>, and <code>roles.yaml</code> without restarting the MCP server. Call after editing any config file.</div>
+  <p style="margin-top:.5rem;font-size:.85rem">No parameters. Returns <code>{"reloaded": true}</code> on success.</p>
+</div>
+
+<!-- Config Files -->
+<h2 id="config-files">Configuration Files</h2>
+
+<p>PromptWise reads three YAML files from its plugin directory at startup. Edit them to customize pricing, add providers, or change roles.</p>
+
+<h3>pricing.yaml</h3>
+<p>Defines per-model rates (input/output/cache/batch) in USD per million tokens, plus context window size and max output.</p>
+
+<pre><span class="cmt">Example model entry:</span>
+claude-sonnet-4-6:
+  display_name: "Sonnet 4.6"
+  provider: claude
+  tier: balanced
+  context_window: 1000000
+  max_output: 128000
+  rates:
+    input_per_mtok: 3.00
+    output_per_mtok: 15.00
+    cache_write_5m_per_mtok: 3.75
+    cache_write_1h_per_mtok: 6.00
+    cache_hit_per_mtok: 0.30
+    batch_input_per_mtok: 1.50
+    batch_output_per_mtok: 7.50</pre>
+
+<div class="warn-box">
+  Update <code>last_verified</code> in <code>pricing.yaml</code> each time you verify rates. PromptWise will warn you if it's more than 90 days old.
+</div>
+
+<h3>providers.yaml</h3>
+<p>Maps provider names to tier→model assignments. The <code>tiers</code> block must reference model IDs that exist in <code>pricing.yaml</code>.</p>
+
+<h3>roles.yaml</h3>
+<p>Defines role prefixes (prepended by <code>rewrite_prompt</code>) and the filler words / preamble phrases to strip.</p>
+
+<h3>promptwise.yaml (optional)</h3>
+<p>Override session timeout defaults:</p>
+<pre>timeout:
+  idle_threshold_minutes: 30
+  warn_threshold_minutes: 20
+  auto_action: prompt_user   <span class="cmt"># or summarize_and_exit</span></pre>
+
+<!-- Model Tiers -->
+<h2 id="model-tiers">Model Tiers</h2>
+
+<table class="tier-table">
+  <tr>
+    <th>Tier</th><th>Claude</th><th>OpenAI</th><th>Gemini</th><th>Best for</th>
+  </tr>
+  <tr>
+    <td><span class="tier-fast">fast</span></td>
+    <td>Haiku 4.5<br><small style="color:#4a6a8a">$1/MTok in</small></td>
+    <td>GPT-4o mini<br><small style="color:#4a6a8a">$0.15/MTok in</small></td>
+    <td>Gemini 2.0 Flash<br><small style="color:#4a6a8a">$0.10/MTok in</small></td>
+    <td>Extract, classify, summarize, low-stakes Q&amp;A</td>
+  </tr>
+  <tr>
+    <td><span class="tier-balanced">balanced</span></td>
+    <td>Sonnet 4.6<br><small style="color:#4a6a8a">$3/MTok in</small></td>
+    <td>GPT-4o<br><small style="color:#4a6a8a">$2.50/MTok in</small></td>
+    <td>Gemini 2.5 Pro<br><small style="color:#4a6a8a">$1.25/MTok in</small></td>
+    <td>Code, analysis, question answering, agentic loops</td>
+  </tr>
+  <tr>
+    <td><span class="tier-powerful">powerful</span></td>
+    <td>Opus 4.7<br><small style="color:#4a6a8a">$5/MTok in</small></td>
+    <td>o3<br><small style="color:#4a6a8a">$10/MTok in</small></td>
+    <td>Gemini 2.5 Pro Thinking<br><small style="color:#4a6a8a">$3.50/MTok in</small></td>
+    <td>Research, compliance, high-stakes production tasks</td>
+  </tr>
+</table>
+
+<!-- Workflows -->
+<h2 id="workflow-rag">Workflow: RAG / Agentic App</h2>
+
+<div class="workflow">
+  <div class="wf-step">1️⃣ <div>Call <strong>plan_cache</strong> with your message template (system prompt + tool definitions + few-shot examples). Set <code>expected_reuse_count</code> to your daily call volume.</div></div>
+  <div class="wf-step">2️⃣ <div>Add <code>cache_control: {type: "ephemeral"}</code> breakpoints at the recommended <code>message_index</code> positions in your actual API calls.</div></div>
+  <div class="wf-step">3️⃣ <div>Call <strong>route_request</strong> with the user query to pick the right tier. For retrieval, <code>intent: "question"</code> usually routes to balanced.</div></div>
+  <div class="wf-step">4️⃣ <div>At session end, call <strong>get_session_stats</strong> to verify cache hit rate and actual savings.</div></div>
+</div>
+
+<h2 id="workflow-cost">Workflow: Reducing Daily Dev Spend</h2>
+
+<div class="workflow">
+  <div class="wf-step">1️⃣ <div>Each morning: call <strong>route_request</strong> before any long task. Ask "is this Opus-level work?" Most code tasks are Sonnet.</div></div>
+  <div class="wf-step">2️⃣ <div>Before sending a drafted prompt: call <strong>rewrite_prompt</strong>. Even 10% token reduction compounds significantly over many calls.</div></div>
+  <div class="wf-step">3️⃣ <div>For large documents pasted as context: call <strong>optimize_context</strong> with a budget that fits the task (2000 tokens for simple Q&amp;A, 8000 for analysis).</div></div>
+  <div class="wf-step">4️⃣ <div>When you have 3+ small tasks: call <strong>batch_prompts</strong> instead of sending each separately.</div></div>
+</div>
+
+<h2 id="workflow-finops">Workflow: FinOps Reporting</h2>
+
+<div class="workflow">
+  <div class="wf-step">1️⃣ <div>Call <strong>export_stats</strong> with <code>format: "csv"</code> and <code>since: "2026-05-01T00:00:00Z"</code> for monthly data.</div></div>
+  <div class="wf-step">2️⃣ <div>Import into Excel/Sheets. The <code>project</code> and <code>team</code> columns support cost allocation (populated via stats.record() in custom integrations).</div></div>
+  <div class="wf-step">3️⃣ <div>Call <strong>clear_history</strong> with <code>older_than_days: 90</code> to enforce retention policy.</div></div>
+</div>
+
+<footer>PromptWise v1.1.0 · Local MCP Plugin · <a href="developer_guide.html">Developer Guide</a> · Data stored at ~/.promptwise/history.db</footer>
+</div>
+</div>
+
+<script>
+// Highlight active nav item on scroll
+const sections = document.querySelectorAll('h2[id]');
+const navItems = document.querySelectorAll('.nav-item');
+function highlight() {
+  let cur = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) cur = s.id; });
+  navItems.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+  });
+}
+window.addEventListener('scroll', highlight, {passive: true});
+highlight();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "promptwise": {
+      "command": "python",
+      "args": [
+        "-m",
+        "promptwise.server"
+      ],
+      "cwd": "${projectDir}"
+    }
+  }
+}

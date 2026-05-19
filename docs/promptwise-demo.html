@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptWise &mdash; Demo</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1a2d;color:white;height:100vh;overflow:hidden;user-select:none}
+.deck{width:100vw;height:100vh;position:relative}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:3.5rem 5rem;opacity:0;transition:opacity .35s ease;pointer-events:none}
+.slide.active{opacity:1;pointer-events:all}
+#sn{position:fixed;bottom:1.5rem;right:2rem;color:#4a6a8a;font-size:.8rem;font-family:monospace}
+.dots{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);display:flex;gap:.5rem}
+.dot{width:7px;height:7px;border-radius:50%;background:#2a3f5f;cursor:pointer;transition:background .25s}
+.dot.active{background:#00b4d8}
+.arrows{position:fixed;bottom:1.2rem;right:5rem;display:flex;gap:.5rem}
+.arr{background:rgba(0,180,216,.15);border:1px solid rgba(0,180,216,.3);color:#00b4d8;padding:.3rem .7rem;border-radius:4px;cursor:pointer;font-size:.85rem;transition:background .2s}
+.arr:hover{background:rgba(0,180,216,.3)}
+/* Title */
+.t-logo{font-size:3.8rem;font-weight:800;line-height:1;margin-bottom:.6rem}
+.t-logo span{color:#00b4d8}
+.t-tagline{font-size:1.15rem;color:#94b4d4;margin-bottom:2rem}
+.t-badge{background:rgba(0,180,216,.15);border:1px solid rgba(0,180,216,.3);color:#00b4d8;padding:.4rem 1.2rem;border-radius:20px;font-size:.9rem}
+.hint{margin-top:3rem;color:#3a5a7a;font-size:.8rem}
+/* Problem stats */
+.stat-row{display:flex;gap:1.5rem;margin:1.5rem 0}
+.stat{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.25);border-radius:10px;padding:1.5rem 2rem;text-align:center;min-width:180px}
+.stat .num{font-size:2.8rem;font-weight:800;color:#ff6b6b}
+.stat .lbl{font-size:.85rem;color:#94b4d4;margin-top:.3rem}
+/* Solution features */
+.feat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin:1.5rem 0;width:100%}
+.feat{background:rgba(0,180,216,.07);border:1px solid rgba(0,180,216,.2);border-radius:8px;padding:1rem;text-align:center}
+.feat .icon{font-size:1.6rem;margin-bottom:.4rem}
+.feat .name{font-size:.85rem;color:#00b4d8;font-weight:600}
+/* Tool slides */
+.tool-badge{font-family:monospace;font-size:.9rem;background:rgba(0,180,216,.15);color:#00b4d8;padding:.25rem .75rem;border-radius:4px;display:inline-block;margin-bottom:.9rem}
+.slide-title{font-size:1.9rem;font-weight:700;margin-bottom:.5rem;color:white}
+.slide-when{font-size:.95rem;color:#94b4d4;margin-bottom:1.4rem;font-style:italic}
+.ex-box{background:#060f1a;border:1px solid #1a2f44;border-radius:8px;padding:1.25rem 1.5rem;font-family:'Consolas',monospace;font-size:.82rem;line-height:1.65;color:#b8cfe8;width:100%;max-width:700px}
+.save{color:#00b4d8;font-weight:700}
+.sc{width:100%;max-width:780px;display:flex;flex-direction:column;align-items:flex-start}
+/* ROI */
+.roi-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;margin:1.5rem 0;width:100%}
+.roi-stat{background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.25);border-radius:10px;padding:1.5rem;text-align:center}
+.roi-stat .val{font-size:3rem;font-weight:800;color:#00b4d8}
+.roi-stat .desc{font-size:.85rem;color:#94b4d4;margin-top:.4rem}
+.roi-cmd{font-family:monospace;background:#060f1a;color:#00b4d8;padding:.2rem .6rem;border-radius:4px;font-size:.9rem}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- Slide 1: Title -->
+<div class="slide active">
+  <div style="text-align:center">
+    <div class="t-logo">Prompt<span>Wise</span></div>
+    <div class="t-tagline">Token-aware prompt routing and cost optimization for Claude Code</div>
+    <div class="t-badge">v1.1.0 &nbsp;&middot;&nbsp; 13 MCP Tools &nbsp;&middot;&nbsp; Zero External API Calls &nbsp;&middot;&nbsp; All Local</div>
+    <div class="hint">Use &larr; &rarr; arrow keys or click dots to navigate</div>
+  </div>
+</div>
+
+<!-- Slide 2: Problem -->
+<div class="slide">
+  <h2 style="color:#ff6b6b;font-size:2rem;margin-bottom:1.5rem;align-self:flex-start">The Problem</h2>
+  <div class="stat-row">
+    <div class="stat"><div class="num">40&ndash;70%</div><div class="lbl">of prompt tokens are<br>filler or preamble</div></div>
+    <div class="stat"><div class="num">3&ndash;10&times;</div><div class="lbl">cost difference between<br>model tiers</div></div>
+    <div class="stat"><div class="num">$0</div><div class="lbl">visibility into LLM spend<br>without tooling</div></div>
+  </div>
+  <p style="color:#94b4d4;font-size:1rem;text-align:center;margin-top:.5rem">Developers overspend by default &mdash; wrong model, verbose prompts, no caching strategy.</p>
+</div>
+
+<!-- Slide 3: Solution -->
+<div class="slide">
+  <h2 style="color:#00b4d8;font-size:2rem;margin-bottom:1.5rem;align-self:flex-start">PromptWise: 13 Tools, Zero Friction</h2>
+  <div class="feat-grid" style="max-width:780px">
+    <div class="feat"><div class="icon">&#127919;</div><div class="name">Smart Routing</div></div>
+    <div class="feat"><div class="icon">&#9986;&#65039;</div><div class="name">Prompt Rewrite</div></div>
+    <div class="feat"><div class="icon">&#128230;</div><div class="name">Context Compress</div></div>
+    <div class="feat"><div class="icon">&#128190;</div><div class="name">Cache Planning</div></div>
+    <div class="feat"><div class="icon">&#128260;</div><div class="name">Prompt Batching</div></div>
+    <div class="feat"><div class="icon">&#128202;</div><div class="name">Cost Tracking</div></div>
+  </div>
+  <p style="color:#94b4d4;font-size:.95rem;margin-top:1rem">All local. All async. Install in 60 seconds. Zero configuration required.</p>
+</div>
+
+<!-- Slide 4: route_request -->
+<div class="slide">
+  <div class="sc">
+    <div class="tool-badge">route_request</div>
+    <div class="slide-title">Pick the right model tier</div>
+    <div class="slide-when">Intent + stakes + budget &rarr; optimal model. Stop paying Opus prices for Haiku tasks.</div>
+    <div class="ex-box">Text: "Analyze 50-page legal doc for compliance violations"
+Intent: analysis &middot; Stakes: high
+&rarr; <span class="save">claude-opus-4-7</span>
+&nbsp;&nbsp;estimated_input:  $0.000240
+&nbsp;&nbsp;context_window_pct: 4.2%
+&nbsp;&nbsp;alternatives: [sonnet-4-6 saves 62%, haiku-4-5 saves 89%]</div>
+  </div>
+</div>
+
+<!-- Slide 5: compare_providers -->
+<div class="slide">
+  <div class="sc">
+    <div class="tool-badge">compare_providers</div>
+    <div class="slide-title">Cross-provider cost comparison</div>
+    <div class="slide-when">Claude vs. OpenAI vs. Gemini &mdash; sorted by cost. No spreadsheet required.</div>
+    <div class="ex-box">Text: "Summarize this document" (350 tokens)
+
+gemini &middot; fast    &middot; gemini-2.0-flash    <span class="save">$0.000035</span>
+openai &middot; fast    &middot; gpt-4o-mini          $0.000053
+claude &middot; fast    &middot; claude-haiku-4-5     $0.000350
+openai &middot; balanced &middot; gpt-4o              $0.000875
+claude &middot; balanced &middot; claude-sonnet-4-6   $0.000613</div>
+  </div>
+</div>
+
+<!-- Slide 6: rewrite_prompt -->
+<div class="slide">
+  <div class="sc">
+    <div class="tool-badge">rewrite_prompt</div>
+    <div class="slide-title">Strip filler, apply role framing</div>
+    <div class="slide-when">Verbose prompts with pleasantries cost real money on every single call.</div>
+    <div class="ex-box">Before (89 tokens):
+"I was wondering if you could perhaps help me rewrite
+this code to be more Pythonic. I'd really appreciate it
+if you could focus on readability."
+
+After (42 tokens):
+"From a software engineering perspective, rewrite for
+Pythonic style and readability."
+
+<span class="save">Saves: 53%</span></div>
+  </div>
+</div>
+
+<!-- Slide 7: optimize_context -->
+<div class="slide">
+  <div class="sc">
+    <div class="tool-badge">optimize_context</div>
+    <div class="slide-title">Compress document to token budget</div>
+    <div class="slide-when">Large docs break context limits. Score, rank, and drop lowest-value chunks.</div>
+    <div class="ex-box">Input:  8,000-token legal agreement
+Budget: 2,000 tokens
+
+&rarr; Drops: appendices, boilerplate, examples
+&rarr; Keeps: terms, liability clauses, payment
+
+<span class="save">Saves: 75%  &middot;  chunks_dropped: 6</span></div>
+  </div>
+</div>
+
+<!-- Slide 8: plan_cache -->
+<div class="slide">
+  <div class="sc">
+    <div class="tool-badge">plan_cache</div>
+    <div class="slide-title">Design cache breakpoints</div>
+    <div class="slide-when">Same system prompt sent 10&times; per day? Pay once, reuse many times.</div>
+    <div class="ex-box">Messages: system(2K) + doc(8K) + user(500)
+Reuse: 10&times;
+
+&rarr; Cache system at index 0 (TTL: 1h)
+&rarr; Cache doc    at index 1 (TTL: 1h)
+
+<span class="save">Saves: 77% on subsequent turns</span></div>
+  </div>
+</div>
+
+<!-- Slide 9: batch_prompts -->
+<div class="slide">
+  <div class="sc">
+    <div class="tool-badge">batch_prompts</div>
+    <div class="slide-title">Merge 2&ndash;5 tasks into one prompt</div>
+    <div class="slide-when">Separate calls share no context. Batch related tasks to eliminate setup tokens.</div>
+    <div class="ex-box">Task 1: "Summarize this email"
+Task 2: "Extract sender and date"
+Task 3: "Flag urgent items"
+
+&rarr; Merged with semantic connectives
+
+<span class="save">Saves: ~45% vs. 3 separate calls</span></div>
+  </div>
+</div>
+
+<!-- Slide 10: summarize_thread -->
+<div class="slide">
+  <div class="sc">
+    <div class="tool-badge">summarize_thread</div>
+    <div class="slide-title">Compress conversation for handoff</div>
+    <div class="slide-when">Context window filling up? Distill the session into a compact reset_prompt.</div>
+    <div class="ex-box">Input: 40-turn conversation (18,000 tokens)
+
+Output (800 tokens):
+"Decided: PostgreSQL. Rejected Redis (no relations).
+Implemented: user model, migrations. Auth pending.
+Next: JWT middleware + refresh token rotation."
+
+<span class="save">Saves: 95%  &middot;  ready for new session</span></div>
+  </div>
+</div>
+
+<!-- Slide 11: get_session_stats -->
+<div class="slide">
+  <div class="sc">
+    <div class="tool-badge">get_session_stats</div>
+    <div class="slide-title">Cost and savings accounting</div>
+    <div class="slide-when">Full visibility into what you spent and what you saved &mdash; every session.</div>
+    <div class="ex-box">total_calls:        47
+total_cost_usd:     <span class="save">$0.38</span>
+total_savings_usd:  $0.084
+avg_saving_pct:     22.1%
+cache_hit_rate:     18%
+top tool:           rewrite_prompt (12 calls)</div>
+  </div>
+</div>
+
+<!-- Slide 12: ROI -->
+<div class="slide">
+  <div style="text-align:center;width:100%;max-width:900px">
+    <h2 style="color:#00b4d8;font-size:2rem;margin-bottom:1.8rem">Real Impact</h2>
+    <div class="roi-grid">
+      <div class="roi-stat"><div class="val">22%</div><div class="desc">avg cost reduction per session</div></div>
+      <div class="roi-stat"><div class="val">53%</div><div class="desc">prompt token savings via rewrite</div></div>
+      <div class="roi-stat"><div class="val">77%</div><div class="desc">cache savings on repeated prompts</div></div>
+    </div>
+    <p style="margin-top:2.5rem;color:#94b4d4;font-size:.95rem">
+      Install: <span class="roi-cmd">install.bat</span> (Windows) &nbsp;&middot;&nbsp; <span class="roi-cmd">python install.py</span> (macOS/Linux)
+    </p>
+    <p style="margin-top:1rem;color:#4a6a8a;font-size:.85rem">Restart Claude Code &middot; Run <span class="roi-cmd">/mcp</span> &middot; 13 tools ready</p>
+  </div>
+</div>
+
+</div>
+
+<div id="sn">1 / 12</div>
+<div class="dots" id="dots"></div>
+<div class="arrows">
+  <div class="arr" onclick="go(cur-1)">&#8592;</div>
+  <div class="arr" onclick="go(cur+1)">&#8594;</div>
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const dotsEl = document.getElementById('dots');
+let cur = 0;
+
+slides.forEach((_,i) => {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0 ? ' active' : '');
+  d.onclick = () => go(i);
+  dotsEl.appendChild(d);
+});
+
+function go(n) {
+  slides[cur].classList.remove('active');
+  dotsEl.children[cur].classList.remove('active');
+  cur = Math.max(0, Math.min(n, slides.length - 1));
+  slides[cur].classList.add('active');
+  dotsEl.children[cur].classList.add('active');
+  document.getElementById('sn').textContent = (cur + 1) + ' / ' + slides.length;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(cur + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   go(cur - 1);
+});
+</script>
+</body>
+</html>
