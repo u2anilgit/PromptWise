@@ -7,6 +7,14 @@
         "promptwise.server"
       ],
       "cwd": "${projectDir}"
+    },
+    "promptwise-v2": {
+      "command": "python",
+      "args": [
+        "-m",
+        "promptwise_v2.integrations.mcp_server_v2"
+      ],
+      "cwd": "${projectDir}"
     }
   }
 }
