@@ -22,6 +22,7 @@ classifiers = [
 dependencies = [
     "mcp>=1.0.0,<3.0",
     "aiosqlite>=0.20",
+    "flask>=2.0",
     "tiktoken>=0.7",
     "pydantic>=2.0",
     "pyyaml>=6.0",
@@ -35,6 +36,7 @@ dev = [
 
 [project.scripts]
 promptwise = "promptwise.cli:main"
+promptwise-v2 = "promptwise_v2.integrations.mcp_server_v2:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
