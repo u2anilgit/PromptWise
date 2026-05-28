@@ -1,0 +1,37 @@
+version: "2.0"
+extends: promptwise.yaml
+
+core:
+  max_context_tokens: 150000
+  similarity_threshold: 0.65
+
+orchestration:
+  default_failure_strategy: fallback
+  max_retries: 2
+  fallback_model_sequence: [sonnet, haiku]
+
+memory:
+  retention_weeks: 4
+  auto_export_enabled: true
+
+plugins:
+  auto_load: true
+  enabled: [monitoring, codereview_bridge, playwright_bridge]
+
+compression:
+  enabled: true
+  auto_compress_threshold_usd_per_min: 0.01
+
+dashboard:
+  cli_enabled: true
+  web_enabled: true
+  web_port: 8765
+
+security:
+  checks: [syntax, secrets, destructive, supply_chain, permissions]
+
+policies:
+  max_tokens_per_session: 500000
+  budget_hard_stop_usd: 10.0
+  daily_burn_warn_usd: 3.0
+  team_budget_usd: 100.0
