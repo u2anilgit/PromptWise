@@ -95,4 +95,12 @@ class ROISnapshot:
     tokens_saved: int
     estimated_time_saved_min: float
     roi_ratio: float
-    productivity_score: float
+    productivity_score: float  # 0.0–1.0
+
+    def __post_init__(self):
+        if self.total_cost_usd < 0:
+            raise ValueError(f"total_cost_usd must be >= 0, got {self.total_cost_usd}")
+        if self.tokens_saved < 0:
+            raise ValueError(f"tokens_saved must be >= 0, got {self.tokens_saved}")
+        if not 0.0 <= self.productivity_score <= 1.0:
+            raise ValueError(f"productivity_score must be 0.0-1.0, got {self.productivity_score}")

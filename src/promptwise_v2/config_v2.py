@@ -70,16 +70,20 @@ class AppConfigV2:
 
 
 def load_config_v2(config_dir: Path) -> AppConfigV2:
-    path = config_dir / "promptwise_v2.yaml"
-    raw = yaml.safe_load(path.read_text())
+    path = (config_dir / "promptwise_v2.yaml").resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Config not found: {path}")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if raw is None:
+        raise ValueError(f"Config file is empty: {path}")
     return AppConfigV2(
-        version=raw.get("version", "2.0"),
-        core=CoreConfig(**raw.get("core", {})),
-        orchestration=OrchestrationConfig(**raw.get("orchestration", {})),
-        memory=MemoryConfig(**raw.get("memory", {})),
-        plugins=PluginsConfig(**raw.get("plugins", {})),
-        compression=CompressionConfig(**raw.get("compression", {})),
-        dashboard=DashboardConfig(**raw.get("dashboard", {})),
-        security=SecurityConfig(**raw.get("security", {})),
-        policies=PoliciesConfig(**raw.get("policies", {})),
+        version=str(raw.get("version", "2.0")),
+        core=CoreConfig(**{k: v for k, v in raw.get("core", {}).items() if v is not None}),
+        orchestration=OrchestrationConfig(**{k: v for k, v in raw.get("orchestration", {}).items() if v is not None}),
+        memory=MemoryConfig(**{k: v for k, v in raw.get("memory", {}).items() if v is not None}),
+        plugins=PluginsConfig(**{k: v for k, v in raw.get("plugins", {}).items() if v is not None}),
+        compression=CompressionConfig(**{k: v for k, v in raw.get("compression", {}).items() if v is not None}),
+        dashboard=DashboardConfig(**{k: v for k, v in raw.get("dashboard", {}).items() if v is not None}),
+        security=SecurityConfig(**{k: v for k, v in raw.get("security", {}).items() if v is not None}),
+        policies=PoliciesConfig(**{k: v for k, v in raw.get("policies", {}).items() if v is not None}),
     )
