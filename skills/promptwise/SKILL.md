@@ -8,7 +8,7 @@ description: Use PromptWise when the user wants to optimize prompt cost, route r
 When the user invokes `/promptwise` with no subcommand, display this menu first:
 
 ```
-PromptWise v1.2.0 — Available commands:
+PromptWise v2.0.0 — Available commands:
 
   /promptwise:route_request          Pick the right model (Haiku/Sonnet/Opus) for your task
   /promptwise:rewrite_prompt         Strip filler, tighten prompt, add role framing
@@ -188,3 +188,64 @@ Call with:
 - `since`: ISO 8601 timestamp to filter (optional)
 
 Returns: JSON array or CSV string of all matching history records (all columns including `project`, `team`, `duration_ms`).
+
+## v2.0 Tools (new in v2.0.0)
+
+### security_check — pre-flight security scan
+Use when:
+- User pastes code before execution
+- Prompt contains shell commands, credentials, or suspicious patterns
+Call with: `text`: the full prompt or code block
+
+### detect_role — auto-detect organizational role
+Use when:
+- Starting a new session
+- User's phrasing shifts domains mid-session
+Call with: `text`: user's first message or key message
+
+### orchestrate_tasks — multi-step DAG execution
+Use when:
+- User says "first X, then Y, finally Z"
+- More than 2 sequential tool calls needed
+Call with: `text`: full instruction, `strategy`: "fallback" (default)
+
+### monitor_budget — real-time budget status
+Use when:
+- User asks "how much have I spent"
+- Cost monitoring plugin fires
+Call with: `used_usd`, `days_elapsed`
+
+### validate_output — check generated code before presenting
+Use when:
+- Generated code block about to be shown to user
+- User asks "will this code work"
+Call with: `code`: generated code block, `language`: "python"
+
+### track_roi — productivity ROI calculation
+Use when:
+- User asks "is this worth it" or "what's the ROI"
+- End of session cost review
+Call with: `session_id`, `total_cost_usd`, `tokens_saved`, `calls`
+
+### compress_prompt — caveman compression
+Use when:
+- Prompt is verbose (>500 words) and non-code
+- User asks to "tighten this prompt"
+Call with: `text`: verbose prompt
+
+### get_memory_context — retrieve session memory
+Use when:
+- Starting a session that continues from prior work
+- User references past decisions
+Call with: `session_id`, `limit`: 20 (default)
+
+### route_for_plugin — detect applicable plugin
+Use when:
+- Unsure which plugin applies to user's request
+Call with: `text`: user's request
+
+### check_energy — model energy efficiency score
+Use when:
+- User asks about environmental impact or sustainability
+- Choosing between model tiers on energy budget
+Call with: `model`: model ID string
