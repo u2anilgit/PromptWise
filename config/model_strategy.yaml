@@ -13,7 +13,8 @@ routing_rules:
     skills: [verification-before-completion, git-workflow, changelog-generator,
              test-coverage-advisor, pii-detector, injection-detector,
              user-story-generator, prompt-registry, sbom-generator,
-             license-compliance, ping_session, check_session_timeout]
+             license-compliance,
+             ping_session, check_session_timeout]  # MCP tool names (snake_case intentional — match tool registry)
 
   sonnet:
     skills: [tdd, code-review, refactoring, feature-dev, test-generator,
