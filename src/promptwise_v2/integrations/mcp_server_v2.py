@@ -63,6 +63,7 @@ class ServerContextV2:
     cost_monitor: CostMonitor
     # v3 services
     skill_loader: SkillLoader
+    router_v2: RouterV2
 
 
 _V2_TOOL_DEFS = [
@@ -237,6 +238,7 @@ async def build_ctx_v2(config_dir: Path) -> ServerContextV2:
         roi_tracker=ROITracker(),
         cost_monitor=CostMonitor(),
         skill_loader=skill_loader,
+        router_v2=RouterV2(),
     )
 
 
@@ -339,13 +341,12 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
             if not sk:
                 return json.dumps({"error": f"Skill not found: {sk_name}"})
 
-            mock_res = ctx.orchestrator._generate_mock_output(sk)
-            return json.dumps({
-                "status": "success",
-                "skill": sk.name,
-                "model_used": sk.model_tier,
-                "result": mock_res
-            })
+            res = await ctx.orchestrator.execute_skill(
+                sk,
+                arguments.get("context", {}),
+                router=ctx.router_v2,
+            )
+            return json.dumps(res)
 
         elif name == "list_skills":
             skills_list = []
@@ -364,11 +365,12 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
             return json.dumps({"skills": skills_list})
 
         elif name == "skill_chain":
-            res = ctx.orchestrator.execute_skill_chain(
+            res = await ctx.orchestrator.execute_skill_chain(
                 ctx.skill_loader,
                 arguments.get("skills", []),
                 arguments.get("mode", "sequential"),
-                arguments.get("context", {})
+                arguments.get("context", {}),
+                router=ctx.router_v2,
             )
             return json.dumps(res)
 

@@ -1,3 +1,5 @@
+import json
+import os
 import re
 import time
 import uuid
@@ -92,7 +94,77 @@ class Orchestrator:
 
     # --- v3 Skill Layer additions ---
 
-    def execute_skill_chain(self, skill_loader, skill_names: list[str], mode: str, context: dict) -> dict:
+    async def execute_skill(
+        self,
+        skill,
+        context: dict,
+        api_key: str | None = None,
+        router=None,
+        budget_pct: float = 0.0,
+    ) -> dict:
+        """Execute a skill via the Claude API. Returns a result dict."""
+        # Resolve API key
+        if api_key is None:
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            return {"error": "ANTHROPIC_API_KEY not set", "status": "error", "skill": skill.name}
+
+        # Resolve model
+        if router is not None:
+            model = router.resolve_model(skill.name, budget_pct)
+        elif skill.model_tier and skill.model_tier not in ("auto", ""):
+            model = skill.model_tier
+        else:
+            model = "claude-sonnet-4-6"
+
+        # Build system prompt
+        system_prompt = skill.description or skill.name
+        if skill.output_schema:
+            system_prompt += f"\n\nOutput JSON matching schema: {json.dumps(skill.output_schema)}"
+        if skill.system_prompt:
+            system_prompt += f"\n\n{skill.system_prompt}"
+
+        try:
+            import anthropic as _anthropic
+            client = _anthropic.Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model=model,
+                max_tokens=4096,
+                system=[{
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }],
+                messages=[{
+                    "role": "user",
+                    "content": f"Context: {json.dumps(context)}\n\nExecute this skill and provide the output.",
+                }],
+            )
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+            # Rough cost estimate: sonnet pricing as baseline
+            cost_usd = input_tokens * 0.000003 + output_tokens * 0.000015
+            return {
+                "status": "success",
+                "skill": skill.name,
+                "model_used": response.model,
+                "result": response.content[0].text,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cost_usd": cost_usd,
+            }
+        except Exception as e:
+            return {"error": str(e), "status": "error", "skill": skill.name}
+
+    async def execute_skill_chain(
+        self,
+        skill_loader,
+        skill_names: list[str],
+        mode: str,
+        context: dict,
+        api_key: str | None = None,
+        router=None,
+    ) -> dict:
         skills = {}
         for name in skill_names:
             sk = skill_loader.get_skill(name)
@@ -109,22 +181,16 @@ class Orchestrator:
 
         for name in ordered_skills:
             sk = skills[name]
-            mock_output = self._generate_mock_output(sk)
-
-            if sk.output_schema:
-                try:
-                    jsonschema.validate(instance=mock_output, schema=sk.output_schema)
-                except Exception as e:
-                    return {"status": "failed", "error": f"Output validation failed for skill '{name}': {e}"}
-
-            results[name] = mock_output
-            state.update(mock_output)
+            result = await self.execute_skill(sk, state, api_key=api_key, router=router)
+            if result.get("status") == "error":
+                return {"status": "failed", "error": result.get("error", "unknown error")}
+            results[name] = result
+            state.update({"last_result": result.get("result", "")})
 
         return {
             "status": "completed",
             "ordered_execution": ordered_skills,
             "results": results,
-            "final_state": state,
         }
 
     def _topological_sort(self, skills: dict) -> list[str]:
