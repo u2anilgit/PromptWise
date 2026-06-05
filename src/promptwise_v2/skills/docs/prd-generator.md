@@ -17,6 +17,7 @@ output_schema:
       type: array
       items:
         type: object
+      description: User stories with role/want/benefit/acceptance_criteria/priority
     acceptance_criteria:
       type: array
       items:

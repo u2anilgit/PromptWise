@@ -15,14 +15,18 @@ output_schema:
   properties:
     test_file:
       type: string
+      description: Path to generated test file
     test_count:
       type: integer
+      description: Number of test cases generated
     framework:
       type: string
+      description: Test framework used (pytest/jest/go test)
     tests:
       type: array
       items:
         type: object
+      description: Test cases with name/arrange/act/assert_description
   required:
     - test_file
     - test_count

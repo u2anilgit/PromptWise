@@ -23,6 +23,7 @@ output_schema:
         - superseded
     decision:
       type: string
+      description: What was decided and why
     consequences:
       type: array
       items:

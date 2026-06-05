@@ -16,8 +16,10 @@ output_schema:
       type: string
     sections:
       type: object
+      description: Grouped changes by Added/Changed/Fixed/Removed
     markdown:
       type: string
+      description: Full Keep-a-Changelog formatted Markdown
   required:
     - version
     - markdown

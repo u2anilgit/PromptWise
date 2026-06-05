@@ -17,6 +17,7 @@ output_schema:
       type: integer
     fixtures_file:
       type: string
+      description: Path to generated fixtures file
     data_format:
       type: string
       enum:

@@ -16,8 +16,10 @@ output_schema:
       type: array
       items:
         type: object
+      description: User journeys with name/steps/assertions/test_data/expected_outcomes
     playwright_file:
       type: string
+      description: Generated Playwright TypeScript test file
     coverage_areas:
       type: array
       items:

@@ -16,10 +16,13 @@ output_schema:
       type: string
     paths:
       type: integer
+      description: Number of API paths documented
     schemas:
       type: integer
+      description: Number of component schemas
     openapi_yaml:
       type: string
+      description: Complete OpenAPI 3.1 YAML document
   required:
     - openapi_yaml
     - paths

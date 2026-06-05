@@ -19,10 +19,12 @@ output_schema:
       type: array
       items:
         type: object
+      description: Uncovered code gaps with file/function/complexity_score/lines_uncovered
     priority_order:
       type: array
       items:
         type: string
+      description: Functions to test, ordered by priority
   required:
     - gaps
     - priority_order

@@ -12,12 +12,15 @@ output_schema:
   properties:
     document_title:
       type: string
+      description: Title of the BRD document
     sections:
       type: array
       items:
         type: object
+      description: Document sections with headings and content
     format:
       type: string
+      description: Output format (markdown or docx-compatible)
   required:
     - document_title
     - sections

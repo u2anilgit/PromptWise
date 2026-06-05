@@ -19,6 +19,7 @@ output_schema:
       type: array
       items:
         type: object
+      description: Issues found, each with severity/description/recommendation
     approved:
       type: boolean
     recommendations:

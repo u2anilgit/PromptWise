@@ -17,8 +17,10 @@ output_schema:
       type: integer
     pytest_file:
       type: string
+      description: Generated pytest test file path
     postman_collection:
       type: object
+      description: Postman collection JSON
   required:
     - test_count
     - pytest_file

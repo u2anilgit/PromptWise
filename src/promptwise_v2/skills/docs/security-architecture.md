@@ -15,12 +15,15 @@ output_schema:
       type: array
       items:
         type: object
+      description: Threats identified per STRIDE category
     risk_matrix:
       type: object
+      description: Likelihood x impact matrix
     mitigations:
       type: array
       items:
         type: object
+      description: Mitigation plan per threat
   required:
     - threats
     - mitigations

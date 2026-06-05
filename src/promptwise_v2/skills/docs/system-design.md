@@ -15,8 +15,10 @@ output_schema:
       type: array
       items:
         type: object
+      description: System components with name/type/technology/responsibilities/interfaces
     mermaid_c4:
       type: string
+      description: Valid Mermaid C4 diagram source
     adr_references:
       type: array
       items:
