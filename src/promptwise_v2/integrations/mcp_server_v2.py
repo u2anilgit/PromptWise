@@ -87,6 +87,7 @@ _V2_TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {
              "used_usd": {"type": "number"},
              "days_elapsed": {"type": "integer", "default": 1},
+             "project_id": {"type": "string", "description": "Optional project tag for cost attribution"},
          }, "required": ["used_usd"]}),
     Tool(name="validate_output",
          description="Validate generated code for syntax errors and hallucinated imports",
@@ -287,11 +288,13 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
             r = ctx.budget_guardian.check(
                 used_usd=float(arguments.get("used_usd", 0.0)),
                 days_elapsed=int(arguments.get("days_elapsed", 1)),
+                project_id=arguments.get("project_id"),
             )
             return json.dumps({"used_usd": r.used_usd, "limit_usd": r.limit_usd,
                                "pct_used": r.pct_used, "daily_burn_usd": r.daily_burn_usd,
                                "projected_monthly_usd": r.projected_monthly_usd,
-                               "alert_level": r.alert_level})
+                               "alert_level": r.alert_level,
+                               "project_id": r.project_id})
 
         elif name == "validate_output":
             r = ctx.code_validator.validate(
