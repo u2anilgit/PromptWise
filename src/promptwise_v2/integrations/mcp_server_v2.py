@@ -186,6 +186,19 @@ _V2_TOOL_DEFS = [
              "period": {"type": "string", "description": "weekly, monthly, all (default: weekly)"},
              "format": {"type": "string", "description": "json or summary (default: json)"},
          }}),
+    # --- v3 security tools ---
+    Tool(name="run_security_suite",
+         description="Run all 7 security skills as a chain: PII, injection, OWASP, CVE, license, SBOM, secrets",
+         inputSchema={"type": "object", "properties": {
+             "targets": {"type": "array", "items": {"type": "string"}, "description": "Files/paths to scan"},
+             "context": {"type": "object", "description": "Additional context for the scan"},
+         }}),
+    Tool(name="get_sbom",
+         description="Generate SBOM (Software Bill of Materials) in CycloneDX format",
+         inputSchema={"type": "object", "properties": {
+             "format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"},
+             "paths": {"type": "array", "items": {"type": "string"}},
+         }}),
 ]
 
 _V1_NAMES = {
@@ -452,6 +465,32 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
                 "total_cost_usd": round(total_cost, 6),
                 "by_skill": by_skill,
             })
+
+        # --- v3 security tool handlers ---
+        elif name == "run_security_suite":
+            res = await ctx.orchestrator.execute_skill_chain(
+                ctx.skill_loader,
+                ["pii-detector", "injection-detector", "owasp-checker", "cve-lookup", "license-compliance", "sbom-generator", "secrets-rotation-advisor"],
+                "parallel",
+                {"targets": arguments.get("targets", []), **arguments.get("context", {})},
+                router=ctx.router_v2,
+            )
+            return json.dumps(res)
+
+        elif name == "get_sbom":
+            sk = ctx.skill_loader.get_skill("sbom-generator")
+            if sk:
+                res = await ctx.orchestrator.execute_skill(
+                    sk,
+                    {"format": arguments.get("format", "cyclonedx"), "paths": arguments.get("paths", [])},
+                    router=ctx.router_v2,
+                )
+            else:
+                # fallback to direct sbom_generator module
+                from promptwise_v2.core.sbom_generator import SBOMGenerator
+                gen = SBOMGenerator()
+                res = {"status": "success", "result": gen.generate(arguments.get("paths", []))}
+            return json.dumps(res)
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "tool": name})
