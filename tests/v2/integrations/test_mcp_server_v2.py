@@ -13,9 +13,9 @@ def _run(coro):
     finally:
         loop.close()
 
-def test_tool_count_is_36():
+def test_tool_count_is_48():
     tools = _run(list_tools_v2())
-    assert len(tools) == 36
+    assert len(tools) == 48
 
 def test_all_v1_tools_present():
     tools = _run(list_tools_v2())
@@ -85,5 +85,53 @@ def test_compress_prompt_tool_call():
 def test_unknown_tool_returns_error():
     ctx = _run(build_ctx_v2(CONFIG_DIR))
     result = _run(call_tool_v2(ctx, "nonexistent_tool", {}))
+    data = json.loads(result)
+    assert "error" in data
+
+
+# --- v3 phase-5b/5c new tool tests ---
+
+def test_suggest_technique_craft():
+    ctx = _run(build_ctx_v2(CONFIG_DIR))
+    result = _run(call_tool_v2(ctx, "suggest_technique", {"prompt": "Do it"}))
+    data = json.loads(result)
+    assert data["technique"] == "CRAFT"
+    assert "confidence" in data
+    assert "rationale" in data
+
+def test_suggest_technique_few_shot():
+    ctx = _run(build_ctx_v2(CONFIG_DIR))
+    result = _run(call_tool_v2(ctx, "suggest_technique",
+                               {"prompt": "Here is an example of a good summary."}))
+    data = json.loads(result)
+    assert data["technique"] == "Few-Shot"
+
+def test_apply_craft_scores_and_improves():
+    ctx = _run(build_ctx_v2(CONFIG_DIR))
+    result = _run(call_tool_v2(ctx, "apply_craft",
+                               {"prompt": "Write a summary of the document."}))
+    data = json.loads(result)
+    assert "axes" in data
+    assert "score" in data
+    assert isinstance(data["score"], int)
+    assert "improved_prompt" in data
+    # "action" axis should be True because "write" is present
+    assert data["axes"]["action"] is True
+
+def test_eval_prompt_across_models_haiku():
+    ctx = _run(build_ctx_v2(CONFIG_DIR))
+    result = _run(call_tool_v2(ctx, "eval_prompt_across_models",
+                               {"prompt": "Hello", "task_type": "general"}))
+    data = json.loads(result)
+    assert data["recommendation"] == "haiku"
+    assert "tiers" in data
+    assert set(data["tiers"].keys()) == {"haiku", "sonnet", "opus"}
+    assert all("cost_usd" in v for v in data["tiers"].values())
+
+def test_compare_prompts_not_found():
+    ctx = _run(build_ctx_v2(CONFIG_DIR))
+    # Neither version exists yet — expect error response
+    result = _run(call_tool_v2(ctx, "compare_prompts",
+                               {"name": "nonexistent", "version_a": "1.0.0", "version_b": "2.0.0"}))
     data = json.loads(result)
     assert "error" in data
