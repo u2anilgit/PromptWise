@@ -33,6 +33,7 @@ output_schema:
     - issues
     - score
     - approved
+    - suggestions
 roles:
   - Dev
   - EM
