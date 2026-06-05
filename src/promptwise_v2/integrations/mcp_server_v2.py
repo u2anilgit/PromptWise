@@ -178,6 +178,13 @@ _V2_TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {
              "period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"},
          }}),
+    Tool(name="cost_report",
+         description="Get cost breakdown by project/period",
+         inputSchema={"type": "object", "properties": {
+             "project_id": {"type": "string", "description": "Filter by project ID"},
+             "period": {"type": "string", "description": "weekly, monthly, all (default: weekly)"},
+             "format": {"type": "string", "description": "json or summary (default: json)"},
+         }}),
 ]
 
 _V1_NAMES = {
@@ -420,6 +427,27 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
                 "total_cost_usd": round(total_cost, 6),
                 "total_tokens_saved": total_tokens,
                 "records": stats
+            })
+
+        elif name == "cost_report":
+            stats = await ctx.memory.get_roi_stats()
+            project_filter = arguments.get("project_id")
+            if project_filter:
+                stats = [s for s in stats if s.get("project_id") == project_filter]
+
+            by_skill = {}
+            for s in stats:
+                skill = s.get("skill", "unknown")
+                by_skill.setdefault(skill, {"cost_usd": 0.0, "calls": 0})
+                by_skill[skill]["cost_usd"] += s.get("cost_usd", 0.0)
+                by_skill[skill]["calls"] += 1
+
+            total_cost = sum(v["cost_usd"] for v in by_skill.values())
+            return json.dumps({
+                "period": arguments.get("period", "weekly"),
+                "project_id": project_filter,
+                "total_cost_usd": round(total_cost, 6),
+                "by_skill": by_skill,
             })
 
         else:

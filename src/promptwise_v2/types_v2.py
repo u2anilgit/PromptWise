@@ -77,6 +77,7 @@ class BudgetStatus:
     daily_burn_usd: float
     projected_monthly_usd: float
     alert_level: str
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
