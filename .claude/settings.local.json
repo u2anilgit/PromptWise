@@ -24,7 +24,13 @@
       "PowerShell(python -c \"from pathlib import Path; from promptwise_v2.config_v2 import load_config_v2; cfg = load_config_v2\\(Path\\('C:\\\\PromptWise-1.1.0\\\\config'\\)\\); print\\('[OK] Config v' + cfg.version\\); print\\('[OK] Plugins: ' + str\\(cfg.plugins.enabled\\)\\)\")",
       "mcp__promptwise-v2__get_session_stats",
       "Bash(python3 *)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\ANIL\\\\product_vision.docx\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\ANIL\\\\Desktop\\\\product_vision.docx\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\ANIL\\\\Downloads\\\\product_vision.docx\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\ANIL\\\\Documents\\\\product_vision.docx\")",
+      "Bash(pip install *)",
+      "Bash(git rm *)"
     ]
   }
 }
