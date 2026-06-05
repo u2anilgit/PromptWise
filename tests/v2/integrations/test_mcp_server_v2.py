@@ -13,9 +13,9 @@ def _run(coro):
     finally:
         loop.close()
 
-def test_tool_count_is_52():
+def test_tool_count_is_56():
     tools = _run(list_tools_v2())
-    assert len(tools) == 52
+    assert len(tools) == 56
 
 def test_all_v1_tools_present():
     tools = _run(list_tools_v2())
@@ -158,3 +158,27 @@ def test_scan_response_finds_email_pii():
     assert any(item["type"] == "email" for item in data["pii_items"])
     assert data["safe"] is False
     assert "[REDACTED]" in data["redacted_response"]
+
+
+# --- v3 phase-5e: budget tool tests ---
+
+def test_predict_cost_returns_estimated_cost_usd():
+    ctx = _run(build_ctx_v2(CONFIG_DIR))
+    result = _run(call_tool_v2(ctx, "predict_cost",
+                               {"prompt": "Summarize this document for me.", "model": "claude-sonnet-4-6"}))
+    data = json.loads(result)
+    assert "estimated_cost_usd" in data
+    assert "estimated_input_tokens" in data
+    assert "estimated_output_tokens" in data
+    assert "recommendation" in data
+    assert isinstance(data["estimated_cost_usd"], float)
+
+
+def test_set_budget_limit_returns_status_set():
+    ctx = _run(build_ctx_v2(CONFIG_DIR))
+    result = _run(call_tool_v2(ctx, "set_budget_limit",
+                               {"limit_usd": 50.0, "period": "monthly", "alert_at_pct": 80}))
+    data = json.loads(result)
+    assert data["status"] == "set"
+    assert data["limit_usd"] == 50.0
+    assert data["period"] == "monthly"

@@ -298,6 +298,29 @@ _V2_TOOL_DEFS = [
              "controls": {"type": "array", "items": {"type": "string"}},
              "framework": {"type": "string", "enum": ["SOC2", "NIST", "ISO27001", "GDPR", "all"], "default": "all"},
          }, "required": ["controls"]}),
+    # --- v3 phase-5e: budget MCP tools ---
+    Tool(name="predict_cost",
+         description="Estimate cost of a prompt before sending it to the model",
+         inputSchema={"type": "object", "properties": {
+             "prompt": {"type": "string"},
+             "model": {"type": "string", "default": "claude-sonnet-4-6"},
+         }, "required": ["prompt"]}),
+    Tool(name="set_budget_limit",
+         description="Set monthly or daily spending limit in USD with configurable alert thresholds",
+         inputSchema={"type": "object", "properties": {
+             "limit_usd": {"type": "number"},
+             "period": {"type": "string", "enum": ["daily", "monthly"], "default": "monthly"},
+             "alert_at_pct": {"type": "number", "default": 80},
+         }, "required": ["limit_usd"]}),
+    Tool(name="get_budget_status",
+         description="Check current spend vs configured budget limits",
+         inputSchema={"type": "object", "properties": {}}),
+    Tool(name="budget_report",
+         description="Get detailed budget report with daily breakdown and trend analysis",
+         inputSchema={"type": "object", "properties": {
+             "period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"},
+             "project_id": {"type": "string"},
+         }, "required": []}),
 ]
 
 _V1_NAMES = {
@@ -1026,6 +1049,77 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
                 "mapped_controls": mapped_controls,
                 "coverage_pct": coverage_pct,
                 "gaps": gaps,
+            })
+
+        # --- v3 phase-5e: budget tool handlers ---
+        elif name == "predict_cost":
+            result = ctx.budget_guardian.predict_cost(
+                arguments["prompt"],
+                arguments.get("model", "claude-sonnet-4-6"),
+            )
+            return json.dumps(result)
+
+        elif name == "set_budget_limit":
+            limit_usd = float(arguments["limit_usd"])
+            period = arguments.get("period", "monthly")
+            alert_at_pct = float(arguments.get("alert_at_pct", 80))
+            ctx.budget_guardian.set_limit(limit_usd, period)
+            return json.dumps({
+                "status": "set",
+                "limit_usd": limit_usd,
+                "period": period,
+                "alert_at_pct": alert_at_pct,
+            })
+
+        elif name == "get_budget_status":
+            result = ctx.budget_guardian.get_budget_status()
+            return json.dumps(result)
+
+        elif name == "budget_report":
+            stats = await ctx.memory.get_roi_stats()
+            project_filter = arguments.get("project_id")
+            if project_filter:
+                stats = [s for s in stats if s.get("project_id") == project_filter]
+
+            # Group by date
+            from collections import defaultdict as _defaultdict
+            daily: dict = _defaultdict(lambda: {"cost_usd": 0.0, "calls": 0})
+            for s in stats:
+                date_key = s.get("created_ts", "unknown")
+                if date_key and date_key != "unknown":
+                    # Truncate to ISO date (first 10 chars of ISO timestamp)
+                    date_key = str(date_key)[:10]
+                daily[date_key]["cost_usd"] += s.get("cost_usd", 0.0)
+                daily[date_key]["calls"] += 1
+
+            daily_breakdown = [
+                {"date": d, "cost_usd": round(v["cost_usd"], 6), "calls": v["calls"]}
+                for d, v in sorted(daily.items())
+            ]
+            total_cost = sum(r["cost_usd"] for r in daily_breakdown)
+            avg_daily = round(total_cost / max(len(daily_breakdown), 1), 6)
+
+            # Trend: compare last half vs first half
+            if len(daily_breakdown) >= 2:
+                mid = len(daily_breakdown) // 2
+                first_half = sum(r["cost_usd"] for r in daily_breakdown[:mid])
+                second_half = sum(r["cost_usd"] for r in daily_breakdown[mid:])
+                if second_half > first_half * 1.1:
+                    trend = "up"
+                elif second_half < first_half * 0.9:
+                    trend = "down"
+                else:
+                    trend = "stable"
+            else:
+                trend = "stable"
+
+            return json.dumps({
+                "period": arguments.get("period", "weekly"),
+                "project_id": project_filter,
+                "total_cost_usd": round(total_cost, 6),
+                "daily_breakdown": daily_breakdown,
+                "trend": trend,
+                "avg_daily_cost_usd": avg_daily,
             })
 
         else:
