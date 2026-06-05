@@ -273,6 +273,31 @@ _V2_TOOL_DEFS = [
              "version_a": {"type": "string"},
              "version_b": {"type": "string"},
          }, "required": ["name", "version_a", "version_b"]}),
+    # --- v3 phase-5d: security tool-layer MCP tools ---
+    Tool(name="prompt_injection",
+         description="Scan user input for prompt injection or jailbreak attempts before sending to model",
+         inputSchema={"type": "object", "properties": {
+             "text": {"type": "string"},
+             "threshold": {"type": "number", "default": 0.7},
+         }, "required": ["text"]}),
+    Tool(name="owasp_scan",
+         description="Scan code for OWASP Top-10 vulnerabilities and return ranked findings",
+         inputSchema={"type": "object", "properties": {
+             "code": {"type": "string"},
+             "language": {"type": "string", "default": "python"},
+         }, "required": ["code"]}),
+    Tool(name="scan_response",
+         description="Scan model response for PII leaks and injection echoes before surfacing to user",
+         inputSchema={"type": "object", "properties": {
+             "response": {"type": "string"},
+             "original_prompt": {"type": "string", "default": ""},
+         }, "required": ["response"]}),
+    Tool(name="map_compliance",
+         description="Map security controls to compliance frameworks: SOC2, NIST, ISO27001, GDPR",
+         inputSchema={"type": "object", "properties": {
+             "controls": {"type": "array", "items": {"type": "string"}},
+             "framework": {"type": "string", "enum": ["SOC2", "NIST", "ISO27001", "GDPR", "all"], "default": "all"},
+         }, "required": ["controls"]}),
 ]
 
 _V1_NAMES = {
@@ -832,6 +857,175 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
                 "version_b": version_b,
                 "token_delta": token_delta,
                 "diff": diff_str,
+            })
+
+        # --- v3 phase-5d: security tool-layer handlers ---
+        elif name == "prompt_injection":
+            import re as _re
+            text = arguments.get("text", "")
+            threshold = float(arguments.get("threshold", 0.7))
+            _injection_keywords = [
+                "ignore previous", "dan mode", "act as", "developer mode",
+                "jailbreak", "override", "disregard", "forget instructions",
+            ]
+            text_lower = text.lower()
+            patterns_found = [kw for kw in _injection_keywords if kw in text_lower]
+            confidence = min(1.0, len(patterns_found) * 0.25)
+            injection_detected = confidence > 0
+            if confidence > threshold:
+                action = "block"
+            elif confidence > 0:
+                action = "warn"
+            else:
+                action = "allow"
+            return json.dumps({
+                "injection_detected": injection_detected,
+                "confidence": round(confidence, 2),
+                "patterns_found": patterns_found,
+                "action": action,
+            })
+
+        elif name == "owasp_scan":
+            import re as _re
+            code = arguments.get("code", "")
+            language = arguments.get("language", "python")
+            vulnerabilities = []
+
+            # SQL injection: f-string with SELECT/INSERT
+            if _re.search(r'f["\'].*?(SELECT|INSERT|UPDATE|DELETE).*?\{', code, _re.I):
+                vulnerabilities.append({
+                    "category": "A03:2021-SQL Injection",
+                    "severity": "critical",
+                    "description": "f-string interpolation in SQL query — use parameterized queries",
+                    "line_hint": "SQL query with f-string",
+                })
+
+            # Hardcoded secrets
+            if _re.search(r'(?i)(password|api_key|secret)\s*=\s*["\'][^"\']{4,}["\']', code):
+                vulnerabilities.append({
+                    "category": "A07:2021-Hardcoded Secrets",
+                    "severity": "critical",
+                    "description": "Hardcoded credential or secret detected — use environment variables",
+                    "line_hint": "password= / api_key= / secret= literal",
+                })
+
+            # XSS
+            if _re.search(r'(innerHTML|document\.write)\s*[=\(]', code):
+                vulnerabilities.append({
+                    "category": "A03:2021-XSS",
+                    "severity": "high",
+                    "description": "Unsafe DOM write may introduce XSS — use textContent or sanitize input",
+                    "line_hint": "innerHTML / document.write",
+                })
+
+            # Command injection
+            if _re.search(r'os\.system\s*\(|subprocess\.(Popen|run|call)\s*\(.*shell\s*=\s*True|(?<!\w)eval\s*\(', code):
+                vulnerabilities.append({
+                    "category": "A03:2021-Command Injection",
+                    "severity": "high",
+                    "description": "Shell execution or eval on untrusted input — avoid shell=True and eval",
+                    "line_hint": "os.system / subprocess shell=True / eval",
+                })
+
+            severity_weights = {"critical": 3, "high": 2, "medium": 1}
+            risk_score = sum(severity_weights.get(v["severity"], 1) for v in vulnerabilities)
+            return json.dumps({
+                "vulnerabilities": vulnerabilities,
+                "risk_score": risk_score,
+                "passed": risk_score < 4,
+                "language": language,
+            })
+
+        elif name == "scan_response":
+            import re as _re
+            response = arguments.get("response", "")
+            original_prompt = arguments.get("original_prompt", "")
+
+            _pii_patterns = [
+                ("email", _re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')),
+                ("ssn", _re.compile(r'\b\d{3}-\d{2}-\d{4}\b')),
+                ("credit_card", _re.compile(r'\b(?:\d[ -]*?){16}\b')),
+                ("phone", _re.compile(r'\b(?:\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}\b')),
+            ]
+            _injection_keywords = [
+                "ignore previous", "dan mode", "act as", "developer mode",
+                "jailbreak", "override", "disregard", "forget instructions",
+            ]
+
+            pii_items = []
+            redacted_response = response
+            for label, pat in _pii_patterns:
+                matches = pat.findall(response)
+                if matches:
+                    pii_items.append({"type": label, "count": len(matches)})
+                    redacted_response = pat.sub("[REDACTED]", redacted_response)
+            pii_found = len(pii_items) > 0
+
+            prompt_lower = original_prompt.lower()
+            resp_lower = response.lower()
+            injection_echo = (
+                any(kw in prompt_lower for kw in _injection_keywords)
+                and any(kw in resp_lower for kw in _injection_keywords)
+            )
+
+            system_leak_patterns = ["system prompt", "instructions say", "i was told to"]
+            system_leak = any(pat in resp_lower for pat in system_leak_patterns)
+
+            safe = not pii_found and not injection_echo and not system_leak
+            return json.dumps({
+                "pii_found": pii_found,
+                "pii_items": pii_items,
+                "injection_echo": injection_echo,
+                "system_leak": system_leak,
+                "safe": safe,
+                "redacted_response": redacted_response,
+            })
+
+        elif name == "map_compliance":
+            controls = arguments.get("controls", [])
+            framework = arguments.get("framework", "all")
+            _FRAMEWORKS = ["SOC2", "NIST", "ISO27001", "GDPR"]
+            _MAPPINGS = {
+                "encryption": {"SOC2": "CC6.7", "NIST": "SC-28", "ISO27001": "A.10.1", "GDPR": "Art.32"},
+                "access_control": {"SOC2": "CC6.1", "NIST": "AC-2", "ISO27001": "A.9.1", "GDPR": "Art.25"},
+                "audit_logging": {"SOC2": "CC7.2", "NIST": "AU-2", "ISO27001": "A.12.4", "GDPR": "Art.30"},
+                "incident_response": {"SOC2": "CC7.3", "NIST": "IR-4", "ISO27001": "A.16.1", "GDPR": "Art.33"},
+                "data_retention": {"SOC2": "CC6.5", "NIST": "SI-12", "ISO27001": "A.18.1", "GDPR": "Art.5"},
+            }
+            # Key variant aliases for fuzzy matching
+            _KEY_VARIANTS = {
+                "encryption": ["encrypt", "encryption", "tls", "aes"],
+                "access_control": ["access_control", "access control", "rbac", "iam", "authz", "authorization"],
+                "audit_logging": ["audit", "logging", "log", "audit_log"],
+                "incident_response": ["incident", "incident_response", "ir plan"],
+                "data_retention": ["retention", "data_retention", "purge", "expiry"],
+            }
+            target_frameworks = _FRAMEWORKS if framework == "all" else [framework]
+            mapped_controls = []
+            matched_keys = set()
+            for ctrl in controls:
+                ctrl_lower = ctrl.lower()
+                reqs = {}
+                for key, variants in _KEY_VARIANTS.items():
+                    if any(v in ctrl_lower for v in variants):
+                        matched_keys.add(key)
+                        mapping = _MAPPINGS[key]
+                        for fw in target_frameworks:
+                            if fw in mapping:
+                                reqs[fw] = mapping[fw]
+                if reqs:
+                    mapped_controls.append({"control": ctrl, "requirements": reqs})
+                else:
+                    mapped_controls.append({"control": ctrl, "requirements": {}})
+
+            gaps = [k for k in _MAPPINGS if k not in matched_keys]
+            total_possible = len(_MAPPINGS)
+            coverage_pct = round(len(matched_keys) / total_possible * 100, 1) if total_possible else 0.0
+            return json.dumps({
+                "framework": framework,
+                "mapped_controls": mapped_controls,
+                "coverage_pct": coverage_pct,
+                "gaps": gaps,
             })
 
         else:
