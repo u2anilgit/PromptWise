@@ -48,3 +48,22 @@ def test_confidence_range(ri):
 def test_explanation_mode(ri):
     profile = ri.detect("Explain how this code works", explanation_mode=True)
     assert "explain" in profile.context_hint.lower()
+
+
+def test_detect_banking_role(ri):
+    profile = ri.detect("Check if this transaction ledger is compliant with FINRA Rule 3110 and Basel III requirements")
+    assert profile.role == "Banking"
+    assert profile.recommended_model_tier == "powerful"
+
+
+def test_detect_healthcare_role(ri):
+    profile = ri.detect("Verify that the patient PHI data complies with HIPAA and HL7 FHIR formats")
+    assert profile.role == "Healthcare"
+    assert profile.recommended_model_tier == "powerful"
+
+
+def test_detect_legal_role(ri):
+    profile = ri.detect("Review this contract clause to identify GDPR or CCPA compliance risks")
+    assert profile.role == "Legal"
+    assert profile.recommended_model_tier == "powerful"
+

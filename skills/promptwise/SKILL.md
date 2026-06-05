@@ -8,7 +8,7 @@ description: Use PromptWise when the user wants to optimize prompt cost, route r
 When the user invokes `/promptwise` with no subcommand, display this menu first:
 
 ```
-PromptWise v2.0.0 — Available commands:
+PromptWise v1.0.0 — Available commands:
 
   /promptwise:route_request          Pick the right model (Haiku/Sonnet/Opus) for your task
   /promptwise:rewrite_prompt         Strip filler, tighten prompt, add role framing
@@ -189,7 +189,7 @@ Call with:
 
 Returns: JSON array or CSV string of all matching history records (all columns including `project`, `team`, `duration_ms`).
 
-## v2.0 Tools (new in v2.0.0)
+## v1.0 Tools (new in v1.0.0)
 
 ### security_check — pre-flight security scan
 Use when:

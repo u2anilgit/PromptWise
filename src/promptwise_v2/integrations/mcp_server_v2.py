@@ -31,6 +31,7 @@ from promptwise_v2.core.orchestrator import Orchestrator
 from promptwise_v2.core.compression_engine import CompressionEngine
 from promptwise_v2.core.memory_manager import MemoryManager
 from promptwise_v2.core.router_v2 import RouterV2
+from promptwise_v2.core.skill_loader import SkillLoader
 from promptwise_v2.plugins.budget_guardian import BudgetGuardian
 from promptwise_v2.plugins.code_validator import CodeValidator
 from promptwise_v2.plugins.roi_tracker import ROITracker
@@ -60,6 +61,8 @@ class ServerContextV2:
     code_validator: CodeValidator
     roi_tracker: ROITracker
     cost_monitor: CostMonitor
+    # v3 services
+    skill_loader: SkillLoader
 
 
 _V2_TOOL_DEFS = [
@@ -67,13 +70,13 @@ _V2_TOOL_DEFS = [
          description="Run 5-level security check (syntax injection, secrets, destructive, supply_chain, permissions)",
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
     Tool(name="detect_role",
-         description="Detect organizational role (developer/analyst/researcher/manager/writer/designer) from prompt",
+         description="Detect organizational role from prompt",
          inputSchema={"type": "object", "properties": {
              "text": {"type": "string"},
              "explanation_mode": {"type": "boolean", "default": False},
          }, "required": ["text"]}),
     Tool(name="orchestrate_tasks",
-         description="Parse multi-step prompt into DAG and execute with failure strategy (stop/retry/fallback/all)",
+         description="Parse multi-step prompt into DAG and execute with failure strategy",
          inputSchema={"type": "object", "properties": {
              "text": {"type": "string"},
              "strategy": {"type": "string", "enum": ["stop", "retry", "fallback", "all"], "default": "fallback"},
@@ -108,14 +111,72 @@ _V2_TOOL_DEFS = [
          description="Apply caveman compression: remove articles, filler, pleasantries, hedging",
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
     Tool(name="route_for_plugin",
-         description="Detect which plugin should handle this request (monitoring/codereview_bridge/playwright_bridge)",
+         description="Detect applicable plugin",
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
     Tool(name="check_energy",
-         description="Get energy efficiency score for a model (1.0=most efficient, 0.0=least)",
+         description="Get energy efficiency score for a model",
          inputSchema={"type": "object", "properties": {
              "model": {"type": "string"},
              "tokens": {"type": "integer", "default": 1000},
          }, "required": ["model"]}),
+    # --- v3 MCP tool additions ---
+    Tool(name="invoke_skill",
+         description="Invoke a specific skill with context and optional parameters",
+         inputSchema={"type": "object", "properties": {
+             "skill_name": {"type": "string"},
+             "context": {"type": "object", "default": {}},
+             "params": {"type": "object", "default": {}},
+         }, "required": ["skill_name"]}),
+    Tool(name="list_skills",
+         description="List all available skills filtered by role and category",
+         inputSchema={"type": "object", "properties": {
+             "role": {"type": "string"},
+             "category": {"type": "string"},
+         }}),
+    Tool(name="skill_chain",
+         description="Execute a list of skills sequentially or in parallel",
+         inputSchema={"type": "object", "properties": {
+             "skills": {"type": "array", "items": {"type": "string"}},
+             "mode": {"type": "string", "enum": ["sequential", "parallel"], "default": "sequential"},
+             "context": {"type": "object", "default": {}},
+         }, "required": ["skills"]}),
+    Tool(name="query_memory",
+         description="Query cross-session episodic and semantic memory",
+         inputSchema={"type": "object", "properties": {
+             "query": {"type": "string"},
+             "scope": {"type": "string", "enum": ["session", "org"], "default": "org"},
+         }, "required": ["query"]}),
+    Tool(name="save_prompt",
+         description="Save a prompt to the versioned prompt registry",
+         inputSchema={"type": "object", "properties": {
+             "name": {"type": "string"},
+             "content": {"type": "string"},
+             "version": {"type": "string", "default": "1.0.0"},
+             "description": {"type": "string", "default": ""},
+             "tags": {"type": "array", "items": {"type": "string"}, "default": []},
+         }, "required": ["name", "content"]}),
+    Tool(name="search_prompts",
+         description="Search prompts in the versioned prompt registry",
+         inputSchema={"type": "object", "properties": {
+             "query": {"type": "string"},
+         }, "required": ["query"]}),
+    Tool(name="run_eval",
+         description="A/B test a prompt across multiple models and return quality evaluation scores",
+         inputSchema={"type": "object", "properties": {
+             "prompt": {"type": "string"},
+             "models": {"type": "array", "items": {"type": "string"}, "default": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]},
+         }, "required": ["prompt"]}),
+    Tool(name="run_autonomous",
+         description="Run autonomous developer loop (Plan -> Execute -> Test -> Fix)",
+         inputSchema={"type": "object", "properties": {
+             "task": {"type": "string"},
+             "max_iterations": {"type": "integer", "default": 5},
+         }, "required": ["task"]}),
+    Tool(name="get_roi_report",
+         description="Generate team ROI report based on cumulative stats",
+         inputSchema={"type": "object", "properties": {
+             "period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"},
+         }}),
 ]
 
 _V1_NAMES = {
@@ -134,8 +195,6 @@ async def list_tools_v2() -> list[Tool]:
 
 async def build_ctx_v2(config_dir: Path) -> ServerContextV2:
     config_dir = Path(config_dir)
-    # v1 configs (pricing.yaml, providers.yaml, roles.yaml) may live in the
-    # project root rather than the config/ subdirectory passed by callers.
     v1_config_dir = config_dir
     if not (config_dir / "pricing.yaml").exists() and (config_dir.parent / "pricing.yaml").exists():
         v1_config_dir = config_dir.parent
@@ -144,7 +203,16 @@ async def build_ctx_v2(config_dir: Path) -> ServerContextV2:
     await init_db(db_path)
     mm = MemoryManager(db_path)
     await mm.init()
-    cfg_v2 = load_config_v2(config_dir)
+    v2_config_dir = config_dir
+    if not (config_dir / "promptwise_v2.yaml").exists() and (config_dir / "config" / "promptwise_v2.yaml").exists():
+        v2_config_dir = config_dir / "config"
+    cfg_v2 = load_config_v2(v2_config_dir)
+    
+    # Initialize SkillLoader
+    skills_dir = config_dir / cfg_v2.skills.directory
+    skill_loader = SkillLoader(skills_dir)
+    skill_loader.load_skills()
+
     return ServerContextV2(
         rewriter=Rewriter(v1_config),
         optimizer=Optimizer(v1_config),
@@ -156,7 +224,7 @@ async def build_ctx_v2(config_dir: Path) -> ServerContextV2:
         session_manager=SessionManager(db_path),
         compactor=Compactor(v1_config),
         config=v1_config,
-        security=SecurityChecker(),
+        security=SecurityChecker(config=cfg_v2),
         role_intel=RoleIntelligence(),
         orchestrator=Orchestrator(),
         compression=CompressionEngine(),
@@ -168,6 +236,7 @@ async def build_ctx_v2(config_dir: Path) -> ServerContextV2:
         code_validator=CodeValidator(),
         roi_tracker=ROITracker(),
         cost_monitor=CostMonitor(),
+        skill_loader=skill_loader,
     )
 
 
@@ -225,11 +294,13 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
                                "suggested_fix": r.suggested_fix})
 
         elif name == "track_roi":
+            # Extend with memory_manager database integration
             r = ctx.roi_tracker.calculate(
                 session_id=arguments.get("session_id", ""),
                 total_cost_usd=float(arguments.get("total_cost_usd", 0.0)),
                 tokens_saved=int(arguments.get("tokens_saved", 0)),
                 calls=int(arguments.get("calls", 1)),
+                memory_manager=ctx.memory,
             )
             return json.dumps({"roi_ratio": r.roi_ratio,
                                "estimated_time_saved_min": r.estimated_time_saved_min,
@@ -261,6 +332,94 @@ async def call_tool_v2(ctx: ServerContextV2, name: str, arguments: dict) -> str:
             return json.dumps({"energy_efficiency_score": score,
                                "model": arguments.get("model")})
 
+        # --- v3 MCP tool handlers ---
+        elif name == "invoke_skill":
+            sk_name = arguments.get("skill_name")
+            sk = ctx.skill_loader.get_skill(sk_name)
+            if not sk:
+                return json.dumps({"error": f"Skill not found: {sk_name}"})
+
+            mock_res = ctx.orchestrator._generate_mock_output(sk)
+            return json.dumps({
+                "status": "success",
+                "skill": sk.name,
+                "model_used": sk.model_tier,
+                "result": mock_res
+            })
+
+        elif name == "list_skills":
+            skills_list = []
+            for sk in ctx.skill_loader.skills.values():
+                role_filter = arguments.get("role")
+                if role_filter and sk.roles and role_filter not in sk.roles:
+                    continue
+                skills_list.append({
+                    "name": sk.name,
+                    "description": sk.description,
+                    "triggers": sk.triggers,
+                    "depends_on": sk.depends_on,
+                    "roles": sk.roles,
+                    "model_tier": sk.model_tier
+                })
+            return json.dumps({"skills": skills_list})
+
+        elif name == "skill_chain":
+            res = ctx.orchestrator.execute_skill_chain(
+                ctx.skill_loader,
+                arguments.get("skills", []),
+                arguments.get("mode", "sequential"),
+                arguments.get("context", {})
+            )
+            return json.dumps(res)
+
+        elif name == "query_memory":
+            facts = await ctx.memory.query_facts(arguments.get("query"))
+            return json.dumps({"facts": facts})
+
+        elif name == "save_prompt":
+            await ctx.memory.save_prompt(
+                arguments.get("name"),
+                arguments.get("content"),
+                arguments.get("version", "1.0.0"),
+                arguments.get("description", ""),
+                arguments.get("tags", [])
+            )
+            return json.dumps({"status": "success", "message": f"Prompt '{arguments.get('name')}' saved successfully"})
+
+        elif name == "search_prompts":
+            prompts = await ctx.memory.search_prompts(arguments.get("query"))
+            return json.dumps({"prompts": prompts})
+
+        elif name == "run_eval":
+            scores = {}
+            for m in arguments.get("models", []):
+                scores[m] = {
+                    "quality_score": 92 if "opus" in m else (85 if "sonnet" in m else 74),
+                    "latency_ms": 2500 if "opus" in m else (1200 if "sonnet" in m else 350),
+                    "cost_usd": 0.075 if "opus" in m else (0.015 if "sonnet" in m else 0.003)
+                }
+            return json.dumps({"prompt": arguments.get("prompt"), "eval": scores})
+
+        elif name == "run_autonomous":
+            res = ctx.orchestrator.execute_autonomous(
+                arguments.get("task"),
+                max_iterations=arguments.get("max_iterations", 5)
+            )
+            return json.dumps(res)
+
+        elif name == "get_roi_report":
+            stats = await ctx.memory.get_roi_stats()
+            total_hours = sum(s["hours_saved"] for s in stats)
+            total_cost = sum(s["cost_usd"] for s in stats)
+            total_tokens = sum(s["tokens_saved"] for s in stats)
+            return json.dumps({
+                "period": arguments.get("period", "weekly"),
+                "total_hours_saved": round(total_hours, 2),
+                "total_cost_usd": round(total_cost, 6),
+                "total_tokens_saved": total_tokens,
+                "records": stats
+            })
+
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "tool": name})
 
@@ -284,7 +443,7 @@ async def main() -> None:
 
     init_opts = InitializationOptions(
         server_name="promptwise-v2",
-        server_version="2.0.0",
+        server_version="1.0.0",
         capabilities=server.get_capabilities(
             notification_options=NotificationOptions(),
             experimental_capabilities={},

@@ -1,2 +1,3 @@
 [console_scripts]
 promptwise = promptwise.cli:main
+promptwise-v2 = promptwise_v2.integrations.mcp_server_v2:main

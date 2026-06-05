@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-VERSION = "1.1.0"
+VERSION = "1.0.0"
 
 
 def configure_pip_trusted_hosts() -> None:

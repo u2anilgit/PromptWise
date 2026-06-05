@@ -1,4 +1,4 @@
-# PromptWise v1.1.0 – Token-Aware Prompt Routing
+# PromptWise v1.0.0 – Token-Aware Prompt Routing
 
 MCP server plugin for Claude Code. 9 tools for cost optimization: routing, caching, compression, batching, cross-provider comparison, and stats.
 

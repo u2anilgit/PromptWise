@@ -9,4 +9,4 @@ if sys.version_info < (3, 10):
         f"Upgrade: https://www.python.org/downloads/"
     )
 
-__version__ = "1.1.0"
+__version__ = "1.0.0"

@@ -13,9 +13,9 @@ def _run(coro):
     finally:
         loop.close()
 
-def test_tool_count_is_24():
+def test_tool_count_is_33():
     tools = _run(list_tools_v2())
-    assert len(tools) == 24
+    assert len(tools) == 33
 
 def test_all_v1_tools_present():
     tools = _run(list_tools_v2())
