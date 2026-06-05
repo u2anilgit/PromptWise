@@ -1,2 +1,0 @@
-[console_scripts]
-promptwise = promptwise.cli:main

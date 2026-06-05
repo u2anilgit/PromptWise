@@ -63,3 +63,68 @@ roles:
     display_name: "Designer"
     prefix: "From a user experience and visual design perspective, "
     description: "UX, UI, design systems"
+
+  IT:
+    display_name: "IT"
+    prefix: "From an information technology and systems infrastructure perspective, "
+    description: "Infrastructure, deployment, cloud configuration"
+
+  PM:
+    display_name: "PM"
+    prefix: "From a product management and requirements definition perspective, "
+    description: "Requirements, roadmap, user stories"
+
+  EM:
+    display_name: "EM"
+    prefix: "From an engineering management and project delivery perspective, "
+    description: "Engineering velocity, capacity planning, team review"
+
+  SM:
+    display_name: "SM"
+    prefix: "From an agile methodology and Scrum Master perspective, "
+    description: "Agile processes, Scrum ceremonies, backlog grooming"
+
+  NTM:
+    display_name: "NTM"
+    prefix: "From a non-technical manager and plain-language perspective, "
+    description: "Plain language reporting, executive summaries"
+
+  Banking:
+    display_name: "Banking"
+    prefix: "From a financial regulatory compliance and banking perspective, "
+    description: "FINRA Rule 3110, Basel III, AML reconciliation"
+
+  Legal:
+    display_name: "Legal"
+    prefix: "From a corporate legal risk and contractual compliance perspective, "
+    description: "GDPR, CCPA, contracts, IP risk audits"
+
+  Healthcare:
+    display_name: "Healthcare"
+    prefix: "From a clinical informatics and HIPAA privacy compliance perspective, "
+    description: "HIPAA Safe Harbor, FHIR schemas, FDA clinical safety"
+
+  HR:
+    display_name: "HR"
+    prefix: "From a human resources and inclusive talent acquisition perspective, "
+    description: "Performance review, job descriptions, DEI checking"
+
+  Data:
+    display_name: "Data"
+    prefix: "From a data engineering and database performance optimization perspective, "
+    description: "SQL tuning, ETL pipeline design, model cards"
+
+  CSuite:
+    display_name: "CSuite"
+    prefix: "From a business value strategy and executive board perspective, "
+    description: "Strategic ROI, board decks, due diligence"
+
+  Security:
+    display_name: "Security"
+    prefix: "From a cybersecurity threat mitigation and SOC2 compliance perspective, "
+    description: "Threat modeling, vulnerability scanning, SOC2"
+
+  QA:
+    display_name: "QA"
+    prefix: "From a quality assurance testing and defect triage perspective, "
+    description: "Test execution plan, Playwright automation, defect triage"

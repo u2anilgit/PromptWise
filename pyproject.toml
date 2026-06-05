@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "promptwise"
-version = "1.1.0"
+version = "2.0.0"
 description = "Token-aware prompt routing and cost optimization for Claude Code"
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{name = "Anil Devarasetti", email = "AnilKumar.Devarasetti@chubb.com"}]
+authors = [{name = "Anil Devarasetti", email = "u2anil@gmail.com"}]
 license = {text = "MIT"}
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -26,6 +26,10 @@ dependencies = [
     "tiktoken>=0.7",
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    "jsonschema>=4.0",
+    "SQLAlchemy>=2.0",
+    "prometheus-client>=0.17",
+    "Authlib>=1.2",
 ]
 
 [project.optional-dependencies]

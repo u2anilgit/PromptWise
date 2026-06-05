@@ -1,4 +1,4 @@
-version: "2.0"
+version: "1.0"
 extends: promptwise.yaml
 
 core:
@@ -16,7 +16,7 @@ memory:
 
 plugins:
   auto_load: true
-  enabled: [monitoring, codereview_bridge, playwright_bridge]
+  enabled: [monitoring, budget_guardian, code_validator, roi_tracker]
 
 compression:
   enabled: true
@@ -35,3 +35,75 @@ policies:
   budget_hard_stop_usd: 10.0
   daily_burn_warn_usd: 3.0
   team_budget_usd: 100.0
+
+intelligence:
+  memory:
+    cross_session: true
+    org_vault_enabled: true
+    retention_tiers:
+      working: session
+      episodic: 4_weeks
+      semantic: permanent
+  autocomplete:
+    enabled: true
+    latency_target_ms: 150
+    confidence_threshold: 0.7
+  proactive:
+    enabled: true
+    complexity_threshold: 10 # cyclomatic
+    test_gap_watcher: true
+  autonomous_loops:
+    enabled: true
+    max_iterations: 5
+    checkpoint_mode: manual
+
+roles:
+  current: Dev
+  available:
+    - Dev
+    - IT
+    - PM
+    - EM
+    - SM
+    - NTM
+    - Banking
+    - Legal
+    - Healthcare
+    - HR
+    - Data
+    - CSuite
+    - Security
+    - QA
+  compliance_profiles:
+    Banking: compliance/banking.yaml
+    Healthcare: compliance/healthcare.yaml
+    Legal: compliance/legal.yaml
+
+compliance:
+  pii_detection: true
+  pii_action: redact # warn|block|redact
+  injection_detection: true
+  injection_threshold: 0.7
+  owasp_check: post_generation
+  audit_log: true  # SOC2-ready JSON
+  frameworks:
+    banking: [FINRA_3110, PCI_DSS, BASEL_III]
+    healthcare: [HIPAA_SafeHarbor, FHIR_R4]
+    legal: [GDPR_Art25, CCPA]
+    all: [OWASP_Top10, EU_AI_Act]
+
+skills:
+  directory: skills/
+  auto_trigger: true
+  confidence_threshold: 0.6
+  auto_load_on_start: true
+  chain_mode: sequential # parallel|sequential
+  max_chain_depth: 8
+  output_validation: strict
+
+analytics:
+  roi_tracking: true
+  per_developer: true
+  per_role: true
+  slack_digest: weekly
+  pdf_report: monthly

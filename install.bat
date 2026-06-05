@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-echo PromptWise v1.1.0 - Install
+echo PromptWise v1.0.0 - Install
 echo ============================
 
 REM Check Python

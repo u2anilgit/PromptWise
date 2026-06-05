@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptWise v3.0 — Implementation Feature Plan</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #f5f2eb;
+    --bg2: #ede9e0;
+    --ink: #1a1814;
+    --ink2: #3d3830;
+    --muted: #8a8070;
+    --border: #d4cfc5;
+    --border2: #c5bfb3;
+    --green: #1a6b3c;
+    --green-bg: #e8f5ee;
+    --green-border: #b8ddc8;
+    --orange: #b85c00;
+    --orange-bg: #fdf0e0;
+    --orange-border: #f0c888;
+    --red: #9b2020;
+    --red-bg: #fdf0f0;
+    --red-border: #f0c8c8;
+    --blue: #1a3d7c;
+    --blue-bg: #edf2fc;
+    --blue-border: #b8caf0;
+    --purple: #5b1a7c;
+    --purple-bg: #f5eeff;
+    --purple-border: #d8b8f0;
+    --mono: 'IBM Plex Mono', monospace;
+    --display: 'Fraunces', serif;
+    --body: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.6;
+  }
+
+  /* ── COVER ── */
+  .cover {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 72px 64px 56px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cover::after {
+    content: 'v3.0';
+    position: absolute;
+    right: -20px;
+    bottom: -60px;
+    font-family: var(--display);
+    font-size: 280px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.03);
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .cover-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #8a8070;
+    margin-bottom: 32px;
+    text-transform: uppercase;
+  }
+
+  .cover h1 {
+    font-family: var(--display);
+    font-size: clamp(48px, 6vw, 80px);
+    font-weight: 900;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  .cover h1 em {
+    font-style: italic;
+    font-weight: 300;
+    color: #a09880;
+  }
+
+  .cover-sub {
+    font-size: 18px;
+    color: #8a8070;
+    margin-top: 20px;
+    max-width: 560px;
+    line-height: 1.5;
+  }
+
+  .cover-meta {
+    display: flex;
+    gap: 40px;
+    margin-top: 48px;
+    padding-top: 32px;
+    border-top: 1px solid #2a2620;
+    flex-wrap: wrap;
+  }
+
+  .cover-stat { display: flex; flex-direction: column; gap: 3px; }
+  .cover-stat .n {
+    font-family: var(--display);
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--bg);
+    line-height: 1;
+  }
+  .cover-stat .l {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #5a5040;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  /* ── SECTIONS ── */
+  .section {
+    padding: 64px 64px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section:last-child { border-bottom: none; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .section-title {
+    font-family: var(--display);
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 32px;
+    color: var(--ink);
+  }
+
+  /* ── V2 ASSET MAP ── */
+  .asset-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .asset-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 20px;
+  }
+
+  .asset-card .file {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    margin-bottom: 6px;
+  }
+
+  .asset-card .desc {
+    font-size: 12px;
+    color: var(--ink2);
+    line-height: 1.5;
+  }
+
+  .asset-card .reuse {
+    display: inline-block;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid var(--green-border);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .asset-card .extend {
+    display: inline-block;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--orange-bg);
+    color: var(--orange);
+    border: 1px solid var(--orange-border);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── PHASE BLOCKS ── */
+  .phase-block {
+    margin-bottom: 48px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .phase-header {
+    padding: 22px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .phase-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .phase-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .phase-name {
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .phase-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .phase-prereq {
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid var(--red-border);
+    font-weight: 600;
+  }
+
+  .phase-body {
+    background: white;
+    padding: 28px;
+  }
+
+  /* ── SKILL CARDS ── */
+  .skills-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .skill-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .skill-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .skill-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .skill-role {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .skill-body {
+    padding: 14px 18px;
+    background: var(--bg);
+  }
+
+  .skill-desc {
+    font-size: 12px;
+    color: var(--ink2);
+    line-height: 1.55;
+    margin-bottom: 12px;
+  }
+
+  .impl-block {
+    background: var(--ink);
+    color: #a8c4a8;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 12px 14px;
+    border-radius: 5px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+
+  .impl-block .comment { color: #556655; }
+  .impl-block .keyword { color: #88c8a8; }
+  .impl-block .string { color: #c8a870; }
+  .impl-block .fn { color: #88a8e8; }
+
+  /* ── CLAUDE IMPL NOTES ── */
+  .claude-box {
+    background: var(--blue-bg);
+    border: 1px solid var(--blue-border);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-top: 16px;
+  }
+
+  .claude-box-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--blue);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .claude-box ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .claude-box li {
+    font-size: 12px;
+    color: var(--blue);
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.5;
+  }
+
+  .claude-box li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    opacity: 0.6;
+  }
+
+  /* ── TOOL TABLE ── */
+  .tool-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 16px;
+  }
+
+  .tool-table th {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 2px solid var(--border);
+    background: var(--bg2);
+  }
+
+  .tool-table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+
+  .tool-table tr:last-child td { border-bottom: none; }
+
+  .tool-name-cell {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green);
+    white-space: nowrap;
+  }
+
+  .v-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .v2 { background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }
+  .v3 { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .v3new { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
+
+  /* ── PHASE COLOR THEMES ── */
+  .p30 .phase-header { background: #1a1814; color: var(--bg); }
+  .p30 .phase-num { background: rgba(255,255,255,0.1); color: var(--bg); }
+  .p30 .phase-name { color: var(--bg); }
+
+  .p31 .phase-header { background: var(--green-bg); }
+  .p31 .phase-num { background: var(--green); color: white; }
+
+  .p32 .phase-header { background: var(--blue-bg); }
+  .p32 .phase-num { background: var(--blue); color: white; }
+
+  .p33 .phase-header { background: var(--red-bg); }
+  .p33 .phase-num { background: var(--red); color: white; }
+
+  .p34 .phase-header { background: var(--purple-bg); }
+  .p34 .phase-num { background: var(--purple); color: white; }
+
+  .p35 .phase-header { background: var(--orange-bg); }
+  .p35 .phase-num { background: var(--orange); color: white; }
+
+  .p36 .phase-header { background: var(--bg2); }
+  .p36 .phase-num { background: var(--ink2); color: white; }
+
+  /* ── DEPENDENCY CHAIN ── */
+  .dep-chain {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 20px 0;
+  }
+
+  .dep-node {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 6px 14px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink2);
+  }
+
+  .dep-arrow {
+    font-size: 14px;
+    color: var(--muted);
+    padding: 0 8px;
+  }
+
+  .dep-node.active {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
+
+  /* ── TIMELINE ── */
+  .timeline {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+
+  .tl-col {
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .tl-col:last-child { border-right: none; }
+
+  .tl-head {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+
+  .tl-phase {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .tl-time {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: 2px;
+  }
+
+  .tl-body {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tl-item {
+    font-size: 11px;
+    color: var(--ink2);
+    padding: 5px 8px;
+    border-radius: 4px;
+    border-left: 3px solid;
+    line-height: 1.3;
+  }
+
+  /* ── PROMPT YAML EXAMPLES ── */
+  .yaml-block {
+    background: var(--ink);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+
+  .yaml-header {
+    padding: 10px 16px;
+    background: #2a2620;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #6a6050;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .yaml-header span { color: #a09070; }
+
+  .yaml-body {
+    padding: 18px 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.8;
+    color: #c8bfa8;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .yaml-key { color: #88b8e8; }
+  .yaml-val { color: #c8a870; }
+  .yaml-comment { color: #4a5040; }
+  .yaml-str { color: #a8c888; }
+
+  /* ── SKILL FRONTMATTER SCHEMA ── */
+  .schema-grid {
+    display: grid;
+    grid-template-columns: 160px 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 12px;
+    margin-top: 16px;
+  }
+
+  .schema-grid .sh {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    padding: 10px 14px;
+    background: var(--bg2);
+    border-bottom: 2px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  .schema-grid .sh:last-child { border-right: none; }
+
+  .schema-grid .sf {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    color: var(--ink2);
+    line-height: 1.5;
+  }
+
+  .schema-grid .sf:nth-child(3n) { border-right: none; }
+  .schema-grid .sf:nth-last-child(-n+3) { border-bottom: none; }
+
+  .sf .field { font-family: var(--mono); font-size: 11px; color: var(--green); font-weight: 600; }
+
+  /* ── INTEGRATION MAP ── */
+  .integration-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .int-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    background: white;
+    text-align: center;
+  }
+
+  .int-icon { font-size: 24px; margin-bottom: 8px; }
+  .int-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .int-type {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .int-phase {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    background: var(--ink);
+    color: var(--muted);
+    padding: 36px 64px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-brand {
+    font-family: var(--display);
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--bg);
+  }
+
+  .footer-note {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-align: right;
+    line-height: 1.8;
+  }
+
+  /* note box */
+  .note {
+    background: var(--orange-bg);
+    border: 1px solid var(--orange-border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 12px;
+    color: var(--orange);
+    margin-top: 12px;
+    line-height: 1.6;
+  }
+
+  .note strong { font-weight: 600; }
+
+  @media (max-width: 900px) {
+    .cover, .section, .footer { padding: 40px 24px; }
+    .asset-grid, .skills-grid, .integration-grid { grid-template-columns: 1fr; }
+    .timeline { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-eyebrow">PromptWise · Feature Implementation Plan · June 2026</div>
+  <h1>v3.0 <em>Skill Layer</em><br>Implementation Plan</h1>
+  <p class="cover-sub">Built on the v2.0 engine. The missing piece: a 40+ skill library with composition, security hardening, AI/prompt engineering capabilities, and platform expansion — all implemented using Claude.</p>
+  <div class="cover-meta">
+    <div class="cover-stat"><span class="n">6</span><span class="l">Phases</span></div>
+    <div class="cover-stat"><span class="n">43</span><span class="l">New Skills/Features</span></div>
+    <div class="cover-stat"><span class="n">24→68</span><span class="l">MCP Tools</span></div>
+    <div class="cover-stat"><span class="n">v2.0</span><span class="l">Engine Preserved</span></div>
+  </div>
+</div>
+
+<!-- SECTION 1: V2 ASSET INVENTORY -->
+<section class="section">
+  <div class="eyebrow">// 01 — What You Already Have</div>
+  <h2 class="section-title">v2.0 Engine — Reuse vs Extend</h2>
+  <p style="font-size:14px;color:var(--ink2);margin-bottom:24px;max-width:680px;">v2.0 is a strong foundation. v3.0 does NOT rebuild it — it adds the skill layer on top. Every module below is preserved and extended, not replaced.</p>
+
+  <div class="asset-grid">
+    <div class="asset-card">
+      <div class="file">core/router.py</div>
+      <div class="desc">Intent detection, model selection (Opus/Sonnet/Haiku). Already routes by complexity.</div>
+      <span class="reuse">✓ Reuse as-is</span>
+    </div>
+    <div class="asset-card">
+      <div class="file">core/orchestrator.py</div>
+      <div class="desc">DAG-based multi-step execution with failure strategies. Will power skill chains in v3.</div>
+      <span class="extend">▲ Extend for skill DAGs</span>
+    </div>
+    <div class="asset-card">
+      <div class="file">core/security.py</div>
+      <div class="desc">5-level preflight: syntax, secrets, destructive, supply chain, permissions.</div>
+      <span class="extend">▲ Extend with PII + injection</span>
+    </div>
+    <div class="asset-card">
+      <div class="file">core/context_engine.py</div>
+      <div class="desc">Intelligent file selection via dependency graph + TF-IDF + LLM scoring.</div>
+      <span class="reuse">✓ Reuse as-is</span>
+    </div>
+    <div class="asset-card">
+      <div class="file">core/memory_manager.py</div>
+      <div class="desc">SQLite session persistence, 4-week retention, JSON export.</div>
+      <span class="extend">▲ Extend for skill state tracking</span>
+    </div>
+    <div class="asset-card">
+      <div class="file">core/compression_engine.py</div>
+      <div class="desc">Caveman compression lite/full/ultra with 15–20% token savings.</div>
+      <span class="reuse">✓ Reuse as-is</span>
+    </div>
+    <div class="asset-card">
+      <div class="file">core/role_intelligence.py</div>
+      <div class="desc">6 org roles: IT/Dev/EM/PM/SM/NTM with adaptive routing.</div>
+      <span class="extend">▲ Map roles to skill access</span>
+    </div>
+    <div class="asset-card">
+      <div class="file">plugins/plugin_system.py</div>
+      <div class="desc">Hybrid keyword + burn-rate detection, auto-load at confidence &gt; 0.6.</div>
+      <span class="extend">▲ Extend: skills use same detection</span>
+    </div>
+    <div class="asset-card">
+      <div class="file">integrations/mcp_adapters.py</div>
+      <div class="desc">Claude (native), Cursor (socket), Codex (REST), Gemini (gRPC) adapters.</div>
+      <span class="reuse">✓ Reuse — already multi-platform</span>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Key insight from your own roadmap:</strong> "v2.0 is a strong engine. The gap is a skill library (40+ skills) + skill composition layer on top." This plan builds exactly that — zero breaking changes to v1.2.0 or v2.0.0.
+  </div>
+</section>
+
+<!-- SECTION 2: SKILL SYSTEM FOUNDATION -->
+<section class="section">
+  <div class="eyebrow">// 02 — Phase 3.0 (PREREQUISITE)</div>
+  <h2 class="section-title">Skill Foundation — The Composition Layer</h2>
+  <p style="font-size:14px;color:var(--ink2);margin-bottom:24px;max-width:680px;">This phase must ship first. All other phases depend on it. It defines the skill format, the 3 new MCP tools, and the auto-trigger system.</p>
+
+  <div class="phase-block p30">
+    <div class="phase-header">
+      <div class="phase-header-left">
+        <span class="phase-num">Phase 3.0</span>
+        <span class="phase-name">Skill Foundation</span>
+      </div>
+      <span class="phase-badge phase-prereq">⚠ PREREQUISITE — blocks all phases</span>
+    </div>
+    <div class="phase-body">
+
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:12px;">Skill Frontmatter Schema</h3>
+      <p style="font-size:12px;color:var(--ink2);margin-bottom:8px;">Every skill is a Markdown file with YAML frontmatter. This schema is the contract all 40+ skills follow.</p>
+
+      <div class="schema-grid">
+        <div class="sh">Field</div>
+        <div class="sh">Type / Values</div>
+        <div class="sh">Purpose</div>
+
+        <div class="sf"><span class="field">name</span></div>
+        <div class="sf">string (kebab-case)</div>
+        <div class="sf">Unique skill ID, used in invoke_skill and skill_chain tools</div>
+
+        <div class="sf"><span class="field">description</span></div>
+        <div class="sf">string (1-2 sentences)</div>
+        <div class="sf">Used by auto-trigger keyword matching and list_skills output</div>
+
+        <div class="sf"><span class="field">triggers</span></div>
+        <div class="sf">string[] (keywords/phrases)</div>
+        <div class="sf">Matched against user prompt by plugin_system.py detection engine</div>
+
+        <div class="sf"><span class="field">depends_on</span></div>
+        <div class="sf">string[] (other skill names)</div>
+        <div class="sf">Skills that must run before this one. Orchestrator builds the DAG.</div>
+
+        <div class="sf"><span class="field">output_schema</span></div>
+        <div class="sf">JSON Schema object</div>
+        <div class="sf">Typed handoff spec — downstream skills validate against this</div>
+
+        <div class="sf"><span class="field">roles</span></div>
+        <div class="sf">string[] (IT/Dev/EM/PM/SM/NTM)</div>
+        <div class="sf">Which org roles can invoke this skill (uses existing role_intelligence.py)</div>
+
+        <div class="sf"><span class="field">model_tier</span></div>
+        <div class="sf">opus | sonnet | haiku | auto</div>
+        <div class="sf">Overrides router.py for this skill; "auto" lets router decide</div>
+      </div>
+
+      <div class="yaml-block" style="margin-top:20px;">
+        <div class="yaml-header">📄 <span>skills/feature-dev.md — example skill frontmatter</span></div>
+        <div class="yaml-body"><span class="yaml-comment">---</span>
+<span class="yaml-key">name</span>: <span class="yaml-str">feature-dev</span>
+<span class="yaml-key">description</span>: <span class="yaml-str">"End-to-end feature development: brainstorm → TDD → code-review → verify"</span>
+<span class="yaml-key">triggers</span>: <span class="yaml-val">[</span><span class="yaml-str">"build feature"</span>, <span class="yaml-str">"implement feature"</span>, <span class="yaml-str">"new feature"</span>, <span class="yaml-str">"add feature"</span><span class="yaml-val">]</span>
+<span class="yaml-key">depends_on</span>: <span class="yaml-val">[</span><span class="yaml-str">"tdd"</span>, <span class="yaml-str">"code-review"</span>, <span class="yaml-str">"verification-before-completion"</span><span class="yaml-val">]</span>
+<span class="yaml-key">output_schema</span>:
+  <span class="yaml-key">type</span>: <span class="yaml-str">object</span>
+  <span class="yaml-key">properties</span>:
+    <span class="yaml-key">implementation_files</span>: <span class="yaml-val">{type: array}</span>
+    <span class="yaml-key">test_files</span>: <span class="yaml-val">{type: array}</span>
+    <span class="yaml-key">review_summary</span>: <span class="yaml-val">{type: string}</span>
+    <span class="yaml-key">verified</span>: <span class="yaml-val">{type: boolean}</span>
+<span class="yaml-key">roles</span>: <span class="yaml-val">[</span><span class="yaml-str">Dev</span>, <span class="yaml-str">IT</span><span class="yaml-val">]</span>
+<span class="yaml-key">model_tier</span>: <span class="yaml-str">auto</span>
+<span class="yaml-comment">---</span>
+
+<span class="yaml-comment"># Feature Development Skill</span>
+
+<span class="yaml-comment">## System Prompt</span>
+You are a senior software engineer executing a complete feature development cycle...
+
+<span class="yaml-comment">## Steps</span>
+1. Brainstorm and clarify requirements with the user
+2. Write failing tests first (TDD)
+3. Implement to pass tests
+4. Run code-review skill on output
+5. Run verification-before-completion skill</div>
+      </div>
+
+      <h3 style="font-size:15px;font-weight:600;margin:24px 0 12px;">3 New MCP Tools (adds to existing 24)</h3>
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>Tool Name</th>
+            <th>Input</th>
+            <th>What It Does</th>
+            <th>Claude Implementation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tool-name-cell">invoke_skill</span> <span class="v-badge v3new">NEW</span></td>
+            <td style="font-size:11px;font-family:var(--mono)">skill_name, context, params</td>
+            <td style="font-size:12px;">Loads the skill markdown, injects context, sends to router.py for model selection, executes via orchestrator.py</td>
+            <td style="font-size:12px;">Claude reads the skill system prompt + user context. Routes complexity to Opus/Sonnet/Haiku. Returns typed output per output_schema.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">list_skills</span> <span class="v-badge v3new">NEW</span></td>
+            <td style="font-size:11px;font-family:var(--mono)">role?, category?</td>
+            <td style="font-size:12px;">Returns all available skills filtered by current user role and optional category. Shows triggers, model tier, dependencies.</td>
+            <td style="font-size:12px;">Scans skills/ directory, parses frontmatter, filters by role_intelligence.py current role. Returns structured JSON.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">skill_chain</span> <span class="v-badge v3new">NEW</span></td>
+            <td style="font-size:11px;font-family:var(--mono)">skills[], mode, context</td>
+            <td style="font-size:12px;">Runs multiple skills sequentially or in parallel. Validates typed handoffs between skills. Handles failures per orchestrator strategy.</td>
+            <td style="font-size:12px;">Orchestrator.py builds DAG from depends_on fields. Each skill output validated against next skill's input schema before handoff.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="claude-box">
+        <div class="claude-box-title">🤖 Claude Implementation — Phase 3.0</div>
+        <ul>
+          <li>Create <code>src/promptwise_v2/skills/</code> directory; each skill is a <code>.md</code> file with YAML frontmatter parsed by <code>frontmatter</code> Python library</li>
+          <li>Add <code>SkillLoader</code> class to <code>plugin_system.py</code>: scans skills/ on startup, indexes triggers into keyword matcher, auto-suggests at confidence &gt;0.6</li>
+          <li>Extend <code>orchestrator.py</code>: add <code>execute_skill_chain()</code> method that topologically sorts depends_on DAG, handles sequential + parallel modes</li>
+          <li>Add output schema validation using <code>jsonschema</code> library — validate each skill output before passing to next in chain</li>
+          <li>Register 3 new tools in <code>server.py</code> alongside existing 24 — total becomes 27 after Phase 3.0</li>
+          <li>Use Claude's tool use API for complex skills that need multi-turn reasoning; simple skills use single completion</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 3: PHASE 3.1 DEV WORKFLOW -->
+<section class="section">
+  <div class="eyebrow">// 03 — Phase 3.1</div>
+  <h2 class="section-title">Dev Workflow Skills (8 skills)</h2>
+
+  <div class="phase-block p31">
+    <div class="phase-header">
+      <div class="phase-header-left">
+        <span class="phase-num">Phase 3.1</span>
+        <span class="phase-name">Dev Workflow Skills</span>
+      </div>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--green);">Requires: Phase 3.0</span>
+    </div>
+    <div class="phase-body">
+
+      <div class="dep-chain">
+        <span class="dep-node">brainstorm</span>
+        <span class="dep-arrow">→</span>
+        <span class="dep-node">tdd</span>
+        <span class="dep-arrow">→</span>
+        <span class="dep-node active">feature-dev</span>
+        <span class="dep-arrow">→</span>
+        <span class="dep-node">code-review</span>
+        <span class="dep-arrow">→</span>
+        <span class="dep-node">verification-before-completion</span>
+        <span class="dep-arrow">→</span>
+        <span class="dep-node">finishing-branch</span>
+      </div>
+
+      <div class="skills-grid">
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--green-bg);">
+            <span class="skill-name">tdd</span>
+            <span class="skill-role" style="background:var(--green);color:white;">Dev · Sonnet</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Enforces test-first development. Writes failing tests based on requirements, then guides implementation to pass them. Integrates with pytest/jest/go test.</div>
+            <div class="impl-block"><span class="comment"># Claude prompt pattern</span>
+<span class="keyword">system</span>: <span class="string">"You are a TDD expert. NEVER write
+implementation before tests. Given requirements,
+write comprehensive failing tests first using
+{framework}. Then implement minimally to pass."</span>
+<span class="fn">tools</span>: [read_file, write_file, run_terminal]
+<span class="fn">model</span>: sonnet  <span class="comment"># cost-effective for structured output</span></div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--green-bg);">
+            <span class="skill-name">systematic-debugging</span>
+            <span class="skill-role" style="background:var(--green);color:white;">Dev · Opus</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Structured debugging: reproduce → isolate → hypothesize → verify. Uses context_engine.py to pull relevant files. Records hypothesis log in memory_manager.</div>
+            <div class="impl-block"><span class="comment"># Multi-step Claude reasoning</span>
+<span class="keyword">step1</span>: Reproduce + capture error context
+<span class="keyword">step2</span>: Isolate via binary search / bisect
+<span class="keyword">step3</span>: Generate ranked hypotheses (Opus)
+<span class="keyword">step4</span>: Verify each hypothesis with tests
+<span class="fn">memory</span>: store hypothesis log per session</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--green-bg);">
+            <span class="skill-name">code-review</span>
+            <span class="skill-role" style="background:var(--green);color:white;">Dev/EM · Sonnet</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Automated code review covering correctness, style, complexity, security signals, and test coverage. Outputs structured review JSON consumed by CI hooks.</div>
+            <div class="impl-block"><span class="comment"># Routes to existing codereview_bridge.py</span>
+<span class="fn">output_schema</span>: {
+  issues: [{severity, file, line, message}],
+  score: 0-100,
+  approved: boolean,
+  suggestions: string[]
+}
+<span class="comment"># Feeds into finishing-branch skill</span></div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--green-bg);">
+            <span class="skill-name">verification-before-completion</span>
+            <span class="skill-role" style="background:var(--green);color:white;">Dev · Haiku</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Checklist verification before marking any task done: tests pass, no TODOs left, docs updated, no console logs, security checks clear. Fast — uses Haiku.</div>
+            <div class="impl-block"><span class="comment"># Haiku-optimized checklist runner</span>
+<span class="fn">checks</span>: [
+  run_tests → must_pass,
+  grep_todos → must_be_zero,
+  check_docs → updated,
+  security_check → clear  <span class="comment"># calls security.py</span>
+]
+<span class="fn">blocks</span>: finishing-branch if any fail</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--green-bg);">
+            <span class="skill-name">refactoring</span>
+            <span class="skill-role" style="background:var(--green);color:white;">Dev · Sonnet</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Systematic refactoring with safety net: writes characterization tests first, refactors incrementally, verifies tests still pass at each step. Uses context_engine for related files.</div>
+            <div class="impl-block"><span class="comment"># Safe refactoring protocol</span>
+<span class="keyword">phase1</span>: write characterization tests
+<span class="keyword">phase2</span>: identify code smells (complexity,
+         duplication, coupling)
+<span class="keyword">phase3</span>: refactor one concern at a time
+<span class="keyword">phase4</span>: run tests after each change</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--green-bg);">
+            <span class="skill-name">git-workflow</span>
+            <span class="skill-role" style="background:var(--green);color:white;">Dev · Haiku</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Enforces git best practices: conventional commits, branch naming, PR description generation, merge conflict resolution guidance. Writes commit messages automatically.</div>
+            <div class="impl-block"><span class="comment"># Auto-generates conventional commits</span>
+<span class="fn">commit_format</span>: <span class="string">"type(scope): description"</span>
+<span class="fn">pr_template</span>: Summary + Changes + Testing
+<span class="fn">branch_naming</span>: feat/fix/chore/docs prefixes
+<span class="fn">model</span>: haiku  <span class="comment"># fast, cheap, structured</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="claude-box">
+        <div class="claude-box-title">🤖 Claude Implementation — Phase 3.1</div>
+        <ul>
+          <li>All 8 skills are Markdown files in <code>skills/dev/</code> — no new Python modules needed beyond Phase 3.0's SkillLoader</li>
+          <li>feature-dev skill uses <code>skill_chain</code> tool internally: chains brainstorm → tdd → code-review → verification automatically</li>
+          <li>systematic-debugging uses Opus with extended thinking (budget_tokens: 8000) for hypothesis generation — most complex reasoning task</li>
+          <li>verification-before-completion calls existing <code>security_check</code> MCP tool (v2 tool) as part of its checklist</li>
+          <li>git-workflow uses Claude's tool use to actually run git commands via the existing terminal tool in Cline/Claude Code</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 4: PHASE 3.2 DOCS -->
+<section class="section">
+  <div class="eyebrow">// 04 — Phase 3.2</div>
+  <h2 class="section-title">Docs & Architecture Skills (9 skills)</h2>
+
+  <div class="phase-block p32">
+    <div class="phase-header">
+      <div class="phase-header-left">
+        <span class="phase-num">Phase 3.2</span>
+        <span class="phase-name">Docs & Architecture Skills</span>
+      </div>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--blue);">Targets: PM / BA / Architect roles</span>
+    </div>
+    <div class="phase-body">
+
+      <table class="tool-table">
+        <thead>
+          <tr><th>Skill</th><th>Role</th><th>Output Format</th><th>Claude Implementation</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tool-name-cell">brd-generator</span></td>
+            <td style="font-size:12px;">PM / BA</td>
+            <td style="font-size:12px;">Structured Markdown + DOCX</td>
+            <td style="font-size:12px;">Opus with guided interview prompts. Asks clarifying Qs, builds BRD sections iteratively. Uses existing memory_manager for multi-session continuity.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">prd-generator</span></td>
+            <td style="font-size:12px;">PM</td>
+            <td style="font-size:12px;">Markdown with user stories embedded</td>
+            <td style="font-size:12px;">Chains with user-story-generator. Claude generates goals → success metrics → features → stories in one DAG. Sonnet (structured, predictable output).</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">user-story-generator</span></td>
+            <td style="font-size:12px;">PM / SM</td>
+            <td style="font-size:12px;">JSON array of story objects</td>
+            <td style="font-size:12px;">Given a feature description, generates stories in "As a [role] I want [action] so that [benefit]" format with acceptance criteria. Haiku — fast and cheap for bulk generation.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">system-design</span></td>
+            <td style="font-size:12px;">Architect / Dev</td>
+            <td style="font-size:12px;">Mermaid diagram + Markdown ADR</td>
+            <td style="font-size:12px;">Opus explores multiple architectural options, evaluates trade-offs, recommends. Outputs Mermaid C4 diagrams (context, containers, components). Requires context_engine for existing code.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">adr</span> (Architecture Decision Record)</td>
+            <td style="font-size:12px;">Architect</td>
+            <td style="font-size:12px;">ADR Markdown (MADR format)</td>
+            <td style="font-size:12px;">Claude fills MADR template: Context → Decision → Consequences → Alternatives Considered. Uses git-workflow skill to commit ADR to decisions/ folder.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">architecture-review</span></td>
+            <td style="font-size:12px;">Architect / EM</td>
+            <td style="font-size:12px;">Scored review JSON</td>
+            <td style="font-size:12px;">Evaluates existing architecture against principles: separation of concerns, scalability, observability, security. Reads codebase via context_engine. Chains into security-architecture.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">security-architecture</span> (STRIDE)</td>
+            <td style="font-size:12px;">Architect / IT</td>
+            <td style="font-size:12px;">STRIDE threat model Markdown</td>
+            <td style="font-size:12px;">Applies STRIDE methodology (Spoofing, Tampering, Repudiation, Info Disclosure, Denial of Service, Elevation of Privilege). Opus for threat modeling depth. Feeds Phase 3.3 security checks.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">api-docs</span></td>
+            <td style="font-size:12px;">Dev</td>
+            <td style="font-size:12px;">OpenAPI 3.1 YAML + Markdown</td>
+            <td style="font-size:12px;">Reads route files via context_engine, infers request/response types, generates OpenAPI spec. Claude validates spec against routes. Sonnet — code reading + structured output.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">changelog-generator</span></td>
+            <td style="font-size:12px;">Dev / SM</td>
+            <td style="font-size:12px;">Keep a Changelog Markdown</td>
+            <td style="font-size:12px;">Reads git log via git-workflow tool, groups commits by conventional commit type, generates human-readable changelog. Haiku — fast, structured, low cost.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="claude-box">
+        <div class="claude-box-title">🤖 Claude Implementation — Phase 3.2</div>
+        <ul>
+          <li>DOCX output for BRD/PRD uses Python-docx library — Claude generates structured content, skill converts to DOCX automatically</li>
+          <li>Mermaid diagram output: Claude generates diagram source in code blocks; skill saves as <code>.mmd</code> file and logs URL to Mermaid live editor</li>
+          <li>All docs skills are role-gated: <code>roles: [PM, BA, Architect]</code> in frontmatter — role_intelligence.py enforces access</li>
+          <li>system-design skill uses Opus with a 3-option architecture pattern (always present 3 options with trade-offs — Claude does this well)</li>
+          <li>changelog-generator chains with git-workflow to run <code>git log --oneline</code> via terminal tool</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 5: PHASE 3.3 SECURITY -->
+<section class="section">
+  <div class="eyebrow">// 05 — Phase 3.3</div>
+  <h2 class="section-title">Security Hardening (7 features)</h2>
+
+  <div class="phase-block p33">
+    <div class="phase-header">
+      <div class="phase-header-left">
+        <span class="phase-num">Phase 3.3</span>
+        <span class="phase-name">Security Hardening</span>
+      </div>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--red);">Extends existing security.py (5-level preflight)</span>
+    </div>
+    <div class="phase-body">
+
+      <p style="font-size:13px;color:var(--ink2);margin-bottom:20px;">Current security.py has 5 levels: syntax, secrets, destructive, supply_chain (stub), permissions. Phase 3.3 replaces the stub and adds 6 new checks — all run BEFORE any LLM call.</p>
+
+      <div class="skills-grid">
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--red-bg);">
+            <span class="skill-name">PII Detector</span>
+            <span class="skill-role" style="background:var(--red);color:white;">All Roles · Haiku</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Scans prompts AND outputs for PII before sending to LLM and before returning to user. Detects names, emails, phone numbers, SSNs, credit cards, addresses using regex + Claude.</div>
+            <div class="impl-block"><span class="comment"># Runs in security.py preflight (level 6)</span>
+<span class="fn">scan_input</span>: regex fast-path (emails, SSN, CC)
+<span class="fn">scan_llm_output</span>: Claude Haiku classification
+<span class="fn">action</span>: redact | warn | block (configurable)
+<span class="fn">add_to_yaml</span>: security.pii_detection: true</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--red-bg);">
+            <span class="skill-name">Prompt Injection Detector</span>
+            <span class="skill-role" style="background:var(--red);color:white;">All Roles · Haiku</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Detects jailbreak patterns, role-override attempts, and injection in user input before it reaches Claude. Pattern library + Haiku classifier for novel attempts.</div>
+            <div class="impl-block"><span class="comment"># Pattern library + LLM classifier</span>
+<span class="fn">patterns</span>: ignore-previous, DAN, act-as,
+           forget-instructions, developer-mode
+<span class="fn">llm_check</span>: Haiku scores injection confidence
+<span class="fn">threshold</span>: block if confidence > 0.7
+<span class="fn">log</span>: all attempts to monitoring.py</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--red-bg);">
+            <span class="skill-name">OWASP Top-10 Checker</span>
+            <span class="skill-role" style="background:var(--red);color:white;">Dev/IT · Sonnet</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Checks generated code for OWASP Top-10 vulnerabilities: SQLi, XSS, SSRF, IDOR, broken auth, etc. Runs as a post-generation hook before returning code to user.</div>
+            <div class="impl-block"><span class="comment"># Post-generation security hook</span>
+<span class="fn">checks</span>: A01-A10 OWASP 2021 categories
+<span class="fn">claude_prompt</span>: specialized security reviewer
+<span class="fn">output</span>: [{vuln, severity, line, fix}]
+<span class="fn">blocks</span>: HIGH severity before returning code</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--red-bg);">
+            <span class="skill-name">Real CVE Lookup</span>
+            <span class="skill-role" style="background:var(--red);color:white;">Dev/IT · API</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Replaces the current supply_chain stub with real OSV.dev API integration. Checks dependencies in requirements.txt, package.json, go.mod, pom.xml against live CVE database.</div>
+            <div class="impl-block"><span class="comment"># Replaces stub in security.py</span>
+<span class="fn">api</span>: https://api.osv.dev/v1/query
+<span class="fn">reads</span>: requirements.txt, package.json,
+        go.mod, pom.xml, Cargo.toml
+<span class="fn">claude</span>: explains severity + suggests fix
+<span class="fn">cache</span>: SQLite (memory_manager), 24hr TTL</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--red-bg);">
+            <span class="skill-name">License Compliance</span>
+            <span class="skill-role" style="background:var(--red);color:white;">IT/Legal · Haiku</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Detects GPL contamination and license conflicts in dependencies. Classifies SPDX license identifiers and flags incompatibilities with project's declared license.</div>
+            <div class="impl-block"><span class="comment"># SPDX license compatibility matrix</span>
+<span class="fn">matrix</span>: MIT/Apache/BSD vs GPL/AGPL/LGPL
+<span class="fn">source</span>: license fields from package APIs
+<span class="fn">claude</span>: explains conflict + remediation
+<span class="fn">output</span>: {compatible: bool, risks: []}
+<span class="fn">roles</span>: [IT, NTM]  <span class="comment"># management visibility</span></div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--red-bg);">
+            <span class="skill-name">SBOM Generator</span>
+            <span class="skill-role" style="background:var(--red);color:white;">IT · Haiku</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Generates a Software Bill of Materials in CycloneDX or SPDX JSON format from all dependency files. Feeds into CVE lookup and license compliance skills.</div>
+            <div class="impl-block"><span class="comment"># CycloneDX 1.5 JSON output</span>
+<span class="fn">reads</span>: all lock files (poetry.lock, yarn.lock)
+<span class="fn">format</span>: CycloneDX JSON or SPDX JSON
+<span class="fn">claude</span>: Haiku for component summarization
+<span class="fn">chains_to</span>: cve-lookup, license-compliance</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="claude-box">
+        <div class="claude-box-title">🤖 Claude Implementation — Phase 3.3</div>
+        <ul>
+          <li>PII Detector and Prompt Injection Detector hook into security.py as levels 6 and 7 — runs on every request, zero config needed</li>
+          <li>OSV.dev API is free and public — use <code>httpx</code> async client, cache results in memory_manager SQLite to avoid rate limits</li>
+          <li>OWASP checker prompt: give Claude a specialized "security auditor" system prompt with OWASP cheat sheet embedded in skill markdown</li>
+          <li>New YAML config keys: <code>security.pii_detection: true</code>, <code>security.injection_detection: true</code>, <code>security.owasp_check: post_generation</code></li>
+          <li>SBOM generator uses existing dependency file detection from context_engine.py to locate lock files</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 6: PHASE 3.4 AI/PROMPT ENGINEERING -->
+<section class="section">
+  <div class="eyebrow">// 06 — Phase 3.4</div>
+  <h2 class="section-title">AI/Prompt Engineering Skills (7 skills)</h2>
+
+  <div class="phase-block p34">
+    <div class="phase-header">
+      <div class="phase-header-left">
+        <span class="phase-num">Phase 3.4</span>
+        <span class="phase-name">AI / Prompt Engineering Skills</span>
+      </div>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--purple);">Unique differentiator — no other plugin covers this</span>
+    </div>
+    <div class="phase-body">
+
+      <table class="tool-table">
+        <thead>
+          <tr><th>Skill</th><th>What it does</th><th>Claude Implementation Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tool-name-cell">prompt-registry</span></td>
+            <td style="font-size:12px;">Versioned SQLite store for prompts. Save, version, tag, search, and compare prompts. Team-shared or personal.</td>
+            <td style="font-size:12px;">Extends memory_manager.py with a <code>prompts</code> table. Claude Haiku generates embeddings for semantic search. Exposed via new MCP tool <code>manage_prompts</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">multi-model-eval</span></td>
+            <td style="font-size:12px;">A/B test the same prompt across Opus/Sonnet/Haiku (or any configured models). Returns quality scores, cost, and latency comparison.</td>
+            <td style="font-size:12px;">Sends prompt in parallel to all 3 tiers via router.py. Claude Opus acts as judge: scores each response on accuracy, completeness, format. Returns comparison table + cost breakdown.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">rag-optimizer</span></td>
+            <td style="font-size:12px;">Analyzes RAG pipeline quality: chunk size, overlap, embedding model, retrieval strategy. Suggests optimizations with before/after comparison.</td>
+            <td style="font-size:12px;">Claude reviews RAG config + sample retrieved chunks. Evaluates context relevance, identifies retrieval failures. Uses context_engine.py internals as example. Opus-level analysis.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">few-shot-builder</span></td>
+            <td style="font-size:12px;">Builds optimized few-shot example sets for any Claude prompt. Selects diverse, high-quality examples that maximize in-context learning.</td>
+            <td style="font-size:12px;">Claude analyzes existing examples in prompt-registry, scores diversity + coverage. Generates synthetic examples to fill gaps. Output: ordered few-shot array ready to paste.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">agent-chain-designer</span></td>
+            <td style="font-size:12px;">Visual + textual designer for multi-agent workflows. Describe a complex task, get a recommended agent chain with skill dependencies mapped.</td>
+            <td style="font-size:12px;">Opus maps task → skill DAG → agent roles. Outputs skill_chain() call ready to execute. Integrates with orchestrator.py's DAG builder. Generates Mermaid flowchart of the chain.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">system-prompt-auditor</span></td>
+            <td style="font-size:12px;">Reviews existing system prompts for issues: ambiguity, conflicting instructions, missing edge cases, jailbreak susceptibility, excessive restriction.</td>
+            <td style="font-size:12px;">Claude acts as adversarial evaluator. Red-teams the system prompt, identifies weaknesses, suggests improvements. Also checks against injection-detector patterns from Phase 3.3.</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name-cell">model-migration-advisor</span></td>
+            <td style="font-size:12px;">When switching models (e.g., GPT-4 → Claude, Opus → Sonnet), analyzes prompt compatibility, identifies capability gaps, suggests adaptation strategies.</td>
+            <td style="font-size:12px;">Uses router.py's model knowledge + multi-model-eval to test critical prompts on target model. Flags incompatibilities, generates migration checklist. References existing mcp_adapters.py model configs.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="claude-box">
+        <div class="claude-box-title">🤖 Claude Implementation — Phase 3.4</div>
+        <ul>
+          <li>multi-model-eval uses Claude's API directly to run parallel completions — use <code>asyncio.gather()</code> in Python for true parallelism across Opus/Sonnet/Haiku</li>
+          <li>Claude-as-judge pattern for multi-model-eval: Opus scores outputs with a structured rubric prompt; returns JSON scores per criterion</li>
+          <li>prompt-registry adds 2 new MCP tools: <code>save_prompt(name, content, tags)</code> and <code>search_prompts(query)</code> — builds on existing memory_manager SQLite</li>
+          <li>agent-chain-designer is the most powerful Phase 3.4 skill — it makes PromptWise self-aware of its own skill system; uses Opus with full skill catalog in context</li>
+          <li>system-prompt-auditor should use Claude's extended thinking for adversarial red-teaming (budget_tokens: 5000) to find non-obvious weaknesses</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 7: PHASE 3.5 TESTING -->
+<section class="section">
+  <div class="eyebrow">// 07 — Phase 3.5</div>
+  <h2 class="section-title">Testing Skills (5 skills)</h2>
+
+  <div class="phase-block p35">
+    <div class="phase-header">
+      <div class="phase-header-left">
+        <span class="phase-num">Phase 3.5</span>
+        <span class="phase-name">Testing Skills</span>
+      </div>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--orange);">Chains with Phase 3.1 tdd skill</span>
+    </div>
+    <div class="phase-body">
+
+      <div class="skills-grid">
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--orange-bg);">
+            <span class="skill-name">test-generator</span>
+            <span class="skill-role" style="background:var(--orange);color:white;">Dev · Sonnet</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Generates comprehensive test suites for existing code. Supports pytest, Jest, and Go test. Reads source via context_engine, infers edge cases, generates both happy path and failure tests.</div>
+            <div class="impl-block"><span class="comment"># Framework detection + test gen</span>
+<span class="fn">detect</span>: pytest/jest/go via project files
+<span class="fn">reads</span>: source file via context_engine.py
+<span class="fn">generates</span>: unit + integration + edge cases
+<span class="fn">style</span>: Arrange-Act-Assert pattern enforced</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--orange-bg);">
+            <span class="skill-name">test-coverage-advisor</span>
+            <span class="skill-role" style="background:var(--orange);color:white;">Dev · Haiku</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Reads coverage reports (pytest-cov, Istanbul, go cover) and identifies the highest-value uncovered code paths. Prioritizes by risk: complex/critical code first.</div>
+            <div class="impl-block"><span class="comment"># Coverage gap analysis</span>
+<span class="fn">reads</span>: coverage.xml, lcov.info, cover.out
+<span class="fn">ranks</span>: uncovered paths by cyclomatic complexity
+<span class="fn">output</span>: [{file, function, priority, reason}]
+<span class="fn">chains_to</span>: test-generator for gap filling</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--orange-bg);">
+            <span class="skill-name">api-testing</span>
+            <span class="skill-role" style="background:var(--orange);color:white;">Dev/IT · Sonnet</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Generates API test suites from OpenAPI specs or by scanning route definitions. Creates positive, negative, and boundary tests. Outputs Postman collections or pytest files.</div>
+            <div class="impl-block"><span class="comment"># OpenAPI → test suite</span>
+<span class="fn">input</span>: OpenAPI spec (from api-docs skill)
+        OR route files (from context_engine)
+<span class="fn">generates</span>: 200/4xx/5xx cases per endpoint
+<span class="fn">output</span>: pytest + Postman JSON collection</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--orange-bg);">
+            <span class="skill-name">e2e-test-designer</span>
+            <span class="skill-role" style="background:var(--orange);color:white;">Dev · Opus</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Routes to existing playwright_bridge.py for frontend detection. Designs E2E test scenarios covering critical user journeys. Generates Playwright test code with Page Object Model pattern.</div>
+            <div class="impl-block"><span class="comment"># Routes to playwright_bridge.py (existing)</span>
+<span class="fn">detects</span>: frontend via playwright_bridge
+<span class="fn">designs</span>: user journey scenarios (Opus)
+<span class="fn">generates</span>: Playwright tests with POM pattern
+<span class="fn">validates</span>: against existing playwright_bridge</div>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="skill-header" style="background:var(--orange-bg);">
+            <span class="skill-name">test-data-generator</span>
+            <span class="skill-role" style="background:var(--orange);color:white;">Dev · Sonnet</span>
+          </div>
+          <div class="skill-body">
+            <div class="skill-desc">Generates realistic, schema-consistent test data. Reads DB schemas or type definitions, produces fixtures in JSON/CSV/SQL. Includes edge cases: null, empty, max-length, unicode.</div>
+            <div class="impl-block"><span class="comment"># Schema-aware test data gen</span>
+<span class="fn">reads</span>: SQLAlchemy models, TypeScript types,
+        JSON Schema, Pydantic models
+<span class="fn">generates</span>: happy + edge + boundary cases
+<span class="fn">formats</span>: JSON fixtures, CSV, SQL INSERT
+<span class="fn">pii_safe</span>: uses fake data (Faker library)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="claude-box">
+        <div class="claude-box-title">🤖 Claude Implementation — Phase 3.5</div>
+        <ul>
+          <li>test-generator integrates with tdd skill from Phase 3.1: tdd writes failing tests first, test-generator fills coverage gaps afterwards</li>
+          <li>e2e-test-designer reuses playwright_bridge.py (already exists) — skill is thin wrapper that adds Opus-level scenario design before bridge execution</li>
+          <li>test-data-generator uses Python Faker library for PII-safe realistic data; Claude handles schema parsing and edge case identification</li>
+          <li>api-testing skill chains with api-docs skill from Phase 3.2: api-docs generates the spec, api-testing consumes it</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 8: PHASE 3.6 PLATFORM -->
+<section class="section">
+  <div class="eyebrow">// 08 — Phase 3.6</div>
+  <h2 class="section-title">Platform Expansion</h2>
+
+  <div class="phase-block p36">
+    <div class="phase-header">
+      <div class="phase-header-left">
+        <span class="phase-num">Phase 3.6</span>
+        <span class="phase-name">Platform Expansion</span>
+      </div>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--ink2);">Requires all prior phases complete</span>
+    </div>
+    <div class="phase-body">
+
+      <div class="integration-grid">
+        <div class="int-card">
+          <div class="int-icon">🔷</div>
+          <div class="int-name">VS Code Extension</div>
+          <div class="int-type">Already via mcp_adapters.py</div>
+          <span class="int-phase" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);">Extend in 3.6</span>
+        </div>
+        <div class="int-card">
+          <div class="int-icon">⚙️</div>
+          <div class="int-name">GitHub Actions</div>
+          <div class="int-type">Pre-commit hook</div>
+          <span class="int-phase" style="background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">New in 3.6</span>
+        </div>
+        <div class="int-card">
+          <div class="int-icon">💬</div>
+          <div class="int-name">Slack / Teams</div>
+          <div class="int-type">Webhook notifications</div>
+          <span class="int-phase" style="background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">New in 3.6</span>
+        </div>
+        <div class="int-card">
+          <div class="int-icon">📊</div>
+          <div class="int-name">Prometheus</div>
+          <div class="int-type">Metrics export</div>
+          <span class="int-phase" style="background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">New in 3.6</span>
+        </div>
+        <div class="int-card">
+          <div class="int-icon">🐘</div>
+          <div class="int-name">PostgreSQL</div>
+          <div class="int-type">Multi-user shared sessions</div>
+          <span class="int-phase" style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);">Enterprise</span>
+        </div>
+        <div class="int-card">
+          <div class="int-icon">🔐</div>
+          <div class="int-name">SSO / RBAC</div>
+          <div class="int-type">Identity + access control</div>
+          <span class="int-phase" style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);">Enterprise</span>
+        </div>
+        <div class="int-card">
+          <div class="int-icon">🟠</div>
+          <div class="int-name">JetBrains</div>
+          <div class="int-type">Via MCP socket adapter</div>
+          <span class="int-phase" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);">Already partial</span>
+        </div>
+        <div class="int-card">
+          <div class="int-icon">🤖</div>
+          <div class="int-name">Gemini CLI</div>
+          <div class="int-type">gRPC adapter (exists)</div>
+          <span class="int-phase" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);">Already done</span>
+        </div>
+      </div>
+
+      <div class="claude-box" style="margin-top:20px;">
+        <div class="claude-box-title">🤖 Claude Implementation — Phase 3.6</div>
+        <ul>
+          <li>GitHub Actions: create <code>promptwise-action/action.yml</code> — runs <code>security_check</code> + <code>code-review</code> + <code>verification-before-completion</code> as pre-merge gate</li>
+          <li>Slack/Teams: Flask webhook endpoint in web.py — sends skill completion events, cost alerts (overspend_alerts from monitoring.py), security findings</li>
+          <li>Prometheus: add <code>/metrics</code> endpoint to web.py using <code>prometheus_client</code> library — exposes cost_per_step, burn_rate, model_distribution, skill_invocations</li>
+          <li>PostgreSQL migration: make memory_manager.py backend-agnostic (SQLAlchemy ORM) — SQLite for single-user, PostgreSQL for teams (config flag)</li>
+          <li>VS Code extension: wrap existing MCP server in a VS Code extension that auto-starts the Flask server and registers MCP tools as VS Code commands</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 9: TOOL GROWTH & TIMELINE -->
+<section class="section">
+  <div class="eyebrow">// 09 — Delivery Plan</div>
+  <h2 class="section-title">Tool Growth & Execution Timeline</h2>
+
+  <div style="overflow-x:auto;margin-bottom:32px;">
+    <table class="tool-table">
+      <thead>
+        <tr>
+          <th>Version</th>
+          <th>MCP Tools</th>
+          <th>Skills Added</th>
+          <th>New Capabilities</th>
+          <th>Est. Effort</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>v2.0</strong> (current)</td>
+          <td><span class="v-badge v2">24 tools</span></td>
+          <td>10 modules, 4 plugins</td>
+          <td>Engine: routing, orchestration, security, memory, compression</td>
+          <td style="font-family:var(--mono);font-size:11px;">✓ Shipped</td>
+        </tr>
+        <tr>
+          <td><strong>v3.0</strong> Phase 3.0</td>
+          <td><span class="v-badge v3">27 tools (+3)</span></td>
+          <td>Skill framework + 0 content skills</td>
+          <td>invoke_skill, list_skills, skill_chain; skills/ directory; SkillLoader</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--green);">~1 week</td>
+        </tr>
+        <tr>
+          <td><strong>v3.1</strong> Dev Workflow</td>
+          <td><span class="v-badge v3">27 tools (reuse)</span></td>
+          <td>+8 skills</td>
+          <td>tdd, systematic-debugging, feature-dev, code-review, verification, refactoring, git-workflow, finishing-branch</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--green);">~1–2 weeks</td>
+        </tr>
+        <tr>
+          <td><strong>v3.2</strong> Docs</td>
+          <td><span class="v-badge v3">27 tools (reuse)</span></td>
+          <td>+9 skills</td>
+          <td>brd-generator, prd-generator, user-story-generator, adr, system-design, architecture-review, security-architecture, api-docs, changelog-generator</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--green);">~2 weeks</td>
+        </tr>
+        <tr>
+          <td><strong>v3.3</strong> Security</td>
+          <td><span class="v-badge v3">29 tools (+2)</span></td>
+          <td>+7 features</td>
+          <td>PII detector, injection detector, OWASP checker, real CVE lookup (OSV.dev), license compliance, secrets rotation advisor, SBOM generator</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--orange);">~2–3 weeks</td>
+        </tr>
+        <tr>
+          <td><strong>v3.4</strong> AI/Prompts</td>
+          <td><span class="v-badge v3new">33 tools (+4)</span></td>
+          <td>+7 skills</td>
+          <td>prompt-registry, multi-model-eval, rag-optimizer, few-shot-builder, agent-chain-designer, system-prompt-auditor, model-migration-advisor</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--orange);">~2 weeks</td>
+        </tr>
+        <tr>
+          <td><strong>v3.5</strong> Testing</td>
+          <td><span class="v-badge v3">33 tools (reuse)</span></td>
+          <td>+5 skills</td>
+          <td>test-generator, test-coverage-advisor, api-testing, e2e-test-designer, test-data-generator</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--green);">~1–2 weeks</td>
+        </tr>
+        <tr>
+          <td><strong>v3.6</strong> Platform</td>
+          <td><span class="v-badge v3new">~68 tools (+35)</span></td>
+          <td>Platform integrations</td>
+          <td>VS Code extension, GitHub Actions, Slack/Teams, Prometheus, PostgreSQL multi-user, SSO/RBAC</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--red);">~4–6 weeks</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="timeline">
+    <div class="tl-col">
+      <div class="tl-head">
+        <div class="tl-phase" style="color:var(--ink);">Phase 3.0</div>
+        <div class="tl-time">Week 1</div>
+      </div>
+      <div class="tl-body">
+        <div class="tl-item" style="border-color:var(--ink);background:#f0ece0;">SkillLoader</div>
+        <div class="tl-item" style="border-color:var(--ink);background:#f0ece0;">3 MCP tools</div>
+        <div class="tl-item" style="border-color:var(--ink);background:#f0ece0;">Schema + DAG</div>
+      </div>
+    </div>
+    <div class="tl-col">
+      <div class="tl-head">
+        <div class="tl-phase" style="color:var(--green);">Phase 3.1</div>
+        <div class="tl-time">Weeks 2–3</div>
+      </div>
+      <div class="tl-body">
+        <div class="tl-item" style="border-color:var(--green);background:var(--green-bg);">8 dev skills</div>
+        <div class="tl-item" style="border-color:var(--green);background:var(--green-bg);">feature-dev chain</div>
+      </div>
+    </div>
+    <div class="tl-col">
+      <div class="tl-head">
+        <div class="tl-phase" style="color:var(--blue);">Phase 3.2</div>
+        <div class="tl-time">Weeks 4–5</div>
+      </div>
+      <div class="tl-body">
+        <div class="tl-item" style="border-color:var(--blue);background:var(--blue-bg);">9 docs skills</div>
+        <div class="tl-item" style="border-color:var(--blue);background:var(--blue-bg);">DOCX + Mermaid</div>
+      </div>
+    </div>
+    <div class="tl-col">
+      <div class="tl-head">
+        <div class="tl-phase" style="color:var(--red);">Phase 3.3</div>
+        <div class="tl-time">Weeks 6–8</div>
+      </div>
+      <div class="tl-body">
+        <div class="tl-item" style="border-color:var(--red);background:var(--red-bg);">PII + injection</div>
+        <div class="tl-item" style="border-color:var(--red);background:var(--red-bg);">OSV.dev API</div>
+        <div class="tl-item" style="border-color:var(--red);background:var(--red-bg);">SBOM + license</div>
+      </div>
+    </div>
+    <div class="tl-col">
+      <div class="tl-head">
+        <div class="tl-phase" style="color:var(--purple);">Phase 3.4–3.5</div>
+        <div class="tl-time">Weeks 9–12</div>
+      </div>
+      <div class="tl-body">
+        <div class="tl-item" style="border-color:var(--purple);background:var(--purple-bg);">Prompt registry</div>
+        <div class="tl-item" style="border-color:var(--purple);background:var(--purple-bg);">Multi-model eval</div>
+        <div class="tl-item" style="border-color:var(--orange);background:var(--orange-bg);">5 test skills</div>
+      </div>
+    </div>
+    <div class="tl-col">
+      <div class="tl-head">
+        <div class="tl-phase" style="color:var(--ink2);">Phase 3.6</div>
+        <div class="tl-time">Weeks 13–18</div>
+      </div>
+      <div class="tl-body">
+        <div class="tl-item" style="border-color:var(--ink2);background:var(--bg2);">VS Code ext</div>
+        <div class="tl-item" style="border-color:var(--ink2);background:var(--bg2);">GH Actions</div>
+        <div class="tl-item" style="border-color:var(--ink2);background:var(--bg2);">Enterprise SSO</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-brand">PromptWise</div>
+  <div class="footer-note">
+    v3.0 Feature Plan · Built on v2.0 engine<br>
+    Python 3.11+ · SQLite → PostgreSQL · MCP SDK<br>
+    Claude Opus / Sonnet / Haiku routing
+  </div>
+</div>
+
+</body>
+</html>

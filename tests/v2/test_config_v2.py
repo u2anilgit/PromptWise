@@ -7,7 +7,7 @@ CONFIG_DIR = Path(__file__).parents[2] / "config"
 
 def test_load_config_v2():
     cfg = load_config_v2(CONFIG_DIR)
-    assert cfg.version == "2.0"
+    assert cfg.version == "1.0"
     assert cfg.core.max_context_tokens == 150000
     assert cfg.security.checks == ["syntax", "secrets", "destructive", "supply_chain", "permissions"]
     assert cfg.policies.budget_hard_stop_usd == 10.0

@@ -1,0 +1,9 @@
+name: Legal Compliance
+frameworks: [GDPR_Art25, CCPA]
+rules:
+  - name: License Check
+    pattern: "(gpl|agpl|lgpl)"
+    action: warn
+  - name: PII Redaction
+    pattern: "(email|phone_number|address)"
+    action: redact
