@@ -1,0 +1,22 @@
+{
+  "name": "promptwise",
+  "version": "3.0.0",
+  "description": "Token-aware prompt routing and cost optimization for Claude Code",
+  "author": {
+    "name": "Anil Devarasetti",
+    "email": "u2anil@gmail.com"
+  },
+  "mcpServers": {
+    "promptwise-v2": {
+      "command": "python",
+      "args": ["-m", "promptwise_v2.integrations.mcp_server_v2"],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}"
+    },
+    "promptwise-v3": {
+      "command": "python",
+      "args": ["-m", "promptwise_v3.server"],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}"
+    }
+  },
+  "skills": ["skills/SKILL.md"]
+}

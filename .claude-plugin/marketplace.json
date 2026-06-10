@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "promptwise-local",
+  "description": "Local marketplace for PromptWise v3 — token-aware prompt routing, cost optimization, security scanning",
+  "owner": {
+    "name": "Anil Devarasetti",
+    "email": "u2anil@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "promptwise",
+      "description": "Token-aware prompt routing and cost optimization for Claude Code. Supports route_request, compress_prompt, owasp_scan, budget_monitoring, and 20+ cost/security tools.",
+      "source": "./",
+      "version": "3.0.0"
+    }
+  ]
+}

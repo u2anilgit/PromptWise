@@ -1,6 +1,41 @@
-version: "1.0"
+version: "2.0"
 extends: promptwise.yaml
+updated: "2026-06-07"
 
+# ============================================================================
+# Multi-Platform Configuration (NEW)
+# ============================================================================
+platforms:
+  default: mcp  # mcp, codex, gemini, antigravity
+  available: [mcp, codex, gemini, antigravity]
+  mcp:
+    enabled: true
+    description: "Claude Code MCP (default)"
+  codex:
+    enabled: true
+    description: "OpenAI Codex 5.5 (requires CODEX_API_KEY)"
+    api_endpoint: "http://localhost:11434/v1"
+  gemini:
+    enabled: true
+    description: "Google Gemini (requires GEMINI_API_KEY)"
+    api_endpoint: "https://generativelanguage.googleapis.com/v1beta/models"
+  antigravity:
+    enabled: false
+    description: "Antigravity CLI (requires ANTIGRAVITY_ENDPOINT)"
+
+# ============================================================================
+# Auto-Role Detection (NEW)
+# ============================================================================
+auto_role_detection:
+  enabled: true
+  confidence_threshold: 0.65  # 0-1, fall back to "general" if below
+  apply_constraints: true  # Apply role-specific constraints
+  keywords_file: config/role_keywords.yaml
+  description: "Automatically detect role from prompt context"
+
+# ============================================================================
+# Core Configuration
+# ============================================================================
 core:
   max_context_tokens: 150000
   similarity_threshold: 0.65

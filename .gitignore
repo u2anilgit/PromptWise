@@ -36,9 +36,9 @@ Thumbs.db
 .tmp.driveupload/
 .tmp.drivedownload/
 
-# Claude IDE / plugin metadata (local only, never push)
+# Claude IDE metadata (local only, never push)
 .claude/
-.claude-plugin/
+# .claude-plugin/ is intentionally tracked so the plugin manifest ships with the repo
 
 # Logs
 *.log

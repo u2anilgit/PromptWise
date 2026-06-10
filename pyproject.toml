@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "promptwise"
-version = "2.0.0"
+version = "3.0.0"
 description = "Token-aware prompt routing and cost optimization for Claude Code"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,6 +22,7 @@ classifiers = [
 dependencies = [
     "mcp>=1.0.0,<3.0",
     "aiosqlite>=0.20",
+    "aiohttp>=3.8",
     "flask>=2.0",
     "tiktoken>=0.7",
     "pydantic>=2.0",
@@ -30,6 +31,7 @@ dependencies = [
     "SQLAlchemy>=2.0",
     "prometheus-client>=0.17",
     "Authlib>=1.2",
+    "anthropic>=0.7",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +43,8 @@ dev = [
 [project.scripts]
 promptwise = "promptwise.cli:main"
 promptwise-v2 = "promptwise_v2.integrations.mcp_server_v2:main"
+promptwise-v3 = "promptwise_v3.server:sync_main"
+promptwise-v3-cli = "promptwise_v3.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

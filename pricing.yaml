@@ -1,5 +1,5 @@
 schema_version: 1
-last_verified: "2026-05-12"
+last_verified: "2026-06-07"
 default_model: claude-sonnet-4-6
 
 models:
@@ -191,3 +191,61 @@ models:
       family: cl100k_base
       inflation_vs_baseline: 1.00
     notes: "Thinking model. Output tokens include thinking. Pricing approximate."
+
+  # Codex 5.5 models (code generation specialist) — verified 2026-06-07
+  codex-5.5-base:
+    display_name: "Codex 5.5 Base"
+    provider: codex
+    tier: fast
+    context_window: 8192
+    max_output: 4096
+    rates:
+      input_per_mtok: 0.80
+      output_per_mtok: 3.20
+      cache_write_5m_per_mtok: 0.20
+      cache_write_1h_per_mtok: 0.20
+      cache_hit_per_mtok: 0.08
+      batch_input_per_mtok: 0.40
+      batch_output_per_mtok: 1.60
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Code generation specialist. Fast tier for simple code completions."
+
+  codex-5.5-pro:
+    display_name: "Codex 5.5 Pro"
+    provider: codex
+    tier: balanced
+    context_window: 32768
+    max_output: 16384
+    rates:
+      input_per_mtok: 1.80
+      output_per_mtok: 7.20
+      cache_write_5m_per_mtok: 0.45
+      cache_write_1h_per_mtok: 0.45
+      cache_hit_per_mtok: 0.18
+      batch_input_per_mtok: 0.90
+      batch_output_per_mtok: 3.60
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Balanced tier for complex code generation, refactoring, debugging."
+
+  codex-5.5-max:
+    display_name: "Codex 5.5 Max"
+    provider: codex
+    tier: powerful
+    context_window: 128000
+    max_output: 65536
+    rates:
+      input_per_mtok: 4.50
+      output_per_mtok: 18.00
+      cache_write_5m_per_mtok: 1.125
+      cache_write_1h_per_mtok: 1.125
+      cache_hit_per_mtok: 0.45
+      batch_input_per_mtok: 2.25
+      batch_output_per_mtok: 9.00
+    tokenizer:
+      family: cl100k_base
+      inflation_vs_baseline: 1.00
+    notes: "Powerful tier for multi-file refactoring, architecture design, AI-assisted development."

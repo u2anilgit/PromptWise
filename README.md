@@ -1,6 +1,10 @@
-# PromptWise v1.0.0 – Token-Aware Prompt Routing
+# PromptWise v2.0.0 – Multi-Platform Token Optimization
 
-MCP server plugin for Claude Code. 9 tools for cost optimization: routing, caching, compression, batching, cross-provider comparison, and stats.
+Token-aware prompt routing with **auto-role detection** and **multi-platform support**. 
+
+🎯 **9 core tools** + 16 auto-detected roles + 4 platforms (MCP, Codex 5.5, Gemini, Antigravity)
+
+Cost optimization: routing, caching, compression, batching, cross-provider comparison, and stats.
 
 ## Install
 
@@ -35,6 +39,43 @@ trusted-host = pypi.org
 > **Note:** File must be saved as UTF-8 **without BOM**. PowerShell's default encoding adds a BOM — use `[System.IO.File]::WriteAllText()` or Python to write it.
 
 ---
+
+## Multi-Platform Support
+
+| Platform | Status | Best For | Setup |
+|----------|--------|----------|-------|
+| **MCP (Claude Code)** | ✅ Default | Local development, Claude Code | No setup required |
+| **Codex 5.5** | ✅ Production | Code generation, refactoring | `export CODEX_API_KEY=sk_...` |
+| **Google Gemini** | ✅ Production | General-purpose AI, multimodal | `export GEMINI_API_KEY=AIza...` |
+| **Antigravity CLI** | 🔲 Pending | Internal agentic tools | Requires API spec |
+
+**Quick start:**
+```bash
+# Use with Gemini
+export PROMPTWISE_PLATFORM=gemini
+export GEMINI_API_KEY="AIzaSy_..."
+python -m promptwise.server
+```
+
+See [Multi-Platform Guide](docs/integration/MULTI_PLATFORM.md) for details.
+
+## Auto-Role Detection
+
+PromptWise automatically detects your role from prompts and applies context-aware optimization:
+
+**Detected roles (16 total):**
+developer, analyst, manager, security, IT, designer, writer, researcher, pm, legal, healthcare, finance, data, qa, executive, general
+
+**Example:**
+```python
+from promptwise_v2.core.auto_role_applier import AutoRoleApplier
+
+applier = AutoRoleApplier(detector, roles_config)
+result = applier.apply("Refactor the auth module")
+# → Detects: "developer" role (0.95 confidence)
+# → Applies: "From a software engineering perspective, ..."
+# → Constraints: code blocks, imports, syntax validation
+```
 
 ## Tools
 
@@ -237,5 +278,36 @@ pytest tests/ -v
 | Claude | Haiku 4.5 | Sonnet 4.6 | Opus 4.7 |
 | OpenAI | GPT-4o mini | GPT-4o | o3 |
 | Gemini | 2.0 Flash | 2.5 Pro | 2.5 Pro Thinking |
+| **Codex 5.5** | **base** | **pro** | **max** |
+
+**New (v2.0.0):** Codex 5.5 support for code generation and refactoring.
 
 Pricing in `pricing.yaml`. OpenAI/Gemini rates marked "approximate" — verify at provider pricing pages before production use.
+
+## Documentation
+
+- **[Multi-Platform Integration Guide](docs/integration/MULTI_PLATFORM.md)** — Use PromptWise with Codex, Gemini, or MCP
+- **[Codex 5.5 Integration](docs/integration/CODEX.md)** — Code generation, refactoring, model tier selection
+- **[Architecture Review](READINESS_REVIEW.md)** — Deep dive on design and implementation
+- **[Implementation Roadmap](IMPLEMENTATION_ROADMAP.md)** — Phase-by-phase breakdown of features
+
+## Configuration
+
+**Enable auto-role detection (default: true):**
+```bash
+export PROMPTWISE_AUTO_ROLE=true
+export PROMPTWISE_AUTO_ROLE_THRESHOLD=0.65
+```
+
+**Choose platform (default: mcp):**
+```bash
+export PROMPTWISE_PLATFORM=mcp|codex|gemini|antigravity
+```
+
+**Set API keys:**
+```bash
+export GEMINI_API_KEY="AIzaSy_..."
+export CODEX_API_KEY="sk_..."
+```
+
+See `.env.example` and `config/promptwise_v2.yaml` for all options.
