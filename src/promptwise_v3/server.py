@@ -20,7 +20,7 @@ from promptwise_v3.config import load_config_v3
 from promptwise_v3.core import (
     Router, Rewriter, Optimizer, CompressionEngine, CachePlanner,
     Batcher, Summarizer, RoleDetector, Orchestrator, QualityGuard,
-    SkillLoader, CodexOutputValidator, FrameworkRouter,
+    SkillLoader, CodexOutputValidator, WorkflowPlanner,
 )
 from promptwise_v3.security import SecurityScanner, ComplianceEngine
 from promptwise_v3.plugins import BudgetGuardian, CodeValidator, CostMonitor, ROITracker
@@ -50,7 +50,7 @@ class ServerContext:
     session_manager: SessionManager
     memory: MemoryManager
     skill_loader: SkillLoader
-    framework_router: FrameworkRouter
+    workflow_planner: WorkflowPlanner
 
 
 _TOOL_DEFS = [
@@ -103,8 +103,8 @@ _TOOL_DEFS = [
     Tool(name="scan_response", description="Scan model response for PII leaks and injection echoes",
          inputSchema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}}, "required": ["response"]}),
 
-    # --- Framework Orchestration ---
-    Tool(name="recommend_framework", description="Classify a task (intent/scale/risk) and recommend the best agentic-dev framework (BMAD, Spec Kit, OpenSpec, TaskMaster, Kiro-hooks)",
+    # --- Workflow Planning (PromptWise-native) ---
+    Tool(name="plan_workflow", description="Classify a task (greenfield/brownfield/regulated) and return an ordered workflow of PromptWise's own skill packs + tools to run (PRD -> design -> stories -> TDD -> review). No third-party frameworks.",
          inputSchema={"type": "object", "properties": {
              "text": {"type": "string"},
              "regulated": {"type": "boolean", "description": "Override auto-detection of regulated/compliance context"},
@@ -314,14 +314,14 @@ async def call_tool_v3(ctx: ServerContext, name: str, arguments: dict) -> str:
             return json.dumps({"pii_found": len(pii_items) > 0, "pii_items": pii_items, "injection_echo": echo, "system_leak": leak, "safe": not pii_items and not echo and not leak, "redacted_response": redacted})
 
         # ── Role Detection ───────────────────────────────────────────────────
-        elif name == "recommend_framework":
-            rec = ctx.framework_router.recommend(
+        elif name == "plan_workflow":
+            plan = ctx.workflow_planner.plan(
                 text=arguments.get("text", ""),
                 regulated=arguments.get("regulated"),
                 brownfield=arguments.get("brownfield"))
-            return json.dumps({"framework": rec.framework, "reason": rec.reason,
-                               "alternatives": rec.alternatives, "artifact_chain": rec.artifact_chain,
-                               "compliance_gate": rec.compliance_gate, "signals": rec.signals})
+            return json.dumps({"workflow": plan.workflow, "reason": plan.reason,
+                               "steps": [{"phase": s.phase, "skill": s.skill, "kind": s.kind} for s in plan.steps],
+                               "compliance_gate": plan.compliance_gate, "signals": plan.signals})
 
         elif name == "detect_role":
             r = ctx.role_detector.detect(arguments.get("text", ""), context={"file_type": arguments.get("file_type", "")})
@@ -660,7 +660,7 @@ async def main() -> None:
         session_manager=SessionManager(db_path),
         memory=mm,
         skill_loader=skill_loader,
-        framework_router=FrameworkRouter(),
+        workflow_planner=WorkflowPlanner(),
     )
 
     server = Server("promptwise-v3")

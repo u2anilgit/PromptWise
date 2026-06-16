@@ -23,13 +23,13 @@ them have:
 - **Context-budget engineering** — compression, caching, batching, thread handoff.
 - **Role intelligence** — 55 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
 - **Compliance gating** — auditable PRD→architecture→story→commit chain for regulated teams.
-- **Framework orchestration** — classify a task → recommend BMAD / Spec Kit / OpenSpec / TaskMaster instead of forcing you to pick among nine of them.
+- **Workflow planning** — classify a task → an ordered chain of PromptWise's *own* skill packs (PRD → design → stories → TDD → review). Fully self-contained, no external tools.
 
 ## Architecture — one source, three emitters
 
 ```
-PromptWise core  (router · roles · compliance · context engine · framework_router)
-        ├─▶ MCP tools      → route_request, recommend_framework, owasp_scan …  (60+)
+PromptWise core  (router · roles · compliance · context engine · workflow_planner)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (60+)
         ├─▶ SKILL.md packs → 55 portable packs in skill_packs/
         └─▶ AGENTS.md      → project context + active constitution
 ```
@@ -71,23 +71,24 @@ Restart your agent, run `/mcp` — PromptWise tools appear. Then just `/promptwi
 | `AGENTS.md` | Universal project-context emitter |
 | `docs/` | Architecture plan (also published via GitHub Pages) + integration guides |
 
-## Framework router
+## Workflow planner (self-contained)
 
-`recommend_framework` classifies a task by intent · scale · risk and routes it:
+`plan_workflow` classifies a task by intent · scale · risk and returns an ordered chain
+of PromptWise's **own** skill packs — each step runnable via `invoke_skill`. No external
+frameworks, CLIs, or network:
 
-| Task shape | → Framework |
-|------------|-------------|
-| Greenfield + regulated | Spec Kit (+ constitution = compliance gate) |
-| Full multi-role product build | BMAD-METHOD |
-| Brownfield, gated change | OpenSpec |
-| PRD → tasks only | TaskMaster |
-| Save/event-triggered automation | Kiro-style hooks |
+| Task shape | → Workflow (PromptWise skill packs) |
+|------------|-------------------------------------|
+| Greenfield build | `prd-generator` → `system-design` → `user-story-generator` → `tdd` → `code-review` → `verification-before-completion` |
+| Brownfield change | `systematic-debugging` → `refactoring` → `test-generator` → `code-review` → `verify` |
+| Docs / spec only | `prd-generator` → `user-story-generator` → `adr` |
+| Regulated (any of the above) | + `security-architecture` + `owasp_scan` + `get_sbom`, compliance-gate flag set |
 
 ## Status
 
 **Early-stage, building in public.** v1.0 ships the engine, the three emitters, the 55
-skill packs, and the framework *recommender*. Live subprocess wrapping of BMAD/Spec Kit
-and runtime constitution gating are on the roadmap (see `docs/`).
+skill packs, and the self-contained workflow planner. Everything runs directly from
+PromptWise — no third-party integrations. Runtime constitution gating is on the roadmap.
 
 ## License
 

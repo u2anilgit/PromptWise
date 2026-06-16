@@ -14,8 +14,8 @@ orchestration. It is a conductor, not a replacement for your agent.
 ## Architecture (one source, three emitters)
 
 ```
-PromptWise core  (router · roles · compliance · context engine · framework_router)
-        ├─▶ MCP tools      → route_request, recommend_framework, owasp_scan, …  (60+)
+PromptWise core  (router · roles · compliance · context engine · workflow_planner)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan, …  (60+)
         ├─▶ SKILL.md packs → 55 portable role/technique packs in skill_packs/
         └─▶ AGENTS.md      → this file: project context + active constitution
 ```
@@ -27,14 +27,14 @@ PromptWise core  (router · roles · compliance · context engine · framework_r
 ## Constitution (compliance gate — non-negotiable rules)
 
 Regulated work (banking, HIPAA, FINRA, GDPR, PCI, legal) MUST keep an auditable artifact
-chain: PRD → architecture → stories → commit. `recommend_framework` flags regulated
-tasks with `compliance_gate: true` and routes them to a spec-driven framework whose
-constitution.md is the activation point. Do not strip audit trails on regulated tasks.
+chain: PRD → architecture → stories → commit. `plan_workflow` flags regulated tasks with
+`compliance_gate: true` and grafts in the `security-architecture` pack plus `owasp_scan` /
+`get_sbom`. Do not strip audit trails on regulated tasks.
 
 ## How an agent should use PromptWise
 
 1. Cost/model decisions → call `route_request` before sending large/complex prompts.
-2. Structuring a build → call `recommend_framework` to pick BMAD / Spec Kit / OpenSpec / TaskMaster.
+2. Structuring a build → call `plan_workflow` to get an ordered chain of PromptWise skill packs to run.
 3. Domain work → `suggest_skill` then `invoke_skill` from the 55 packs.
 4. Before running code or deploying → `security_check` / `owasp_scan`.
 5. Long sessions → `summarize_thread` and `plan_cache` to control token spend.

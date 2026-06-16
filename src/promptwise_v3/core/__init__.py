@@ -13,12 +13,12 @@ from .skill_validator import SkillValidator
 from .sbom import SBOMGenerator
 from .license_checker import LicenseChecker
 from .codex_validator import CodexOutputValidator
-from .framework_router import FrameworkRouter
+from .workflow_planner import WorkflowPlanner
 
 __all__ = [
     "Router", "Rewriter", "Optimizer", "CompressionEngine",
     "CachePlanner", "Batcher", "Summarizer", "RoleDetector",
     "Orchestrator", "QualityGuard", "SkillLoader", "SkillValidator",
     "SBOMGenerator", "LicenseChecker", "CodexOutputValidator",
-    "FrameworkRouter",
+    "WorkflowPlanner",
 ]

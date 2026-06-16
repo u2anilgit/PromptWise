@@ -1,6 +1,6 @@
 ---
 name: promptwise
-description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, recommend an agentic-dev framework (BMAD/Spec Kit/OpenSpec/TaskMaster), or invoke one of 55 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "which framework should I use", explicit cost/budget questions, or any time the user pastes a large doc.
+description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, plan an SDLC workflow from PromptWise's own skill packs, or invoke one of 55 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "how should I structure this build", explicit cost/budget questions, or any time the user pastes a large doc.
 ---
 
 # PromptWise v1.0 — the cross-agent intelligence layer
@@ -26,8 +26,8 @@ PromptWise v1.0 — command groups (60+ MCP tools · 55 skill packs):
   summarize_thread     Compress a long thread for fresh-chat handoff
   compare_providers    Compare cost across Claude / OpenAI / Gemini
 
-  Framework orchestration  (the differentiator)
-  recommend_framework  Classify a task → recommend BMAD / Spec Kit / OpenSpec / TaskMaster / Kiro-hooks
+  Workflow planning  (PromptWise-native, the differentiator)
+  plan_workflow        Classify a task → ordered chain of PromptWise skill packs (PRD → design → stories → TDD → review)
 
   Roles & skill packs
   detect_role          Auto-detect organizational role
@@ -73,7 +73,7 @@ Usage: describe your need and PromptWise selects the tool, or call a subcommand 
 - **Verbose prompt** → `rewrite_prompt` (filler) or `compress_prompt` (caveman). **Long pasted doc** → `optimize_context`.
 - **Repeated calls / agent loop / RAG** → `plan_cache`.
 - **Several small tasks** → `batch_prompts`. **Thread wrapping up / near context limit** → `summarize_thread`.
-- **"Which framework / how do I structure this build"** → `recommend_framework` (greenfield-vs-brownfield, solo-vs-multi-role, regulated-vs-not → BMAD / Spec Kit / OpenSpec / TaskMaster / Kiro-hooks). Regulated tasks get a compliance gate flag.
+- **"How should I structure this build"** → `plan_workflow` (greenfield-vs-brownfield, regulated-vs-not → an ordered chain of PromptWise's own skill packs: PRD → design → stories → TDD → review, run via `invoke_skill`). Regulated tasks graft in security-architecture + OWASP and set a compliance-gate flag. Fully self-contained — no external tools.
 - **Code or prompt before running** → `security_check`; deploying an app → `owasp_scan`; user-supplied prompt → `prompt_injection`.
 - **Role/domain work** (banking, HIPAA, QA, legal, TDD, ADR, etc.) → `suggest_skill` then `invoke_skill`. The 55 packs live in `skill_packs/` and load via the MCP server.
 - **Spend/ROI/budget** → the cost-&-budget group.

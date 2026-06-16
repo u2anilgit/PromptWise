@@ -1,24 +1,27 @@
 # PromptWise — runnable examples
 
-## 1. Recommend a framework (no API key needed)
+## 1. Plan a workflow from PromptWise's own skill packs (no API key needed)
 
 ```bash
 PYTHONPATH=src python -c "
-from promptwise_v3.core import FrameworkRouter
-r = FrameworkRouter()
+from promptwise_v3.core import WorkflowPlanner
+p = WorkflowPlanner()
 for task in [
     'Build a HIPAA-compliant patient intake portal from scratch',
-    'Refactor the legacy billing module and gate the change',
-    'Turn this PRD into a dependency-ordered task list',
-    'On every file save, run the linter and update the changelog',
+    'Refactor the legacy billing module',
+    'Write a PRD and user stories for a notifications feature',
 ]:
-    rec = r.recommend(task)
-    print(f'{task[:48]:48s} -> {rec.framework:22s} gate={rec.compliance_gate}')
+    plan = p.plan(task)
+    chain = ' -> '.join(s.skill for s in plan.steps)
+    print(f'{task[:42]:42s} [{plan.workflow}] gate={plan.compliance_gate}')
+    print('   ', chain)
 "
 ```
 
-Expected: regulated greenfield → Spec Kit (gate=True); brownfield → OpenSpec;
-PRD-only → TaskMaster; save-triggered → Kiro-style hooks.
+Expected: regulated greenfield → `greenfield-build+compliance` (gate=True) with
+security-architecture + owasp_scan grafted in; brownfield → `brownfield-change`;
+docs task → `spec`. Every step is a PromptWise skill pack or built-in tool — runnable
+via `invoke_skill`, no external frameworks.
 
 ## 2. Route a request to the right model tier
 

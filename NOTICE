@@ -3,21 +3,21 @@ Copyright (c) 2026 Anil Devarasetti
 Licensed under the MIT License (see LICENSE).
 
 ==============================================================================
-Credits & attribution
+Open standards
 ==============================================================================
 
-PromptWise orchestrates and interoperates with the following open-source
-agentic-development frameworks and standards. PromptWise does not bundle their
-source; it recommends, references, and is designed to wire them as optional
-backends. Each remains under its own license and copyright.
+PromptWise emits and interoperates with the following open standards. These are
+protocols/conventions, not bundled third-party software — PromptWise ships no
+external framework code and runs entirely on its own engine.
 
-- BMAD-METHOD            — MIT License            — https://github.com/bmad-code-org/BMAD-METHOD
-- GitHub Spec Kit        — OSS (see project)      — https://github.com/github/spec-kit
-- OpenSpec               — OSS (see project)      — https://github.com/Fission-AI/OpenSpec
-- TaskMaster             — OSS (see project)      — https://github.com/eyaltoledano/claude-task-master
-- Model Context Protocol — open standard          — https://modelcontextprotocol.io
-- AGENTS.md              — open convention         — https://agents.md
+- Model Context Protocol (MCP) — open standard — https://modelcontextprotocol.io
+- AGENTS.md                    — open convention — https://agents.md
+- SKILL.md                     — portable skill format (YAML frontmatter + prompt)
 
-If you wrap or redistribute any of the above as a backend, retain their LICENSE
-files and attribution. Star counts and adoption figures referenced in docs are
-as of mid-2026 and will drift — re-verify before relying on them.
+==============================================================================
+Third-party Python dependencies
+==============================================================================
+
+Standard PyPI packages declared in pyproject.toml (mcp, tiktoken, pydantic,
+pyyaml, aiosqlite, aiohttp, flask, SQLAlchemy, jsonschema, prometheus-client,
+Authlib, anthropic) are used under their respective licenses.
