@@ -47,8 +47,8 @@ PROMPTWISE_PLATFORM=collaboration
 ### 3. Use in Python
 
 ```python
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 import asyncio
 
 async def main():

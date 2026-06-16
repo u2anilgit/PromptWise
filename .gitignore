@@ -52,4 +52,7 @@ Thumbs.db
 .tmp.driveupload/
 .tmp.drivedownload/
 
+# Marketing / drafts — keep local, not part of the shipped plugin
+*.docx
+
 # Note: .claude-plugin/ IS tracked — it ships the plugin manifest + hub skill.

@@ -41,8 +41,8 @@ dev = [
 ]
 
 [project.scripts]
-promptwise = "promptwise_v3.cli:main"
-promptwise-server = "promptwise_v3.server:sync_main"
+promptwise = "promptwise.cli:main"
+promptwise-server = "promptwise.server:sync_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

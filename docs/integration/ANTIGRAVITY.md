@@ -44,7 +44,7 @@ export PROMPTWISE_LOG_LEVEL=DEBUG
 
 **Python code:**
 ```python
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 
 adapter = create_adapter("antigravity", {
     "antigravity_endpoint": "stdio:antigravity-server"
@@ -213,8 +213,8 @@ Test connection in Python:
 
 ```python
 import asyncio
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 
 async def test_connection():
     adapter = create_adapter("antigravity", {
@@ -251,7 +251,7 @@ python -m promptwise.server
 
 # If using as library
 python -c "
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 import asyncio
 
 async def main():
@@ -269,8 +269,8 @@ asyncio.run(main())
 ### Example 1: Route Request to Antigravity
 
 ```python
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 import asyncio
 
 async def route_code_request():
@@ -367,8 +367,8 @@ asyncio.run(track_session_costs())
 PromptWise automatically detects roles and applies optimizations:
 
 ```python
-from promptwise_v2.core.role_detector import RoleDetector
-from promptwise_v2.core.auto_role_applier import AutoRoleApplier
+from promptwise.core.role_detector import RoleDetector
+from promptwise.core.auto_role_applier import AutoRoleApplier
 
 # Create detector and applier
 detector = RoleDetector()
@@ -402,7 +402,7 @@ response = await adapter.call_tool(request)
 Route different tool types to different Antigravity instances:
 
 ```python
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 
 class MultiEndpointRouter:
     def __init__(self):

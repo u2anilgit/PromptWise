@@ -29,7 +29,7 @@ claude marketplace add ./           # from the repo root
 claude plugin install promptwise
 ```
 
-Restart Claude Code, run `/mcp` — the `promptwise-v3` tools appear. Run `/promptwise`.
+Restart Claude Code, run `/mcp` — the `promptwise` tools appear. Run `/promptwise`.
 
 ### Any MCP host (Codex, Cursor, Gemini, …)
 Point the host at the bundled `.mcp.json`, or add this server entry:
@@ -37,9 +37,9 @@ Point the host at the bundled `.mcp.json`, or add this server entry:
 ```jsonc
 {
   "mcpServers": {
-    "promptwise-v3": {
+    "promptwise": {
       "command": "python",
-      "args": ["-m", "promptwise_v3.server"],
+      "args": ["-m", "promptwise.server"],
       "cwd": "/absolute/path/to/PromptWise",
       "env": { "PYTHONPATH": "/absolute/path/to/PromptWise/src" }
     }
@@ -57,8 +57,8 @@ cp -r skill_packs/* ~/.codex/skills/        # or ~/.gemini/skills/ , .cursor/ski
 ## 4. Verify
 
 ```bash
-PYTHONPATH=src python -c "import promptwise_v3.server as s; print(len(s._TOOL_DEFS), 'tools')"
-PYTHONPATH=src python -c "from pathlib import Path; from promptwise_v3.core import SkillLoader; sl=SkillLoader(Path('skill_packs')); sl.load_skills(); print(len(sl.skills),'packs')"
+PYTHONPATH=src python -c "import promptwise.server as s; print(len(s._TOOL_DEFS), 'tools')"
+PYTHONPATH=src python -c "from pathlib import Path; from promptwise.core import SkillLoader; sl=SkillLoader(Path('skill_packs')); sl.load_skills(); print(len(sl.skills),'packs')"
 ```
 
 Expected: the tool count and `63 packs`.
@@ -66,7 +66,7 @@ Expected: the tool count and `63 packs`.
 ## Data location
 
 Runtime data (sessions, cost logs, tasks, ROI) lives in a local SQLite DB at
-`~/.promptwise/promptwise_v3.db`. Delete that file to reset all history.
+`~/.promptwise/promptwise.db`. Delete that file to reset all history.
 
 ## Corporate proxy / SSL
 

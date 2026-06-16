@@ -1,4 +1,4 @@
-# PromptWise v3 model routing strategy
+# PromptWise model routing strategy
 
 default_model: claude-sonnet-4-6
 

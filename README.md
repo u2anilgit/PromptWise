@@ -56,9 +56,9 @@ Add the plugin marketplace (local) and enable it, or point your MCP host at the 
 // .mcp.json — already included
 {
   "mcpServers": {
-    "promptwise-v3": {
+    "promptwise": {
       "command": "python",
-      "args": ["-m", "promptwise_v3.server"],
+      "args": ["-m", "promptwise.server"],
       "cwd": "${projectDir}",
       "env": { "PYTHONPATH": "${projectDir}/src" }
     }
@@ -72,7 +72,7 @@ Restart your agent, run `/mcp` — PromptWise tools appear. Then just `/promptwi
 
 | Path | What |
 |------|------|
-| `src/promptwise_v3/` | Engine: MCP server + core logic, security, plugins, transports |
+| `src/promptwise/` | Engine: MCP server + core logic, security, plugins, transports |
 | `skill_packs/` | 63 portable `SKILL.md` role/technique packs (copy into any agent) |
 | `.claude-plugin/` | Plugin + marketplace manifests, the `/promptwise` hub skill |
 | `config/` | Pricing, providers, roles, security, compliance config |

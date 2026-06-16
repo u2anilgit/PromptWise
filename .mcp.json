@@ -1,10 +1,10 @@
 {
   "mcpServers": {
-    "promptwise-v3": {
+    "promptwise": {
       "command": "python",
       "args": [
         "-m",
-        "promptwise_v3.server"
+        "promptwise.server"
       ],
       "cwd": "${projectDir}",
       "env": { "PYTHONPATH": "${projectDir}/src" },

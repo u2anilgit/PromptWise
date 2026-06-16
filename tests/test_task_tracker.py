@@ -3,7 +3,7 @@ import asyncio
 import os
 import tempfile
 
-from promptwise_v3.core import TaskTracker
+from promptwise.core import TaskTracker
 
 
 def _run(coro):

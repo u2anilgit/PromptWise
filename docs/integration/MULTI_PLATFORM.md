@@ -44,7 +44,7 @@ export CODEX_API_KEY="sk_your_key"
 
 **MCP (Claude Code):**
 ```python
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 
 adapter = create_adapter("mcp")
 ```
@@ -66,7 +66,7 @@ adapter = create_adapter("codex", {
 ### 4. Call a Tool
 
 ```python
-from promptwise_v2.transports import ToolRequest
+from promptwise.transports import ToolRequest
 import asyncio
 
 async def main():
@@ -136,8 +136,8 @@ PromptWise automatically detects your role from the prompt and applies context-a
 ### Example
 
 ```python
-from promptwise_v2.core.role_detector import RoleDetector
-from promptwise_v2.core.auto_role_applier import AutoRoleApplier
+from promptwise.core.role_detector import RoleDetector
+from promptwise.core.auto_role_applier import AutoRoleApplier
 
 detector = RoleDetector()
 applier = AutoRoleApplier(detector, roles_config)
@@ -231,7 +231,7 @@ claude      fast       haiku-4-5              $0.00035
 
 ## Configuration
 
-### Default Configuration (`config/promptwise_v2.yaml`)
+### Default Configuration (`config/promptwise.yaml`)
 
 ```yaml
 platforms:
@@ -318,7 +318,7 @@ response = await adapter.call_tool(request)
 Automatically select best platform based on request:
 
 ```python
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 
 # Try each platform and compare
 platforms = ["codex", "gemini", "claude"]

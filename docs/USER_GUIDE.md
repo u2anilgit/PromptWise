@@ -23,7 +23,7 @@ Claude Code:
 claude marketplace add ./
 claude plugin install promptwise
 ```
-Restart, run `/mcp` to confirm the `promptwise-v3` tools, then `/promptwise`.
+Restart, run `/mcp` to confirm the `promptwise` tools, then `/promptwise`.
 
 Any other MCP host: point it at the bundled `.mcp.json` (see INSTALL.md).
 
@@ -125,6 +125,6 @@ task_report
 
 - Long session? `summarize_thread` for a clean handoff; `plan_cache` if you reuse a big
   system prompt.
-- Data lives in `~/.promptwise/promptwise_v3.db` — delete to reset.
+- Data lives in `~/.promptwise/promptwise.db` — delete to reset.
 - Changed config? `reload_config` — no restart.
 - Verify locally: `PYTHONPATH=src python -m pytest tests -q` (22 tests).

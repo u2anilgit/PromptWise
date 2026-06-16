@@ -1,5 +1,5 @@
 """Workflow planner routes tasks to PromptWise-native skill-pack chains."""
-from promptwise_v3.core import WorkflowPlanner
+from promptwise.core import WorkflowPlanner
 
 P = WorkflowPlanner()
 

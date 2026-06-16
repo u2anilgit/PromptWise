@@ -1,5 +1,5 @@
 """Mermaid validator: accepts valid diagrams, rejects malformed ones."""
-from promptwise_v3.core import validate_mermaid
+from promptwise.core import validate_mermaid
 
 
 def test_valid_flowchart():

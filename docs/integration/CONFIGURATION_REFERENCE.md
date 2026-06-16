@@ -88,7 +88,7 @@ import os
 platform = os.getenv("PROMPTWISE_PLATFORM", "mcp")
 ```
 
-### `config/promptwise_v2.yaml`
+### `config/promptwise.yaml`
 
 Main configuration file with platform and feature settings:
 
@@ -199,7 +199,7 @@ providers:
 ### Minimal Setup
 
 ```python
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 
 # Use defaults (MCP)
 adapter = create_adapter("mcp")
@@ -227,9 +227,9 @@ adapter = create_adapter("antigravity", {
 ### Full Configuration
 
 ```python
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.core.role_detector import RoleDetector
-from promptwise_v2.core.auto_role_applier import AutoRoleApplier
+from promptwise.adapters import create_adapter
+from promptwise.core.role_detector import RoleDetector
+from promptwise.core.auto_role_applier import AutoRoleApplier
 
 # Create adapter
 adapter = create_adapter("gemini", {
@@ -378,7 +378,7 @@ PROMPTWISE_TIMEOUT_S=45
 # Don't set PROMPTWISE_PLATFORM
 # Instead, choose at runtime
 
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 
 def get_best_adapter(task_type):
     if task_type == "code":
@@ -435,7 +435,7 @@ export ANTIGRAVITY_ENDPOINT="api.example.com:443"
 
 ```python
 import os
-from promptwise_v2.adapters import get_default_platform
+from promptwise.adapters import get_default_platform
 
 # Check platform
 platform = os.getenv("PROMPTWISE_PLATFORM", "mcp")
@@ -450,7 +450,7 @@ if platform == "gemini":
 
 # Try to create adapter
 try:
-    from promptwise_v2.adapters import create_adapter
+    from promptwise.adapters import create_adapter
     adapter = create_adapter(platform)
     print("✓ Adapter created successfully")
 except Exception as e:
@@ -461,7 +461,7 @@ except Exception as e:
 
 ```python
 import asyncio
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 
 async def test_connection():
     adapter = create_adapter("gemini", {"gemini_api_key": "..."})
@@ -512,12 +512,12 @@ Solutions:
 ### "Configuration file not found"
 
 ```
-Error: Cannot load config/promptwise_v2.yaml
+Error: Cannot load config/promptwise.yaml
 
 Solution:
 1. Make sure you're in the PromptWise directory
-2. Check file exists: ls config/promptwise_v2.yaml
-3. Check permissions: chmod 644 config/promptwise_v2.yaml
+2. Check file exists: ls config/promptwise.yaml
+3. Check permissions: chmod 644 config/promptwise.yaml
 ```
 
 ---

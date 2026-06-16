@@ -11,13 +11,13 @@ pip install -e ".[dev]"
 pytest            # if/when tests are present
 ```
 
-The MCP server runs with `python -m promptwise_v3.server` (needs `PYTHONPATH=src`, or
+The MCP server runs with `python -m promptwise.server` (needs `PYTHONPATH=src`, or
 `pip install -e .`).
 
 ## Project layout
 
-- `src/promptwise_v3/` — engine. New MCP tools: add a `Tool(...)` to `_TOOL_DEFS`, an
-  `elif name == "..."` branch in `call_tool_v3`, and (if stateful) a field on
+- `src/promptwise/` — engine. New MCP tools: add a `Tool(...)` to `_TOOL_DEFS`, an
+  `elif name == "..."` branch in `call_tool`, and (if stateful) a field on
   `ServerContext`. Keep core logic in `core/` modules that return small dataclasses.
 - `skill_packs/` — portable `SKILL.md` packs. Frontmatter must include `name`,
   `description`, `triggers`; optionally `roles`, `model_tier`, `output_schema`.

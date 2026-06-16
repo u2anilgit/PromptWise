@@ -20,9 +20,9 @@ PromptWise core  (router · roles · compliance · context engine · workflow_pl
         └─▶ AGENTS.md      → this file: project context + active constitution
 ```
 
-- Engine: `src/promptwise_v3/` (MCP server in `server.py`, logic in `core/`, `security/`, `plugins/`).
+- Engine: `src/promptwise/` (MCP server in `server.py`, logic in `core/`, `security/`, `plugins/`).
 - Skill packs: `skill_packs/` — portable `SKILL.md` files, loaded by the MCP `SkillLoader`.
-- Config: `config/promptwise_v3.yaml` (pricing, providers, roles, security, skills dir).
+- Config: `config/promptwise.yaml` (pricing, providers, roles, security, skills dir).
 
 ## Constitution (compliance gate — non-negotiable rules)
 

@@ -4,7 +4,7 @@ import pathlib
 
 import yaml
 
-from promptwise_v3.core import SkillLoader
+from promptwise.core import SkillLoader
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PACKS = sorted((ROOT / "skill_packs").rglob("*.md"))

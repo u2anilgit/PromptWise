@@ -8,13 +8,13 @@ runtime with the `reload_config` tool. A fuller field reference lives in
 
 | File | Purpose |
 |------|---------|
-| `config/promptwise_v3.yaml` | Main config: models, providers, roles, security, policies, skills dir, timeouts |
+| `config/promptwise.yaml` | Main config: models, providers, roles, security, policies, skills dir, timeouts |
 | `config/role_keywords.yaml` | Keyword → role mapping for `detect_role` |
 | `config/model_strategy.yaml` | Routing strategy hints |
 | `config/compliance/*.yaml` | Per-domain compliance rule sets (banking, healthcare, legal) |
 | `pricing.yaml` · `providers.yaml` · `roles.yaml` | Standalone pricing / provider / role tables |
 
-## Key sections in `promptwise_v3.yaml`
+## Key sections in `promptwise.yaml`
 
 ```yaml
 default_model: claude-sonnet-4-6
@@ -51,11 +51,11 @@ timeout:
 
 ## Environment
 
-- `PYTHONPATH=src` (or `pip install -e .`) so `promptwise_v3` is importable.
+- `PYTHONPATH=src` (or `pip install -e .`) so `promptwise` is importable.
 - No API keys are required for routing, scanning, diagrams, tracking, or workflow planning
   — those run locally. Keys are only needed if you wire live model calls yourself.
 
 ## Resetting
 
-Runtime state is in `~/.promptwise/promptwise_v3.db`. Remove it to clear sessions, costs,
+Runtime state is in `~/.promptwise/promptwise.db`. Remove it to clear sessions, costs,
 tasks, and ROI history. Config files are never modified at runtime.

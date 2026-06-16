@@ -1,5 +1,5 @@
 """Server tool registry: expected tools present, no duplicates, schemas well-formed."""
-import promptwise_v3.server as s
+import promptwise.server as s
 
 NAMES = [t.name for t in s._TOOL_DEFS]
 

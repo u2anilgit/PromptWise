@@ -42,8 +42,8 @@ PROMPTWISE_PLATFORM=codex
 ### 3. Use in Python
 
 ```python
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 import asyncio
 
 async def main():
@@ -213,7 +213,7 @@ response = await adapter.call_tool(request)
 Automatically check generated code:
 
 ```python
-from promptwise_v2.core.codex_output_validator import CodexOutputValidator
+from promptwise.core.codex_output_validator import CodexOutputValidator
 
 validator = CodexOutputValidator()
 
@@ -239,7 +239,7 @@ print(f"Complete: {result.is_complete}")
 Codex prompts are optimized with `code_specialist` role:
 
 ```python
-from promptwise_v2.core.auto_role_applier import AutoRoleApplier
+from promptwise.core.auto_role_applier import AutoRoleApplier
 
 applier = AutoRoleApplier(detector, roles_config)
 

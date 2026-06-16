@@ -10,9 +10,9 @@
   "license": "MIT",
   "keywords": ["mcp", "ai-agents", "claude", "cursor", "skill-md", "agentic-ai", "llm-tools", "cost-optimization", "compliance"],
   "mcpServers": {
-    "promptwise-v3": {
+    "promptwise": {
       "command": "python",
-      "args": ["-m", "promptwise_v3.server"],
+      "args": ["-m", "promptwise.server"],
       "cwd": "${CLAUDE_PLUGIN_ROOT}",
       "env": {
         "PYTHONPATH": "${CLAUDE_PLUGIN_ROOT}/src"

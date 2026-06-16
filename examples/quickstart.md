@@ -4,7 +4,7 @@
 
 ```bash
 PYTHONPATH=src python -c "
-from promptwise_v3.core import WorkflowPlanner
+from promptwise.core import WorkflowPlanner
 p = WorkflowPlanner()
 for task in [
     'Build a HIPAA-compliant patient intake portal from scratch',
@@ -27,9 +27,9 @@ via `invoke_skill`, no external frameworks.
 
 ```bash
 PYTHONPATH=src python -c "
-from promptwise_v3.config import load_config_v3
-from promptwise_v3.core import Router
-cfg = load_config_v3()
+from promptwise.config import load_config
+from promptwise.core import Router
+cfg = load_config()
 r = Router(cfg).route(text='Extract the dates from this invoice', intent='auto', stakes='auto')
 print(r.recommended_model, '-', r.reason)
 "
@@ -40,7 +40,7 @@ print(r.recommended_model, '-', r.reason)
 ```bash
 PYTHONPATH=src python -c "
 from pathlib import Path
-from promptwise_v3.core import SkillLoader
+from promptwise.core import SkillLoader
 sl = SkillLoader(Path('skill_packs'))
 sl.load_skills()
 print(len(sl.skills), 'skill packs loaded')

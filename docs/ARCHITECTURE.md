@@ -27,7 +27,7 @@ flowchart TB
 
 ## Technical view
 
-Modules and dependencies inside `src/promptwise_v3/`.
+Modules and dependencies inside `src/promptwise/`.
 
 ```mermaid
 flowchart LR

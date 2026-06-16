@@ -27,8 +27,8 @@ PromptWise (routing, compression, role detection)
 
 **Example:**
 ```python
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 
 # Your application
 async def analyze_code(code_snippet):
@@ -71,7 +71,7 @@ External API (OpenAI, Google, etc.)
 **Setup:**
 ```python
 from fastapi import FastAPI
-from promptwise_v2.adapters import create_adapter
+from promptwise.adapters import create_adapter
 
 app = FastAPI()
 
@@ -104,12 +104,12 @@ class PromptWisePlugin:
     """Plugin for integrating PromptWise into existing tools."""
     
     def __init__(self, platform="gemini", config=None):
-        from promptwise_v2.adapters import create_adapter
+        from promptwise.adapters import create_adapter
         self.adapter = create_adapter(platform, config)
     
     async def optimize_request(self, text, intent):
         """Optimize a request before sending to LLM."""
-        from promptwise_v2.transports import ToolRequest
+        from promptwise.transports import ToolRequest
         
         request = ToolRequest(
             tool_name="route_request",
@@ -122,7 +122,7 @@ class PromptWisePlugin:
     
     async def get_cost_estimate(self, text):
         """Get cost estimate."""
-        from promptwise_v2.transports import ToolRequest
+        from promptwise.transports import ToolRequest
         
         request = ToolRequest(
             tool_name="compare_providers",
@@ -152,8 +152,8 @@ Use PromptWise to optimize LangChain prompts:
 ```python
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 import asyncio
 
 class OptimizedLangChainLLM:
@@ -188,8 +188,8 @@ Use PromptWise in a web interface:
 
 ```python
 import streamlit as st
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 import asyncio
 
 st.title("Code Analysis with PromptWise Optimization")
@@ -254,8 +254,8 @@ Expose PromptWise as a REST API:
 ```python
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 import asyncio
 
 app = FastAPI(title="PromptWise API")
@@ -318,8 +318,8 @@ Use PromptWise with background tasks:
 
 ```python
 from celery import Celery
-from promptwise_v2.adapters import create_adapter
-from promptwise_v2.transports import ToolRequest
+from promptwise.adapters import create_adapter
+from promptwise.transports import ToolRequest
 import asyncio
 
 celery_app = Celery("promptwise_tasks")
@@ -372,7 +372,7 @@ result = task.get()
 Create your own adapter for a custom tool:
 
 ```python
-from promptwise_v2.transports import TransportAdapter, ToolRequest, ToolResponse
+from promptwise.transports import TransportAdapter, ToolRequest, ToolResponse
 import json
 import subprocess
 
@@ -545,7 +545,7 @@ adapter = create_adapter(config['platforms']['default'], config)
 ### Mock Adapter for Testing
 
 ```python
-from promptwise_v2.transports import TransportAdapter, ToolRequest, ToolResponse
+from promptwise.transports import TransportAdapter, ToolRequest, ToolResponse
 
 class MockAdapter(TransportAdapter):
     """Mock adapter for testing without real API."""
