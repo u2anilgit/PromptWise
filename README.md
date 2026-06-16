@@ -1,8 +1,8 @@
 # PromptWise
 
 **The cross-agent intelligence layer for AI coding agents.** Role-aware prompting, model
-routing, cost & budget control, security/compliance scanning, framework orchestration,
-and 55 portable skill packs — emitted in the formats every agent already reads.
+routing, cost & budget control, security/compliance scanning, workflow planning,
+and 63 portable skill packs — emitted in the formats every agent already reads.
 
 > Built on open standards, not against them. PromptWise is a *conductor*, not a replacement
 > for Cursor / Copilot / Claude Code.
@@ -21,7 +21,7 @@ them have:
 
 - **Model routing** — right tier (Haiku/Sonnet/Opus) per task, with budget awareness.
 - **Context-budget engineering** — compression, caching, batching, thread handoff.
-- **Role intelligence** — 55 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
+- **Role intelligence** — 63 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
 - **Compliance gating** — auditable PRD→architecture→story→commit chain for regulated teams.
 - **Workflow planning** — classify a task → an ordered chain of PromptWise's *own* skill packs (PRD → design → stories → TDD → review). Fully self-contained, no external tools.
 
@@ -29,8 +29,8 @@ them have:
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (60+)
-        ├─▶ SKILL.md packs → 55 portable packs in skill_packs/
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (65+)
+        ├─▶ SKILL.md packs → 63 portable packs in skill_packs/
         └─▶ AGENTS.md      → project context + active constitution
 ```
 
@@ -65,11 +65,11 @@ Restart your agent, run `/mcp` — PromptWise tools appear. Then just `/promptwi
 | Path | What |
 |------|------|
 | `src/promptwise_v3/` | Engine: MCP server + core logic, security, plugins, transports |
-| `skill_packs/` | 55 portable `SKILL.md` role/technique packs (copy into any agent) |
+| `skill_packs/` | 63 portable `SKILL.md` role/technique packs (copy into any agent) |
 | `.claude-plugin/` | Plugin + marketplace manifests, the `/promptwise` hub skill |
 | `config/` | Pricing, providers, roles, security, compliance config |
 | `AGENTS.md` | Universal project-context emitter |
-| `docs/` | Architecture plan (also published via GitHub Pages) + integration guides |
+| `docs/` | Integration guides (configuration reference, multi-platform setup) |
 
 ## Workflow planner (self-contained)
 
@@ -86,7 +86,7 @@ frameworks, CLIs, or network:
 
 ## Status
 
-**Early-stage, building in public.** v1.0 ships the engine, the three emitters, the 55
+**Early-stage, building in public.** v1.0 ships the engine, the three emitters, the 63
 skill packs, and the self-contained workflow planner. Everything runs directly from
 PromptWise — no third-party integrations. Runtime constitution gating is on the roadmap.
 

@@ -20,7 +20,7 @@ from promptwise_v3.config import load_config_v3
 from promptwise_v3.core import (
     Router, Rewriter, Optimizer, CompressionEngine, CachePlanner,
     Batcher, Summarizer, RoleDetector, Orchestrator, QualityGuard,
-    SkillLoader, CodexOutputValidator, WorkflowPlanner,
+    SkillLoader, CodexOutputValidator, WorkflowPlanner, TaskTracker, validate_mermaid,
 )
 from promptwise_v3.security import SecurityScanner, ComplianceEngine
 from promptwise_v3.plugins import BudgetGuardian, CodeValidator, CostMonitor, ROITracker
@@ -51,6 +51,7 @@ class ServerContext:
     memory: MemoryManager
     skill_loader: SkillLoader
     workflow_planner: WorkflowPlanner
+    task_tracker: TaskTracker
 
 
 _TOOL_DEFS = [
@@ -110,6 +111,31 @@ _TOOL_DEFS = [
              "regulated": {"type": "boolean", "description": "Override auto-detection of regulated/compliance context"},
              "brownfield": {"type": "boolean", "description": "Override auto-detection of brownfield (existing-code) change"}},
          "required": ["text"]}),
+
+    # --- Task / Effort / Token Tracker ---
+    Tool(name="add_task", description="Create a development task with an effort estimate; tracks effort, tokens, and cost",
+         inputSchema={"type": "object", "properties": {
+             "title": {"type": "string"},
+             "estimate_hours": {"type": "number", "default": 0},
+             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"], "default": "todo"},
+             "tags": {"type": "array", "items": {"type": "string"}}},
+         "required": ["title"]}),
+    Tool(name="update_task", description="Update a task's status, actual hours, tokens, or cost (set or increment)",
+         inputSchema={"type": "object", "properties": {
+             "task_id": {"type": "string"},
+             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"]},
+             "actual_hours": {"type": "number"}, "tokens": {"type": "number"}, "cost_usd": {"type": "number"},
+             "add_tokens": {"type": "number"}, "add_cost": {"type": "number"}},
+         "required": ["task_id"]}),
+    Tool(name="list_tasks", description="List tracked tasks, optionally filtered by status",
+         inputSchema={"type": "object", "properties": {
+             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"]}}}),
+    Tool(name="task_report", description="Effort (estimate vs actual), token, and cost rollup across all tasks",
+         inputSchema={"type": "object", "properties": {}}),
+
+    # --- Diagrams ---
+    Tool(name="validate_mermaid", description="Lint Mermaid diagram source (type, bracket/quote balance) so it renders",
+         inputSchema={"type": "object", "properties": {"source": {"type": "string"}}, "required": ["source"]}),
 
     # --- Role Detection ---
     Tool(name="detect_role", description="Detect organizational role from prompt context",
@@ -322,6 +348,32 @@ async def call_tool_v3(ctx: ServerContext, name: str, arguments: dict) -> str:
             return json.dumps({"workflow": plan.workflow, "reason": plan.reason,
                                "steps": [{"phase": s.phase, "skill": s.skill, "kind": s.kind} for s in plan.steps],
                                "compliance_gate": plan.compliance_gate, "signals": plan.signals})
+
+        elif name == "add_task":
+            res = await ctx.task_tracker.add(
+                title=arguments.get("title", ""), estimate_hours=arguments.get("estimate_hours", 0),
+                status=arguments.get("status", "todo"), tags=arguments.get("tags"))
+            return json.dumps(res)
+
+        elif name == "update_task":
+            res = await ctx.task_tracker.update(
+                task_id=arguments.get("task_id", ""), status=arguments.get("status"),
+                actual_hours=arguments.get("actual_hours"), tokens=arguments.get("tokens"),
+                cost_usd=arguments.get("cost_usd"), add_tokens=arguments.get("add_tokens"),
+                add_cost=arguments.get("add_cost"))
+            return json.dumps(res)
+
+        elif name == "list_tasks":
+            res = await ctx.task_tracker.list(status=arguments.get("status"))
+            return json.dumps({"tasks": res, "count": len(res)})
+
+        elif name == "task_report":
+            return json.dumps(await ctx.task_tracker.report())
+
+        elif name == "validate_mermaid":
+            r = validate_mermaid(arguments.get("source", ""))
+            return json.dumps({"valid": r.valid, "diagram_type": r.diagram_type,
+                               "errors": r.errors, "warnings": r.warnings, "node_count": r.node_count})
 
         elif name == "detect_role":
             r = ctx.role_detector.detect(arguments.get("text", ""), context={"file_type": arguments.get("file_type", "")})
@@ -634,6 +686,9 @@ async def main() -> None:
     mm = MemoryManager(db_path)
     await mm.init()
 
+    task_tracker = TaskTracker(db_path)
+    await task_tracker.init()
+
     skills_dir = config_dir / config.skills.directory
     skill_loader = SkillLoader(skills_dir)
     skill_loader.load_skills()
@@ -661,6 +716,7 @@ async def main() -> None:
         memory=mm,
         skill_loader=skill_loader,
         workflow_planner=WorkflowPlanner(),
+        task_tracker=task_tracker,
     )
 
     server = Server("promptwise-v3")

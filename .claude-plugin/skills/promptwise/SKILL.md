@@ -1,6 +1,6 @@
 ---
 name: promptwise
-description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, plan an SDLC workflow from PromptWise's own skill packs, or invoke one of 55 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "how should I structure this build", explicit cost/budget questions, or any time the user pastes a large doc.
+description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, plan an SDLC workflow from PromptWise's own skill packs, or invoke one of 63 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "how should I structure this build", explicit cost/budget questions, or any time the user pastes a large doc.
 ---
 
 # PromptWise v1.0 — the cross-agent intelligence layer
@@ -8,13 +8,13 @@ description: Use PromptWise to optimize prompt cost, route requests to the right
 PromptWise is the **intelligence + orchestration layer** for AI coding agents. It does
 not replace your agent — it rides the open standards every agent already reads (MCP ·
 SKILL.md · AGENTS.md) and adds what none of them have: role awareness, compliance
-gating, context-budget engineering, and framework selection.
+gating, context-budget engineering, and workflow planning.
 
 When the user invokes `/promptwise` with no subcommand, show this menu, then ask
 **"What would you like to optimize?"** Otherwise, pick the right tool automatically.
 
 ```
-PromptWise v1.0 — command groups (60+ MCP tools · 55 skill packs):
+PromptWise v1.0 — command groups (65+ MCP tools · 63 skill packs):
 
   Optimization
   route_request        Pick the right model (Haiku/Sonnet/Opus) for a task
@@ -29,10 +29,20 @@ PromptWise v1.0 — command groups (60+ MCP tools · 55 skill packs):
   Workflow planning  (PromptWise-native, the differentiator)
   plan_workflow        Classify a task → ordered chain of PromptWise skill packs (PRD → design → stories → TDD → review)
 
+  Task / effort / token tracker
+  add_task             Create a task with an effort estimate
+  update_task          Set status / actual hours / tokens / cost (set or increment)
+  list_tasks           List tasks (optionally by status)
+  task_report          Estimate-vs-actual effort, tokens, cost rollup
+
+  Diagrams  (Mermaid — render on GitHub & docs, no external tools)
+  validate_mermaid     Lint Mermaid source before presenting
+  (skill packs)        architecture-diagram · flow-diagram · er-diagram · sequence-diagram
+
   Roles & skill packs
   detect_role          Auto-detect organizational role
   suggest_skill        Suggest a skill pack for the request
-  list_skills          List the 55 portable skill packs
+  list_skills          List the 63 portable skill packs
   invoke_skill         Run a specific skill pack
   skill_chain          Chain multiple skill packs
 
@@ -75,12 +85,15 @@ Usage: describe your need and PromptWise selects the tool, or call a subcommand 
 - **Several small tasks** → `batch_prompts`. **Thread wrapping up / near context limit** → `summarize_thread`.
 - **"How should I structure this build"** → `plan_workflow` (greenfield-vs-brownfield, regulated-vs-not → an ordered chain of PromptWise's own skill packs: PRD → design → stories → TDD → review, run via `invoke_skill`). Regulated tasks graft in security-architecture + OWASP and set a compliance-gate flag. Fully self-contained — no external tools.
 - **Code or prompt before running** → `security_check`; deploying an app → `owasp_scan`; user-supplied prompt → `prompt_injection`.
-- **Role/domain work** (banking, HIPAA, QA, legal, TDD, ADR, etc.) → `suggest_skill` then `invoke_skill`. The 55 packs live in `skill_packs/` and load via the MCP server.
+- **Diagrams** ("draw the architecture / flow / ER / sequence") → `invoke_skill` the matching `*-diagram` pack (Mermaid out), then `validate_mermaid` before showing it.
+- **Tracking a build** ("track effort / tokens", "where's the project at") → `add_task` / `update_task` / `task_report`.
+- **Design help** ("which pattern", "make it faster", "solution/enterprise architecture") → `design-patterns`, `code-optimizer`, `solution-architecture`, `enterprise-architecture` packs.
+- **Role/domain work** (banking, HIPAA, QA, legal, TDD, ADR, etc.) → `suggest_skill` then `invoke_skill`. The 63 packs live in `skill_packs/` and load via the MCP server.
 - **Spend/ROI/budget** → the cost-&-budget group.
 
 ## Cross-agent portability
 
-The 55 skill packs in `skill_packs/` are portable `SKILL.md` files (YAML frontmatter +
+The 63 skill packs in `skill_packs/` are portable `SKILL.md` files (YAML frontmatter +
 prompt). Copy them into any agent's skills dir (`~/.codex/skills/`, `.cursor/skills/`,
 `~/.gemini/skills/`) — same files run everywhere. `AGENTS.md` at the repo root carries
 project context + the active constitution. This is the "one source, three emitters"

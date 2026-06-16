@@ -1,7 +1,7 @@
 {
   "name": "promptwise",
   "version": "1.0.0",
-  "description": "PromptWise — the cross-agent intelligence layer for AI coding agents. Role-aware prompting, model routing, cost/budget control, security & compliance scanning, framework orchestration, and 55 portable skill packs. Rides the open standards (MCP · SKILL.md · AGENTS.md) instead of replacing your agent.",
+  "description": "PromptWise — the cross-agent intelligence layer for AI coding agents. Role-aware prompting, model routing, cost/budget control, security & compliance scanning, workflow planning, diagrams, task tracking, and 63 portable skill packs. Rides the open standards (MCP · SKILL.md · AGENTS.md) instead of replacing your agent.",
   "author": {
     "name": "Anil Devarasetti",
     "email": "u2anil@gmail.com"

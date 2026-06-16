@@ -78,6 +78,20 @@ class ROIStatModel(Base):
     ts = Column(String(50), nullable=False)
 
 
+class TaskModel(Base):
+    __tablename__ = "tasks"
+    task_id = Column(String(50), primary_key=True)
+    title = Column(Text, nullable=False)
+    status = Column(String(20), default="todo", index=True)  # todo|in_progress|blocked|done
+    estimate_hours = Column(Float, default=0.0)
+    actual_hours = Column(Float, default=0.0)
+    tokens = Column(Float, default=0.0)
+    cost_usd = Column(Float, default=0.0)
+    tags = Column(Text, default="[]")
+    created_ts = Column(String(50), nullable=False)
+    updated_ts = Column(String(50), nullable=False)
+
+
 def get_db_path() -> Path:
     db_dir = Path.home() / ".promptwise"
     db_dir.mkdir(parents=True, exist_ok=True)
