@@ -24,4 +24,4 @@ jobs:
           python -c "import promptwise_v3.server"
           python -c "from promptwise_v3.core import WorkflowPlanner; p=WorkflowPlanner().plan('build a HIPAA patient portal from scratch'); print(p.workflow, p.compliance_gate); assert p.compliance_gate and p.steps"
       - name: Tests
-        run: pytest -q || echo "no tests yet"
+        run: pytest -q

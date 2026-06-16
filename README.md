@@ -10,6 +10,14 @@ and 63 portable skill packs — emitted in the formats every agent already reads
 **Works with:** Claude Code · Codex · Cursor · Gemini CLI · Copilot · any MCP host
 **Standards:** MCP · SKILL.md · AGENTS.md
 
+[![CI](https://github.com/u2anilgit/PromptWise/actions/workflows/ci.yml/badge.svg)](https://github.com/u2anilgit/PromptWise/actions/workflows/ci.yml)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![Skill packs](https://img.shields.io/badge/skill%20packs-63-7C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-57-4C5BD4.svg)
+
+📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
+
 ---
 
 ## Why
@@ -84,12 +92,29 @@ frameworks, CLIs, or network:
 | Docs / spec only | `prd-generator` → `user-story-generator` → `adr` |
 | Regulated (any of the above) | + `security-architecture` + `owasp_scan` + `get_sbom`, compliance-gate flag set |
 
+## Documentation
+
+| Doc | What |
+|-----|------|
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Hands-on: hub, working with skills, real examples |
+| [INSTALL.md](INSTALL.md) | Install + register with any MCP host |
+| [CONFIGURATION.md](CONFIGURATION.md) | Config files, budgets, security, adding packs |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Functional / technical / ER / sequence diagrams |
+
+## Testing
+
+```bash
+pip install -e ".[dev]"
+python -m pytest tests -q        # 22 tests: packs, planner, tracker, mermaid, tools
+```
+
 ## Status
 
 **Early-stage, building in public.** v1.0 ships the engine, the three emitters, the 63
-skill packs, and the self-contained workflow planner. Everything runs directly from
-PromptWise — no third-party integrations. Runtime constitution gating is on the roadmap.
+skill packs, the self-contained workflow planner, diagram generators, and a task/effort/
+token tracker. Everything runs directly from PromptWise — no third-party integrations.
+Runtime constitution gating is on the roadmap.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Wrapped/recommended OSS is credited in [NOTICE](NOTICE).
+MIT — see [LICENSE](LICENSE). Open standards are credited in [NOTICE](NOTICE).

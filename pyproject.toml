@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "promptwise"
 version = "1.0.0"
-description = "Cross-agent intelligence layer for AI coding agents — routing, cost, security/compliance, framework orchestration, and portable skill packs."
+description = "Cross-agent intelligence layer for AI coding agents — routing, cost, security/compliance, workflow planning, diagrams, task tracking, and 63 portable skill packs."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Anil Devarasetti", email = "u2anil@gmail.com"}]
@@ -46,3 +46,7 @@ promptwise-server = "promptwise_v3.server:sync_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
