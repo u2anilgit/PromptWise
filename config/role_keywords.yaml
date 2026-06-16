@@ -1,0 +1,341 @@
+schema_version: 1
+last_updated: "2026-06-07"
+description: "Keywords and patterns for auto-role detection"
+
+roles:
+  developer:
+    keywords:
+      - refactor
+      - debug
+      - code
+      - function
+      - api
+      - library
+      - bug
+      - issue
+      - fix
+      - test
+      - import
+      - module
+      - class
+      - def
+      - method
+      - variable
+      - loop
+      - condition
+      - error
+    patterns:
+      - "def\\s+\\w+"
+      - "class\\s+\\w+"
+      - "import\\s+"
+      - "function\\s+"
+    weight: 1.0
+
+  analyst:
+    keywords:
+      - metrics
+      - data
+      - report
+      - trend
+      - aggregat
+      - average
+      - sum
+      - count
+      - compare
+      - analyze
+      - pivot
+      - dashboard
+      - chart
+      - graph
+      - query
+      - sql
+      - database
+    patterns:
+      - "SELECT\\s+"
+      - "aggregat"
+      - "GROUP BY"
+      - "WHERE"
+    weight: 0.95
+
+  manager:
+    keywords:
+      - timeline
+      - roadmap
+      - priorit
+      - capacity
+      - velocity
+      - sprint
+      - plan
+      - stakeholder
+      - decision
+      - strategy
+      - milestone
+      - deadline
+      - budget
+      - resource
+    patterns:
+      - "Q[1-4]\\s+20\\d{2}"
+      - "week\\s+\\d+"
+      - "milestone"
+    weight: 0.85
+
+  security:
+    keywords:
+      - auth
+      - encrypt
+      - vulnerability
+      - compliance
+      - gdpr
+      - ccpa
+      - pii
+      - threat
+      - risk
+      - penetrat
+      - exploit
+      - secure
+      - hack
+      - breach
+      - ssl
+      - tls
+      - certificate
+    patterns:
+      - "CVE-\\d+"
+      - "OWASP"
+      - "secure"
+      - "password"
+    weight: 1.0
+
+  IT:
+    keywords:
+      - deploy
+      - infra
+      - scaling
+      - failover
+      - cloud
+      - aws
+      - kubernetes
+      - docker
+      - ci
+      - cd
+      - terraform
+      - ansible
+      - server
+      - network
+      - vm
+      - container
+      - devops
+    patterns:
+      - "kubectl"
+      - "docker\\s+run"
+      - "terraform\\s+"
+      - "aws\\s+"
+    weight: 0.98
+
+  designer:
+    keywords:
+      - ui
+      - ux
+      - design
+      - layout
+      - component
+      - interface
+      - visual
+      - responsive
+      - accessibility
+      - color
+      - font
+      - style
+      - theme
+      - wireframe
+      - prototype
+    patterns:
+      - "css\\s+"
+      - "design\\s+system"
+      - "figma"
+    weight: 0.9
+
+  writer:
+    keywords:
+      - write
+      - content
+      - article
+      - blog
+      - copy
+      - document
+      - narrative
+      - storytell
+      - prose
+      - style
+      - tone
+      - draft
+      - edit
+      - publish
+    patterns:
+      - "blog\\s+post"
+      - "article"
+      - "essay"
+    weight: 0.85
+
+  researcher:
+    keywords:
+      - research
+      - study
+      - evidence
+      - experiment
+      - hypothesis
+      - methodology
+      - data
+      - analysis
+      - finding
+      - conclusion
+      - cite
+      - source
+      - academic
+    patterns:
+      - "research\\s+"
+      - "study\\s+"
+      - "experiment"
+    weight: 0.9
+
+  pm:
+    keywords:
+      - product
+      - feature
+      - requirement
+      - user
+      - story
+      - epic
+      - backlog
+      - roadmap
+      - launch
+      - market
+      - customer
+      - stakeholder
+      - spec
+    patterns:
+      - "user\\s+story"
+      - "acceptance\\s+criteria"
+      - "epic"
+    weight: 0.88
+
+  legal:
+    keywords:
+      - legal
+      - contract
+      - agreement
+      - compliance
+      - gdpr
+      - ccpa
+      - liability
+      - risk
+      - ip
+      - patent
+      - trademark
+      - lawsuit
+      - copyright
+    patterns:
+      - "GDPR"
+      - "CCPA"
+      - "contract"
+      - "agreement"
+    weight: 0.95
+
+  healthcare:
+    keywords:
+      - healthcare
+      - hipaa
+      - patient
+      - clinical
+      - medical
+      - diagnosis
+      - treatment
+      - fhir
+      - hl7
+      - privacy
+      - health
+      - disease
+    patterns:
+      - "HIPAA"
+      - "FHIR"
+      - "HL7"
+    weight: 0.95
+
+  finance:
+    keywords:
+      - finance
+      - banking
+      - finra
+      - basel
+      - aml
+      - compliance
+      - trading
+      - investment
+      - portfolio
+      - risk
+      - regulation
+      - audit
+    patterns:
+      - "FINRA"
+      - "Basel"
+      - "AML"
+    weight: 0.95
+
+  data:
+    keywords:
+      - database
+      - sql
+      - etl
+      - pipeline
+      - data
+      - warehouse
+      - query
+      - schema
+      - indexing
+      - optimization
+      - tuning
+      - performance
+    patterns:
+      - "SELECT\\s+"
+      - "INDEX"
+      - "EXPLAIN"
+    weight: 0.92
+
+  qassurance:
+    keywords:
+      - test
+      - qa
+      - quality
+      - defect
+      - automation
+      - coverage
+      - bug
+      - regression
+      - acceptance
+      - manual
+      - playwright
+    patterns:
+      - "test\\s+"
+      - "automation"
+      - "pytest"
+      - "playwright"
+    weight: 0.9
+
+  executive:
+    keywords:
+      - strategic
+      - roi
+      - business
+      - market
+      - competitive
+      - growth
+      - revenue
+      - profit
+      - board
+      - investor
+      - stakeholder
+      - vision
+    patterns:
+      - "ROI"
+      - "board\\s+"
+      - "investor"
+    weight: 0.85

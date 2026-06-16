@@ -1,0 +1,87 @@
+---
+name: promptwise
+description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, recommend an agentic-dev framework (BMAD/Spec Kit/OpenSpec/TaskMaster), or invoke one of 55 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "which framework should I use", explicit cost/budget questions, or any time the user pastes a large doc.
+---
+
+# PromptWise v1.0 — the cross-agent intelligence layer
+
+PromptWise is the **intelligence + orchestration layer** for AI coding agents. It does
+not replace your agent — it rides the open standards every agent already reads (MCP ·
+SKILL.md · AGENTS.md) and adds what none of them have: role awareness, compliance
+gating, context-budget engineering, and framework selection.
+
+When the user invokes `/promptwise` with no subcommand, show this menu, then ask
+**"What would you like to optimize?"** Otherwise, pick the right tool automatically.
+
+```
+PromptWise v1.0 — command groups (60+ MCP tools · 55 skill packs):
+
+  Optimization
+  route_request        Pick the right model (Haiku/Sonnet/Opus) for a task
+  rewrite_prompt       Strip filler, tighten, add role framing
+  optimize_context     Compress large context to a token budget
+  compress_prompt      Caveman compression for verbose prompts
+  plan_cache           Design prompt-cache breakpoints for repeated calls
+  batch_prompts        Merge 2–5 small tasks into one call
+  summarize_thread     Compress a long thread for fresh-chat handoff
+  compare_providers    Compare cost across Claude / OpenAI / Gemini
+
+  Framework orchestration  (the differentiator)
+  recommend_framework  Classify a task → recommend BMAD / Spec Kit / OpenSpec / TaskMaster / Kiro-hooks
+
+  Roles & skill packs
+  detect_role          Auto-detect organizational role
+  suggest_skill        Suggest a skill pack for the request
+  list_skills          List the 55 portable skill packs
+  invoke_skill         Run a specific skill pack
+  skill_chain          Chain multiple skill packs
+
+  Security & compliance
+  security_check       Pre-flight scan (secrets, injection, PII, destructive)
+  prompt_injection     Detect injection / jailbreak attempts
+  owasp_scan           OWASP Top-10 scan
+  scan_response        Check model output for PII leaks / injection echoes
+  run_security_suite   Full security + OWASP pass
+  get_sbom             Generate a software bill of materials
+
+  Cost, budget & ROI
+  predict_cost         Estimate cost before sending
+  monitor_budget       Spend vs budget limit
+  set_budget_limit     Hard-stop budget in USD
+  get_budget_status    Remaining budget
+  budget_report        Forecast end-of-period spend
+  cost_report          Team cost breakdown
+  track_roi            Productivity ROI
+  get_session_stats    Cost / savings / cache-hit for this session
+  export_stats         Export usage history (JSON/CSV)
+
+  Session, memory & config
+  ping_session         Record activity (reset idle clock)
+  check_session_timeout  active / warn / expired
+  get_memory_context   Retrieve prior-session memory
+  query_memory         Search session memory
+  clear_history        Delete records older than N days
+  reload_config        Hot-reload pricing / providers / roles
+  validate_output      Check generated code before presenting
+
+Usage: describe your need and PromptWise selects the tool, or call a subcommand directly.
+```
+
+## How to choose a tool
+
+- **Model / cost question** ("which model", "is this Opus-worthy", "save tokens") → `route_request`; add `monthly_budget_usd` if a budget was mentioned.
+- **Verbose prompt** → `rewrite_prompt` (filler) or `compress_prompt` (caveman). **Long pasted doc** → `optimize_context`.
+- **Repeated calls / agent loop / RAG** → `plan_cache`.
+- **Several small tasks** → `batch_prompts`. **Thread wrapping up / near context limit** → `summarize_thread`.
+- **"Which framework / how do I structure this build"** → `recommend_framework` (greenfield-vs-brownfield, solo-vs-multi-role, regulated-vs-not → BMAD / Spec Kit / OpenSpec / TaskMaster / Kiro-hooks). Regulated tasks get a compliance gate flag.
+- **Code or prompt before running** → `security_check`; deploying an app → `owasp_scan`; user-supplied prompt → `prompt_injection`.
+- **Role/domain work** (banking, HIPAA, QA, legal, TDD, ADR, etc.) → `suggest_skill` then `invoke_skill`. The 55 packs live in `skill_packs/` and load via the MCP server.
+- **Spend/ROI/budget** → the cost-&-budget group.
+
+## Cross-agent portability
+
+The 55 skill packs in `skill_packs/` are portable `SKILL.md` files (YAML frontmatter +
+prompt). Copy them into any agent's skills dir (`~/.codex/skills/`, `.cursor/skills/`,
+`~/.gemini/skills/`) — same files run everywhere. `AGENTS.md` at the repo root carries
+project context + the active constitution. This is the "one source, three emitters"
+contract: PromptWise core → MCP tools + SKILL.md packs + AGENTS.md.

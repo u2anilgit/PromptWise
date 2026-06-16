@@ -1,0 +1,55 @@
+# ── Python ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# ── Virtual environments / secrets ──────────────────────────────────────
+venv/
+.venv/
+env/
+.env
+*.env
+
+# ── Testing ─────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Runtime data / db / logs ────────────────────────────────────────────
+*.log
+logs/
+*.sqlite
+*.db
+
+# ── Agent / IDE caches & local context (NEVER ship) ─────────────────────
+.claude/
+.cursor/
+.gemini/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Planning / spec artifacts (kept local, out of the repo) ─────────────
+docs/superpowers/
+specs/
+plans/
+*.original.md
+memory/
+MEMORY.md
+
+# ── OS / cloud temp ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.tmp.driveupload/
+.tmp.drivedownload/
+
+# Note: .claude-plugin/ IS tracked — it ships the plugin manifest + hub skill.

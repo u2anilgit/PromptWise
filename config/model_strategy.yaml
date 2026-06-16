@@ -1,0 +1,44 @@
+# PromptWise v3 model routing strategy
+
+default_model: claude-sonnet-4-6
+
+routing_rules:
+  opus:
+    skills: [systematic-debugging, system-design, architecture-review,
+             security-architecture, agent-chain-designer, system-prompt-auditor,
+             rag-optimizer, multi-model-eval, e2e-test-designer]
+    extended_thinking_tokens: 8000
+
+  haiku:
+    skills: [verification-before-completion, git-workflow, changelog-generator,
+             test-coverage-advisor, pii-detector, injection-detector,
+             user-story-generator, prompt-registry, sbom-generator,
+             license-compliance,
+             ping_session, check_session_timeout]  # MCP tool names (snake_case intentional — match tool registry)
+
+  sonnet:
+    skills: [tdd, code-review, refactoring, feature-dev, test-generator,
+             api-docs, brd-generator, prd-generator, api-testing,
+             few-shot-builder, model-migration-advisor, secrets-rotation-advisor,
+             test-data-generator, owasp-checker, adr]
+
+cost_safety:
+  downgrade_at_budget_pct: 80     # opus → sonnet at 80% budget
+  emergency_haiku_pct: 95         # all → haiku at 95% budget
+  hard_stop_pct: 100
+  never_downgrade:                # safety-critical — never cost-downgraded
+    - security-architecture
+    - systematic-debugging
+    - pii-detector
+    - injection-detector
+
+context_routing:
+  large_context_threshold: 50000  # tokens
+  large_context_model: claude-sonnet-4-6
+
+skill_chain_optimization:
+  parallel_capable:               # run in parallel inside chains
+    - pii-detector
+    - injection-detector
+    - owasp-checker
+  max_parallel: 3

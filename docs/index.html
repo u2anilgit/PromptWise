@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptWise — v3.0 Plan Addendum & Go-Public Kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F1626; --ink-2:#1A2236; --ink-3:#232C42;
+    --paper:#F4F5F8; --card:#FFFFFF; --line:#DCE0E8; --line-2:#E8EBF1;
+    --text:#1B2230; --muted:#5B6478;
+    --indigo:#4C5BD4; --indigo-2:#6573E6; --indigo-soft:#ECEEFB;
+    --amber:#C9821F; --amber-soft:#F8EEDB;
+    --green:#2E7D5B; --green-soft:#E4F1EA;
+    --red:#B14A38; --red-soft:#F6E6E2;
+    --maxw:880px; --col:720px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--text);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:"IBM Plex Mono",monospace}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+  .col{max-width:var(--col)}
+  h1,h2,h3{font-family:"Space Grotesk",sans-serif; line-height:1.18; letter-spacing:-.01em; color:var(--ink)}
+  a{color:var(--indigo); text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ---------- HERO ---------- */
+  .hero{background:var(--ink); color:#E7EAF2; padding:74px 0 64px; position:relative; overflow:hidden}
+  .hero::after{content:""; position:absolute; inset:0;
+    background:radial-gradient(1100px 420px at 78% -8%, rgba(76,91,212,.34), transparent 60%),
+               radial-gradient(700px 300px at 6% 118%, rgba(201,130,31,.18), transparent 60%);
+    pointer-events:none}
+  .hero .wrap{position:relative; z-index:1}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:12.5px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--indigo-2)}
+  .hero h1{color:#fff; font-size:clamp(38px,6vw,62px); font-weight:700; margin:18px 0 0}
+  .hero h1 .x{color:var(--indigo-2)}
+  .lede{font-size:clamp(18px,2.4vw,21px); color:#B8C0D4; max-width:640px; margin:22px 0 0}
+  .meta-row{display:flex; flex-wrap:wrap; gap:10px; margin-top:30px}
+  .pill{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.04em;
+    border:1px solid rgba(255,255,255,.16); color:#C9D1E4; padding:6px 11px; border-radius:999px}
+
+  /* ---------- TOC ---------- */
+  .toc{background:var(--ink-2); border-top:1px solid rgba(255,255,255,.07)}
+  .toc .wrap{display:flex; flex-wrap:wrap; gap:6px 26px; padding:16px 24px}
+  .toc a{font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:#9AA3BC; letter-spacing:.02em}
+  .toc a:hover{color:#fff; text-decoration:none}
+
+  /* ---------- SECTIONS ---------- */
+  section{padding:54px 0; border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:0}
+  .tag{font-family:"IBM Plex Mono",monospace; font-size:12.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--indigo); display:inline-flex; align-items:center; gap:9px}
+  .tag::before{content:""; width:22px; height:1.5px; background:var(--indigo); display:inline-block}
+  h2{font-size:clamp(26px,3.6vw,34px); font-weight:600; margin:14px 0 0}
+  h2 + .sub{color:var(--muted); margin:12px 0 0; max-width:640px}
+  h3{font-size:19px; font-weight:600; margin:34px 0 8px}
+  p{margin:14px 0}
+  .lead{font-size:18.5px}
+  strong{font-weight:600; color:var(--ink)}
+
+  /* callout */
+  .callout{border-left:3px solid var(--indigo); background:var(--indigo-soft);
+    padding:16px 20px; border-radius:0 10px 10px 0; margin:24px 0}
+  .callout.amber{border-color:var(--amber); background:var(--amber-soft)}
+  .callout p{margin:6px 0}
+  .callout .k{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--indigo)}
+  .callout.amber .k{color:var(--amber)}
+
+  /* dark panel (architecture / code) */
+  .panel{background:var(--ink); color:#D8DEEC; border-radius:14px; padding:22px 22px;
+    font-family:"IBM Plex Mono",monospace; font-size:13.5px; line-height:1.7; overflow-x:auto;
+    margin:24px 0; border:1px solid #2A3450}
+  .panel .c{color:#7E89A8}
+  .panel .hl{color:#8C9BFF}
+  .panel .am{color:#E6B265}
+  .panel .gn{color:#7FD4A6}
+
+  /* tables */
+  .tbl{width:100%; border-collapse:collapse; margin:24px 0; font-size:15px}
+  .tbl th,.tbl td{text-align:left; padding:11px 13px; border-bottom:1px solid var(--line); vertical-align:top}
+  .tbl th{font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted); font-weight:500; background:var(--line-2)}
+  .tbl tr:hover td{background:#FAFBFC}
+  .yes{color:var(--green); font-weight:600}
+  .no{color:var(--red); font-weight:600}
+  .badge{display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:11px;
+    padding:2px 8px; border-radius:6px; font-weight:500}
+  .b-keep{background:var(--green-soft); color:var(--green)}
+  .b-build{background:var(--indigo-soft); color:var(--indigo)}
+  .b-watch{background:var(--amber-soft); color:var(--amber)}
+
+  /* phased rail */
+  .rail{margin:30px 0 0; padding-left:30px; position:relative}
+  .rail::before{content:""; position:absolute; left:7px; top:6px; bottom:6px; width:2px; background:var(--line)}
+  .step{position:relative; padding:0 0 26px}
+  .step::before{content:""; position:absolute; left:-30px; top:4px; width:16px; height:16px;
+    border-radius:50%; background:var(--card); border:2px solid var(--indigo)}
+  .step.done::before{background:var(--indigo)}
+  .step h4{font-family:"Space Grotesk",sans-serif; font-size:17px; margin:0 0 4px; color:var(--ink)}
+  .step .n{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--indigo); letter-spacing:.06em}
+  .step p{margin:4px 0 0; font-size:15.5px; color:var(--muted)}
+
+  /* step-by-step (git) ordered */
+  ol.steps{counter-reset:s; list-style:none; padding:0; margin:24px 0}
+  ol.steps>li{position:relative; padding:0 0 22px 46px; counter-increment:s}
+  ol.steps>li::before{content:counter(s,decimal-leading-zero); position:absolute; left:0; top:-2px;
+    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600; color:var(--indigo);
+    background:var(--indigo-soft); width:32px; height:32px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center}
+  ol.steps>li h4{font-family:"Space Grotesk",sans-serif; font-size:16.5px; margin:2px 0 4px; color:var(--ink)}
+  ol.steps>li p{margin:4px 0; font-size:15.5px}
+
+  /* code line */
+  code{font-family:"IBM Plex Mono",monospace; font-size:13.5px; background:#EAEDF3;
+    padding:1.5px 6px; border-radius:5px; color:#33406A}
+  .cmd{background:var(--ink); color:#CBD3E6; font-family:"IBM Plex Mono",monospace;
+    font-size:13.5px; padding:13px 16px; border-radius:9px; margin:12px 0; overflow-x:auto; white-space:pre}
+  .cmd .p{color:#6FE0A6}
+
+  /* post card */
+  .post{background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:22px 24px; margin:20px 0; box-shadow:0 1px 2px rgba(16,22,38,.04)}
+  .post .ph{display:flex; align-items:center; justify-content:space-between; margin:0 0 12px}
+  .post .ph .lbl{font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--indigo)}
+  .post .ph .meta{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted)}
+  .post .body{white-space:pre-wrap; font-size:15.5px; line-height:1.62; color:#222A3A}
+  .post .tags{margin-top:12px; font-size:13.5px; color:var(--indigo)}
+
+  ul.clean{margin:14px 0; padding-left:20px}
+  ul.clean li{margin:7px 0}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:22px 0}
+  .mini{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 18px}
+  .mini h4{font-family:"Space Grotesk",sans-serif; font-size:15.5px; margin:0 0 6px; color:var(--ink)}
+  .mini p{margin:0; font-size:14.5px; color:var(--muted)}
+  .foot{padding:40px 0 60px; color:var(--muted); font-size:13.5px}
+  .foot .mono{font-size:12.5px}
+
+  @media (max-width:720px){
+    body{font-size:16px}
+    .grid2{grid-template-columns:1fr}
+    section{padding:42px 0}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .reveal{opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease}
+    .reveal.in{opacity:1; transform:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Product &amp; Architecture Plan · v3.0 Addendum</div>
+    <h1>Prompt<span class="x">Wise</span></h1>
+    <p class="lede">A cross-agent intelligence layer for AI coding agents — built on open standards, not against them. This addendum updates the v3.0 strategy, adds a framework-orchestration layer, and includes a free go-public kit for GitHub and LinkedIn.</p>
+    <div class="meta-row">
+      <span class="pill">MCP · SKILL.md · AGENTS.md</span>
+      <span class="pill">BMAD · Spec Kit · Kiro</span>
+      <span class="pill">Cross-agent by design</span>
+      <span class="pill mono">Last verified: mid-2026</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#reframe">01 · Strategic reframe</a>
+    <a href="#crossagent">02 · Cross-agent</a>
+    <a href="#frameworks">03 · Framework layer</a>
+    <a href="#sdlc">04 · SDLC &amp; PM</a>
+    <a href="#discipline">05 · Build vs integrate</a>
+    <a href="#infra">06 · Infra &amp; cost</a>
+    <a href="#github">07 · Host on GitHub</a>
+    <a href="#linkedin">08 · Promote on LinkedIn</a>
+    <a href="#roadmap">09 · Roadmap</a>
+  </div>
+</nav>
+
+<!-- 01 -->
+<section id="reframe">
+  <div class="wrap col reveal">
+    <div class="tag">01 — Positioning</div>
+    <h2>From “all-in-one that replaces competitors” to “the intelligence layer that rides the standards”</h2>
+    <p class="sub">The single most valuable change to the plan. It shrinks what you have to build and makes “supreme” actually reachable.</p>
+
+    <p class="lead">The ecosystem standardized while the v3.0 plan was being drafted. Three open standards now define the substrate every coding agent shares:</p>
+    <ul class="clean">
+      <li><strong>MCP</strong> — the universal tool/integration protocol. Governed by the Linux Foundation, adopted by Anthropic, OpenAI, Google and Microsoft, with 10,000+ public servers and ~1B tool calls/month by early 2026. <em>Your bet was right — but it’s now table stakes, not an edge.</em></li>
+      <li><strong>SKILL.md</strong> — the portable, model-invoked capability format. The same file runs across Claude Code, Codex CLI, Cursor, Gemini CLI, Copilot and 15+ other agents. <em>Your “skill layer with YAML frontmatter” already is this standard.</em></li>
+      <li><strong>AGENTS.md</strong> — the universal project-context file (where CLAUDE.md and .cursorrules are agent-specific).</li>
+    </ul>
+
+    <div class="callout">
+      <p class="k">The reframe</p>
+      <p>Don’t build a proprietary mega-plugin that “replaces” Cursor/Cline/Copilot. Build the <strong>orchestration + intelligence layer</strong> that emits these open standards and adds what none of them have: role awareness, compliance gating, context-budget engineering, and framework selection. You win by riding the rails everyone already laid.</p>
+    </div>
+
+    <p>This is consistent with every architecture decision already made in v2.0/v3.0 — MCP-native, additive skill layer, Markdown + YAML. The only change is the <em>story</em>: PromptWise is a conductor, not a replacement.</p>
+  </div>
+</section>
+
+<!-- 02 -->
+<section id="crossagent">
+  <div class="wrap col reveal">
+    <div class="tag">02 — Cross-agent compatibility</div>
+    <h2>“Works in almost every AI coding agent” reduces to three emitters</h2>
+    <p class="sub">The whole cross-agent goal collapses into a small, well-defined output contract.</p>
+
+    <p>Instead of writing a bespoke adapter per agent, PromptWise compiles its intelligence down to the three formats agents already read:</p>
+
+    <div class="panel">
+<span class="c"># PromptWise output contract — one source, three emitters</span>
+PromptWise core (router · roles · compliance · context engine)
+        │
+        ├─▶ <span class="hl">MCP tools</span>      → invoke_skill, list_skills, skill_chain, route_model …
+        ├─▶ <span class="hl">SKILL.md</span> packs  → role packs + technique packs (portable folders)
+        └─▶ <span class="hl">AGENTS.md</span>       → project context + active constitution
+
+<span class="c"># Install target is just a directory copy per agent:</span>
+~/.claude/skills/   ~/.codex/skills/   .cursor/skills/   ~/.gemini/skills/
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Agent</th><th>MCP</th><th>SKILL.md</th><th>AGENTS.md</th><th>Reach via PromptWise</th></tr></thead>
+      <tbody>
+        <tr><td>Claude Code</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td>Full</td></tr>
+        <tr><td>Codex CLI</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td>Full</td></tr>
+        <tr><td>Cursor</td><td class="yes">✓</td><td class="yes">✓ (manual)</td><td class="yes">✓</td><td>High</td></tr>
+        <tr><td>Gemini CLI</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td>Full</td></tr>
+        <tr><td>GitHub Copilot</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td>High</td></tr>
+        <tr><td>Cline / Windsurf / OpenClaw</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td>High</td></tr>
+        <tr><td>Local LLMs (Ollama / LM Studio)</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td>Via MCP host</td></tr>
+      </tbody>
+    </table>
+    <p class="callout amber"><span class="k">Watch</span><br>Cross-agent skill marketplaces already exist (e.g. Agensi) and skill libraries number in the hundreds of thousands. Portability is necessary but not sufficient — your moat is the <strong>intelligence on top</strong>, not the file format.</p>
+  </div>
+</section>
+
+<!-- 03 -->
+<section id="frameworks">
+  <div class="wrap col reveal">
+    <div class="tag">03 — New: framework-orchestration layer</div>
+    <h2>BMAD, Spec Kit and Kiro become pluggable backends — not features you rebuild</h2>
+    <p class="sub">The agentic-development frameworks you asked about already exist as free, open-source, cross-agent, markdown-based systems. Orchestrate them.</p>
+
+    <h3>The landscape (verified mid-2026)</h3>
+    <table class="tbl">
+      <thead><tr><th>Framework</th><th>What it is</th><th>License</th><th>Why it matters to you</th></tr></thead>
+      <tbody>
+        <tr><td><strong>BMAD-METHOD</strong></td><td>12+ agent personas across the full SDLC, file-based handoffs (~49K stars)</td><td>MIT</td><td>Mirrors your role-intelligence layer; legally wrappable</td></tr>
+        <tr><td><strong>GitHub Spec Kit</strong></td><td>Spec-driven CLI: constitution → spec → plan → tasks (90K+ stars, 30+ agents)</td><td>OSS</td><td>Most portable SDD substrate; its <code>constitution.md</code> = your compliance hook</td></tr>
+        <tr><td><strong>Kiro</strong></td><td>Spec workflows + event-driven <em>agent hooks</em>, multi-model auto-router</td><td>Vendor</td><td>Hooks pattern → your plugin/event layer</td></tr>
+        <tr><td><strong>OpenSpec</strong></td><td>Most actively-maintained OSS spec framework (~52K stars)</td><td>OSS</td><td>Backend option for change-gated workflows</td></tr>
+        <tr><td><strong>TaskMaster</strong></td><td>PRD → dependency-aware tasks, talks to agents over MCP</td><td>OSS</td><td>Drop-in PM/task engine</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The architecture: a framework router</h3>
+    <p>PromptWise adds one new decision layer that selects and wires the right framework per task, then feeds it through your existing role + compliance + context engines.</p>
+
+    <div class="panel">
+<span class="c"># New: framework_router.py (sits beside router.py)</span>
+task ──▶ <span class="hl">framework_router</span>
+            │  classify intent + scale + risk
+            ├─ greenfield feature, regulated ─▶ <span class="am">Spec Kit</span> + constitution(compliance)
+            ├─ full product build, multi-role ─▶ <span class="am">BMAD</span> personas → your 14 roles
+            ├─ brownfield change, gated ───────▶ <span class="am">OpenSpec</span>
+            ├─ PRD → tasks only ───────────────▶ <span class="am">TaskMaster</span> (MCP)
+            └─ save-triggered automation ──────▶ <span class="am">Kiro-style hooks</span> (plugin_system)
+                          │
+                          ▼
+        role_intelligence · compliance_engine · compression_engine
+                          │
+                          ▼
+              emitted as MCP tools + SKILL.md + AGENTS.md
+    </div>
+
+    <div class="callout amber">
+      <p class="k">Discipline — don’t become framework #10</p>
+      <p>Reviewers consistently warn these frameworks are over-engineered and “fight you” when assumptions don’t fit. Your value is <strong>reducing the chaos of choosing and configuring among nine of them</strong>, not adding another. Wrap the best 2–3; expose the rest as optional backends.</p>
+    </div>
+
+    <p class="callout"><span class="k">License note (you’re going public)</span><br>BMAD is MIT and most SDD tools are permissive OSS — you can wrap and ship them, but you <strong>must</strong> keep their LICENSE files and attribute them in your README/NOTICE. This is cheap to do and signals credibility to technical reviewers.</p>
+  </div>
+</section>
+
+<!-- 04 -->
+<section id="sdlc">
+  <div class="wrap col reveal">
+    <div class="tag">04 — New: SDLC &amp; project / product / program management</div>
+    <h2>The artifact chain is your PM/program engine — and your regulated-industry wedge</h2>
+    <p class="sub">The roles you wanted to serve (PM, product, program) are exactly what spec-driven frameworks already produce.</p>
+
+    <p>Every framework runs the same artifact chain. PromptWise’s job is to keep it traceable, role-aware and compliant:</p>
+
+    <div class="rail">
+      <div class="step done"><div class="n">PHASE 01 · ANALYST</div><h4>Brainstorm &amp; market reality-check</h4><p>Idea → validated problem. Maps to your Analyst / C-Suite roles.</p></div>
+      <div class="step done"><div class="n">PHASE 02 · PRODUCT</div><h4>PRD</h4><p>Requirements as the source of truth. Stored in memory_manager (Tier: project).</p></div>
+      <div class="step done"><div class="n">PHASE 03 · ARCHITECT</div><h4>Architecture &amp; constitution</h4><p>Technical design + non-negotiable rules. <strong>Constitution = compliance_engine activation point</strong> (banking / HIPAA / legal).</p></div>
+      <div class="step done"><div class="n">PHASE 04 · PM / SCRUM</div><h4>Epics → user stories → tasks</h4><p>Program/PM layer. TaskMaster or BMAD scrum-master agent shards work with per-task context.</p></div>
+      <div class="step done"><div class="n">PHASE 05 · DEV / QA</div><h4>Implement → review → test</h4><p>Your QA + ML/AI + technical role packs. Context compressed to control token spend.</p></div>
+      <div class="step"><div class="n">PHASE 06 · DELIVER</div><h4>Commit with traceable history</h4><p>Versioned artifact chain = <strong>audit-defense blueprint</strong> for regulators.</p></div>
+    </div>
+
+    <div class="callout">
+      <p class="k">Why this is the wedge, not just a feature</p>
+      <p>The real bottleneck in AI coding isn’t capability — it’s <strong>trust</strong>: surveys show ~84% of developers use AI tools but only ~33% trust the output. The auditable PRD→architecture→story→commit trail is exactly what regulated buyers (banking, legal, healthcare — your highest-value tier) need to sign off. Your SDLC feature and your enterprise pricing are the same lever.</p>
+    </div>
+    <p class="callout amber"><span class="k">Cost reality to design for</span><br>Spec-driven flows re-read the spec/plan/tasks each turn — budget ~20–40% higher token spend than vibe-coding. Your <code>compression_engine.py</code> turns that liability into a sellable benefit (“30% fewer tokens, same rigor”).</p>
+  </div>
+</section>
+
+<!-- 05 -->
+<section id="discipline">
+  <div class="wrap col reveal">
+    <div class="tag">05 — Build vs integrate</div>
+    <h2>Where to spend your build budget</h2>
+    <p class="sub">The fastest path to “supreme” is refusing to build commodity layers.</p>
+    <table class="tbl">
+      <thead><tr><th>Capability</th><th>Decision</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>Model switching / routing</td><td><span class="badge b-keep">integrate</span></td><td>Wrap LiteLLM / OpenRouter Auto Router. Don’t reimplement.</td></tr>
+        <tr><td>Prompt eval / A-B optimization</td><td><span class="badge b-watch">optional</span></td><td>Crowded (Braintrust, Maxim, Opik). Integrate only if asked.</td></tr>
+        <tr><td>SDLC / agent personas</td><td><span class="badge b-keep">integrate</span></td><td>Wrap BMAD + Spec Kit as backends.</td></tr>
+        <tr><td>Framework selection / router</td><td><span class="badge b-build">build</span></td><td>Your differentiator. No one does this well.</td></tr>
+        <tr><td>Role intelligence (14 roles)</td><td><span class="badge b-build">build</span></td><td>Core IP — seed from BMAD personas.</td></tr>
+        <tr><td>Compliance / constitution engine</td><td><span class="badge b-build">build</span></td><td>Core IP + enterprise revenue.</td></tr>
+        <tr><td>Context / token-budget engineering</td><td><span class="badge b-build">build</span></td><td>Emerging niche, genuinely under-served.</td></tr>
+        <tr><td>Real-time in-loop prompt enhancement</td><td><span class="badge b-build">build</span></td><td>Eval tools are for prod apps, not the live session — your gap.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 06 -->
+<section id="infra">
+  <div class="wrap col reveal">
+    <div class="tag">06 — Infrastructure &amp; cost</div>
+    <h2>Your bootstrap math holds</h2>
+    <p class="sub">Launch-scale infra is single-digit dollars/month; the cost wall only appears at regulated-enterprise scale.</p>
+    <table class="tbl">
+      <thead><tr><th>Tier</th><th>Stack</th><th>Approx. cost</th></tr></thead>
+      <tbody>
+        <tr><td>MVP / OSS launch</td><td>Cloudflare Workers <em>or</em> 1 Hetzner VPS + Docker</td><td>~$5–20 / mo</td></tr>
+        <tr><td>Paid SaaS scale</td><td>+ Postgres + managed MCP gateway</td><td>low hundreds / mo</td></tr>
+        <tr><td>Regulated enterprise</td><td>Compliant gateway (SOC 2 / HIPAA / BAA, audit logs)</td><td>pass-through in pricing</td></tr>
+      </tbody>
+    </table>
+    <p>Route around the $50K–150K custom-enterprise-MCP wall by using a managed gateway (Composio / MintMCP / Apigene) for OAuth + compliance rather than building it. Your ~$530 build estimate on Claude Pro remains realistic for the engine itself.</p>
+    <p class="callout"><span class="k">Compliance clock</span><br>EU AI Act provisions phase in through August 2026 with penalties up to €35M / 7% of turnover. If you target EU regulated buyers, prioritize audit trails and access controls early — which the SDLC artifact chain already gives you.</p>
+  </div>
+</section>
+
+<!-- 07 GITHUB -->
+<section id="github">
+  <div class="wrap col reveal">
+    <div class="tag">07 — Go public, free: GitHub</div>
+    <h2>Host PromptWise on GitHub to showcase your skills</h2>
+    <p class="sub">A clean public repo is the strongest portfolio artifact you can have — it shows architecture, product thinking and execution in one place.</p>
+
+    <ol class="steps">
+      <li>
+        <h4>Create the repo</h4>
+        <p>Public repo named <code>promptwise</code>. Add a short, specific description: <em>“Cross-agent intelligence layer for AI coding agents — MCP + SKILL.md, role-aware, compliance-ready.”</em> Add <code>topics</code>: <code>mcp</code>, <code>ai-agents</code>, <code>claude</code>, <code>cursor</code>, <code>skill-md</code>, <code>agentic-ai</code>, <code>llm-tools</code>. Topics drive GitHub discovery.</p>
+        <div class="cmd"><span class="p">$</span> git init
+<span class="p">$</span> git remote add origin https://github.com/&lt;you&gt;/promptwise.git</div>
+      </li>
+      <li>
+        <h4>Make the README the product</h4>
+        <p>This is what 90% of visitors read. Lead with a one-line value prop, a diagram, a 30-second quickstart, and a “works with” badge row (Claude Code · Cursor · Codex · Gemini). Embed the architecture image from this plan. Keep it scannable.</p>
+      </li>
+      <li>
+        <h4>Add a LICENSE + NOTICE</h4>
+        <p>Pick <code>MIT</code> or <code>Apache-2.0</code> for your own code. Add a <code>NOTICE</code> / “Credits” section attributing wrapped OSS (BMAD-MIT, Spec Kit, etc.) with links. This protects you and signals professionalism.</p>
+      </li>
+      <li>
+        <h4>Structure the repo for readers, not just runtime</h4>
+        <div class="cmd">promptwise/
+├─ README.md          <span class="p"># the pitch</span>
+├─ docs/              <span class="p"># this plan, architecture, decisions</span>
+├─ src/promptwise_v2/ <span class="p"># the engine</span>
+├─ skills/            <span class="p"># portable SKILL.md packs</span>
+├─ examples/          <span class="p"># 1–2 runnable demos</span>
+└─ LICENSE · NOTICE · CONTRIBUTING.md</div>
+      </li>
+      <li>
+        <h4>Publish the plan as a live site (free)</h4>
+        <p>Drop this HTML into <code>/docs</code>, enable <strong>GitHub Pages</strong> (Settings → Pages → deploy from <code>/docs</code>). You get a public URL like <code>you.github.io/promptwise</code> to link from LinkedIn — a polished, hosted plan with zero hosting cost.</p>
+      </li>
+      <li>
+        <h4>Cut a tagged release</h4>
+        <p>Even a <code>v0.1.0</code> release with notes makes the project look alive and intentional. Releases appear in your profile activity and are linkable.</p>
+        <div class="cmd"><span class="p">$</span> git tag v0.1.0 &amp;&amp; git push --tags</div>
+      </li>
+      <li>
+        <h4>Set up your profile README</h4>
+        <p>Create a repo named exactly your username → its README shows on your GitHub profile. Pin <code>promptwise</code>. Add a one-line bio framing you as <em>“building cross-agent AI developer infrastructure.”</em></p>
+      </li>
+      <li>
+        <h4>Optional polish that punches above its weight</h4>
+        <p>A GitHub Actions badge (even a simple lint/test workflow), a short demo GIF in the README, and a <code>CONTRIBUTING.md</code>. These three signal “real project” more than thousands of lines of code do.</p>
+      </li>
+    </ol>
+
+    <div class="callout"><span class="k">Honesty guardrail</span><br>Frame it as <strong>building in public</strong>. Don’t imply traction you don’t have (stars, users, revenue). “Early-stage, actively building” is credible and respected; inflated claims are the fastest way to lose technical trust.</div>
+  </div>
+</section>
+
+<!-- 08 LINKEDIN -->
+<section id="linkedin">
+  <div class="wrap col reveal">
+    <div class="tag">08 — Go public, free: LinkedIn</div>
+    <h2>Promote it to showcase capability — without spending a rupee</h2>
+    <p class="sub">The goal isn’t virality; it’s a credible public trail that shows how you think. Three honest posts beat thirty hype ones.</p>
+
+    <h3>Strategy in four moves</h3>
+    <ul class="clean">
+      <li><strong>Lead with insight, not announcement.</strong> The strongest signal you can send is that you understand <em>why the ecosystem is shifting</em> (open standards), not just that you built a thing.</li>
+      <li><strong>Show the thinking, link the proof.</strong> Each post ends with a link to the GitHub repo or the hosted plan — the post sells the idea, the repo proves the execution.</li>
+      <li><strong>Cadence: 1–2 posts/week for 4 weeks.</strong> Build-in-public arc: the insight → the architecture → a lesson → a milestone. Consistency beats frequency.</li>
+      <li><strong>Use the Featured section.</strong> Pin the repo + hosted plan to your profile’s Featured area so visitors see it without scrolling.</li>
+    </ul>
+
+    <h3>Ready-to-post drafts</h3>
+    <p>Copy, then adjust to your voice. Keep numbers honest — fill brackets with what’s true.</p>
+
+    <div class="post">
+      <div class="ph"><span class="lbl">Post 1 · The insight</span><span class="meta">~150 words · launch</span></div>
+      <div class="body">Most “AI coding tool” projects try to replace Cursor or Copilot. I think that’s the wrong bet.
+
+In 2025–26 the ground shifted: MCP (now Linux Foundation–governed), SKILL.md, and AGENTS.md became shared standards across Claude Code, Cursor, Codex, Gemini and more. The substrate is now open.
+
+So I’m building PromptWise differently — not as a replacement, but as the intelligence layer that rides those standards: role-aware prompting, compliance gating for regulated teams, and context-budget engineering, emitted in formats every agent already reads.
+
+Building it in public. Architecture, decisions and the full plan are here 👇
+[link to GitHub / hosted plan]
+
+Curious what others building on MCP are seeing — is “orchestrate, don’t replace” the right call?</div>
+      <div class="tags">#MCP #AIagents #DeveloperTools #BuildInPublic #AgenticAI</div>
+    </div>
+
+    <div class="post">
+      <div class="ph"><span class="lbl">Post 2 · The architecture</span><span class="meta">~160 words · teardown</span></div>
+      <div class="body">A question I kept hitting while building PromptWise:
+
+There are now 9+ open-source agentic-dev frameworks — BMAD (49K⭐, MIT), GitHub Spec Kit (90K⭐), Kiro, OpenSpec, TaskMaster. They overlap, they’re great, and they fight each other in one workflow.
+
+So I’m not building a 10th. PromptWise adds a framework router: classify the task (greenfield vs brownfield, solo vs multi-role, regulated vs not) → wire the right framework → run it through role + compliance + context engines → emit as MCP + SKILL.md.
+
+The interesting part: a spec-driven artifact chain (PRD → architecture → stories → commit) doubles as an audit trail. That’s the unlock for regulated industries, where trust — not capability — is the real blocker.
+
+Full architecture in the repo 👇
+[link]
+
+How are you handling framework sprawl in your agent workflows?</div>
+      <div class="tags">#AgenticAI #SoftwareArchitecture #LLM #SpecDrivenDevelopment #AItools</div>
+    </div>
+
+    <div class="post">
+      <div class="ph"><span class="lbl">Post 3 · The lesson</span><span class="meta">~130 words · credibility</span></div>
+      <div class="body">The hardest product decision on PromptWise wasn’t what to build — it was what to refuse to build.
+
+Model routing? Solved (LiteLLM, OpenRouter). Prompt eval? Crowded (Braintrust, Maxim). Agent personas? BMAD already nails it.
+
+Every commodity layer I integrate instead of rebuild is weeks I get back for the parts that are actually differentiated: framework selection, compliance gating, and token-budget engineering.
+
+“Supreme” doesn’t come from building everything. It comes from being the smartest layer on top of everything that already works.
+
+Notes + the build-vs-integrate matrix here 👇
+[link]</div>
+      <div class="tags">#ProductManagement #BuildInPublic #AIEngineering #StartupLessons</div>
+    </div>
+
+    <div class="grid2">
+      <div class="mini"><h4>Carousel idea</h4><p>“3 open standards every AI coding tool now shares” → one slide each for MCP, SKILL.md, AGENTS.md, plus a slide on PromptWise. Carousels get strong reach and show clarity of thought.</p></div>
+      <div class="mini"><h4>Profile tune-up</h4><p>Headline: “Building cross-agent AI developer infrastructure · MCP &amp; agentic AI”. Add PromptWise to Projects. Pin repo + plan in Featured.</p></div>
+      <div class="mini"><h4>Engagement, not blasting</h4><p>Reply thoughtfully on MCP / agentic-AI posts for 15 min/day. Comments from someone clearly building earn more profile visits than your own posts.</p></div>
+      <div class="mini"><h4>What to avoid</h4><p>No fake metrics, no “revolutionary/game-changing”, no AI-generated-sounding hype. Specific + honest reads as senior; hype reads as junior.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 09 -->
+<section id="roadmap">
+  <div class="wrap col reveal">
+    <div class="tag">09 — Sequenced roadmap</div>
+    <h2>From plan to public proof</h2>
+    <div class="rail">
+      <div class="step done"><div class="n">WEEK 0</div><h4>Reframe + repo</h4><p>Update positioning. Create public repo, README, LICENSE/NOTICE, GitHub Pages with this plan.</p></div>
+      <div class="step done"><div class="n">WEEK 1–2</div><h4>Output contract</h4><p>Ship the three emitters (MCP / SKILL.md / AGENTS.md) from existing v2 engine. One runnable example.</p></div>
+      <div class="step"><div class="n">WEEK 3–5</div><h4>Framework router</h4><p>Wrap BMAD + Spec Kit as backends behind <code>framework_router.py</code>. Seed roles from BMAD personas.</p></div>
+      <div class="step"><div class="n">WEEK 4 →</div><h4>Build in public</h4><p>Post 1–3 on LinkedIn as milestones land. Link repo + hosted plan every time.</p></div>
+      <div class="step"><div class="n">WEEK 6–8</div><h4>Compliance + context engine</h4><p>Constitution-driven gating + compression. First regulated-industry demo (the enterprise wedge).</p></div>
+      <div class="step"><div class="n">WEEK 9+</div><h4>Skills marketplace seed</h4><p>Publish role packs as portable SKILL.md folders; begin the compounding-revenue layer.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap col">
+    <p class="mono">PROMPTWISE · v3.0 PLAN ADDENDUM &amp; GO-PUBLIC KIT</p>
+    <p>Framework names, star counts, and adoption figures are as of mid-2026 and will drift — re-verify before publishing anything public. This document captures the cross-agent-standards research, the framework-orchestration layer, and the free GitHub + LinkedIn launch plan; merge it into your master v3.0 HTML as new sections 01–09.</p>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: no-preference)').matches) return;
+    var els=document.querySelectorAll('.reveal');
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+    },{threshold:.12});
+    els.forEach(function(el){io.observe(el);});
+  })();
+</script>
+</body>
+</html>

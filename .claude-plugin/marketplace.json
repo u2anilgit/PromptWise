@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "promptwise-marketplace",
+  "description": "PromptWise — cross-agent intelligence layer: model routing, cost optimization, security/compliance scanning, framework orchestration, and 55 portable skill packs.",
+  "owner": {
+    "name": "Anil Devarasetti",
+    "email": "u2anil@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "promptwise",
+      "description": "One /promptwise hub skill routing to 60+ MCP tools (routing, cost, security, compliance, framework selection) and 55 portable skill packs. Works across Claude Code, Codex, Cursor, Gemini via MCP + SKILL.md + AGENTS.md.",
+      "source": "./",
+      "version": "1.0.0"
+    }
+  ]
+}

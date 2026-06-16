@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "promptwise-v3": {
+      "command": "python",
+      "args": [
+        "-m",
+        "promptwise_v3.server"
+      ],
+      "cwd": "${projectDir}",
+      "env": { "PYTHONPATH": "${projectDir}/src" },
+      "alwaysAllow": ["route_request", "compress_prompt", "optimize_context", "plan_cache", "batch_prompts", "recommend_framework", "detect_role", "security_check", "owasp_scan", "monitor_budget", "predict_cost", "get_budget_status", "budget_report", "validate_output", "cost_report", "track_roi", "get_roi_report"]
+    }
+  }
+}

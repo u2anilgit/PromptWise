@@ -1,0 +1,58 @@
+schema_version: 1
+
+providers:
+  claude:
+    display_name: "Anthropic Claude"
+    aliases: [anthropic, opus, sonnet, haiku]
+    tiers:
+      fast: claude-haiku-4-5-20251001
+      balanced: claude-sonnet-4-6
+      powerful: claude-opus-4-7
+    switch_command: "/model {model_id}"
+    peak_hours_utc: [13, 14, 15, 16, 17]
+    feature_warnings:
+      - "Opus 4.7 uses ~20% more tokens than Opus 4.6 for the same input"
+
+  openai:
+    display_name: "OpenAI"
+    aliases: [gpt, chatgpt]
+    tiers:
+      fast: gpt-4o-mini
+      balanced: gpt-4o
+      powerful: o3
+    switch_command: ""
+    peak_hours_utc: []
+    feature_warnings:
+      - "o3 (powerful tier) has significantly higher latency than gpt-4o"
+
+  gemini:
+    display_name: "Google Gemini"
+    aliases: [google, bard]
+    tiers:
+      fast: gemini-2.0-flash
+      balanced: gemini-2.5-pro
+      powerful: gemini-2.5-pro-thinking
+    switch_command: ""
+    peak_hours_utc: []
+    feature_warnings: []
+
+  codex:
+    display_name: "OpenAI Codex 5.5"
+    aliases: [codex, code]
+    tiers:
+      fast: codex-5.5-base
+      balanced: codex-5.5-pro
+      powerful: codex-5.5-max
+    switch_command: ""
+    peak_hours_utc: [14, 15, 16, 17, 18]
+    api_endpoint: "http://localhost:11434/v1"
+    features:
+      supports_caching: true
+      supports_batching: true
+      supports_streaming: true
+      code_specialized: true
+      multi_file_support: true
+    feature_warnings:
+      - "Codex 5.5 optimized for code generation; may be overkill for non-code tasks"
+      - "Context window varies by tier (8K/32K/128K); larger files may need chunking"
+      - "Peak hours 2-6 PM UTC; consider scheduling large jobs outside these hours"

@@ -1,0 +1,337 @@
+# PromptWise V3 — Unified Configuration
+version: "3.0"
+default_model: claude-sonnet-4-6
+last_verified: "2026-06-08"
+
+# ============================================================================
+# Model Pricing
+# ============================================================================
+models:
+  claude-haiku-4-5-20251001:
+    display_name: "Claude Haiku 4.5"
+    provider: claude
+    tier: fast
+    context_window: 200000
+    max_output: 8192
+    rates:
+      input_per_mtok: 1.0
+      output_per_mtok: 5.0
+      cache_write_per_mtok: 1.25
+      cache_hit_per_mtok: 0.10
+  claude-sonnet-4-6:
+    display_name: "Claude Sonnet 4.6"
+    provider: claude
+    tier: balanced
+    context_window: 200000
+    max_output: 8192
+    rates:
+      input_per_mtok: 3.0
+      output_per_mtok: 15.0
+      cache_write_per_mtok: 3.75
+      cache_hit_per_mtok: 0.30
+  claude-opus-4-7:
+    display_name: "Claude Opus 4.7"
+    provider: claude
+    tier: powerful
+    context_window: 200000
+    max_output: 8192
+    rates:
+      input_per_mtok: 15.0
+      output_per_mtok: 75.0
+      cache_write_per_mtok: 18.75
+      cache_hit_per_mtok: 1.50
+  gpt-4o:
+    display_name: "GPT-4o"
+    provider: openai
+    tier: balanced
+    context_window: 128000
+    max_output: 4096
+    rates:
+      input_per_mtok: 2.5
+      output_per_mtok: 10.0
+      cache_write_per_mtok: 0.0
+      cache_hit_per_mtok: 0.0
+  gpt-4o-mini:
+    display_name: "GPT-4o Mini"
+    provider: openai
+    tier: fast
+    context_window: 128000
+    max_output: 4096
+    rates:
+      input_per_mtok: 0.15
+      output_per_mtok: 0.60
+      cache_write_per_mtok: 0.0
+      cache_hit_per_mtok: 0.0
+  gemini-2.0-flash:
+    display_name: "Gemini 2.0 Flash"
+    provider: gemini
+    tier: fast
+    context_window: 1000000
+    max_output: 8192
+    rates:
+      input_per_mtok: 0.10
+      output_per_mtok: 0.40
+      cache_write_per_mtok: 0.0
+      cache_hit_per_mtok: 0.0
+  gemini-2.0-pro:
+    display_name: "Gemini 2.0 Pro"
+    provider: gemini
+    tier: powerful
+    context_window: 2000000
+    max_output: 8192
+    rates:
+      input_per_mtok: 1.5
+      output_per_mtok: 5.0
+      cache_write_per_mtok: 0.0
+      cache_hit_per_mtok: 0.0
+
+# ============================================================================
+# Provider Configuration
+# ============================================================================
+providers:
+  mcp:
+    display_name: "MCP (Claude Code)"
+    aliases: [claude, anthropic]
+    tiers:
+      fast: claude-haiku-4-5-20251001
+      balanced: claude-sonnet-4-6
+      powerful: claude-opus-4-7
+  codex:
+    display_name: "Codex (OpenAI)"
+    aliases: [openai, codex]
+    tiers:
+      fast: claude-haiku-4-5-20251001
+      balanced: gpt-4o
+      powerful: claude-opus-4-7
+  gemini:
+    display_name: "Gemini (Google)"
+    aliases: [google]
+    tiers:
+      fast: gemini-2.0-flash
+      balanced: claude-sonnet-4-6
+      powerful: gemini-2.0-pro
+  antigravity:
+    display_name: "Antigravity CLI"
+    aliases: [ag]
+    tiers:
+      fast: claude-haiku-4-5-20251001
+      balanced: claude-sonnet-4-6
+      powerful: claude-opus-4-7
+
+# ============================================================================
+# Roles
+# ============================================================================
+roles:
+  developer:
+    display_name: "Developer"
+    prefix: "You are a senior software engineer."
+    description: "Software development, debugging, code review"
+  analyst:
+    display_name: "Analyst"
+    prefix: "You are a data analyst."
+    description: "Metrics, reporting, data analysis"
+  manager:
+    display_name: "Manager"
+    prefix: "You are a technical manager."
+    description: "Planning, prioritization, stakeholder communication"
+  security:
+    display_name: "Security Engineer"
+    prefix: "You are a security engineer."
+    description: "Security audits, vulnerability assessment, compliance"
+  IT:
+    display_name: "IT/DevOps"
+    prefix: "You are an infrastructure engineer."
+    description: "Deployment, infrastructure, DevOps"
+  designer:
+    display_name: "Designer"
+    prefix: "You are a UI/UX designer."
+    description: "Interface design, user experience, accessibility"
+  writer:
+    display_name: "Writer"
+    prefix: "You are a technical writer."
+    description: "Documentation, content creation, editing"
+  researcher:
+    display_name: "Researcher"
+    prefix: "You are a research scientist."
+    description: "Academic research, experiments, analysis"
+  pm:
+    display_name: "Product Manager"
+    prefix: "You are a product manager."
+    description: "Product strategy, requirements, roadmaps"
+  legal:
+    display_name: "Legal Counsel"
+    prefix: "You are a legal advisor."
+    description: "Contracts, compliance, risk assessment"
+  healthcare:
+    display_name: "Healthcare Specialist"
+    prefix: "You are a healthcare compliance specialist."
+    description: "HIPAA, clinical workflows, patient privacy"
+  finance:
+    display_name: "Finance/Banking"
+    prefix: "You are a financial compliance officer."
+    description: "Banking regulations, FINRA, AML compliance"
+  data:
+    display_name: "Data Engineer"
+    prefix: "You are a data engineer."
+    description: "Databases, ETL, data pipelines"
+  qassurance:
+    display_name: "QA Engineer"
+    prefix: "You are a QA engineer."
+    description: "Testing, quality assurance, automation"
+  executive:
+    display_name: "Executive"
+    prefix: "You are an executive advisor."
+    description: "Strategic planning, ROI, business decisions"
+  hr:
+    display_name: "HR Specialist"
+    prefix: "You are an HR professional."
+    description: "HR policies, recruitment, employee relations"
+
+# ============================================================================
+# Timeout / Session Management
+# ============================================================================
+timeout:
+  idle_threshold_minutes: 30
+  warn_threshold_minutes: 20
+  auto_action: prompt_user
+
+# ============================================================================
+# Auto-Compact
+# ============================================================================
+auto_compact:
+  threshold_pct: 0.70
+  threshold_tokens: 50000
+  target_pct: 0.50
+
+# ============================================================================
+# Policies
+# ============================================================================
+policies:
+  max_tokens_per_session: 500000
+  budget_hard_stop_usd: 10.0
+  daily_burn_warn_usd: 3.0
+  team_budget_usd: 100.0
+
+# ============================================================================
+# Security
+# ============================================================================
+security:
+  checks:
+    - secrets
+    - destructive
+    - supply_chain
+    - permissions
+    - pii
+    - injection
+    - compliance
+  pii_detection: true
+  pii_action: redact
+  injection_detection: true
+  injection_threshold: 0.7
+  audit_log: true
+
+# ============================================================================
+# Skills
+# ============================================================================
+skills:
+  directory: skill_packs/
+  auto_trigger: true
+  confidence_threshold: 0.6
+  chain_mode: sequential
+  max_chain_depth: 8
+  output_validation: strict
+
+# ============================================================================
+# Dashboard
+# ============================================================================
+dashboard:
+  cli_enabled: true
+  web_enabled: true
+  web_port: 8765
+
+# ============================================================================
+# Analytics
+# ============================================================================
+analytics:
+  roi_tracking: true
+  per_developer: true
+  per_role: true
+
+# ============================================================================
+# Orchestration
+# ============================================================================
+orchestration:
+  default_failure_strategy: fallback
+  max_retries: 2
+  fallback_model_sequence:
+    - claude-sonnet-4-6
+    - claude-haiku-4-5-20251001
+
+# ============================================================================
+# Compression
+# ============================================================================
+compression:
+  enabled: true
+  auto_compress_threshold_usd_per_min: 0.01
+
+# ============================================================================
+# Memory
+# ============================================================================
+memory:
+  retention_weeks: 4
+  cross_session: true
+  auto_export_enabled: true
+  retention_tiers:
+    working: session
+    episodic: 4_weeks
+    semantic: permanent
+
+# ============================================================================
+# Model Routing Strategy
+# ============================================================================
+model_routing:
+  extended_thinking_tokens: 8000
+  large_context_threshold: 50000
+  large_context_model: claude-sonnet-4-6
+  cost_safety:
+    downgrade_at_budget_pct: 80
+    emergency_haiku_pct: 95
+    hard_stop_pct: 100
+    never_downgrade:
+      - security-architecture
+      - systematic-debugging
+      - pii-detector
+      - injection-detector
+  skill_chain_optimization:
+    max_parallel: 3
+    parallel_capable:
+      - pii-detector
+      - injection-detector
+      - owasp-checker
+
+# ============================================================================
+# Compliance Frameworks
+# ============================================================================
+compliance:
+  frameworks:
+    banking: [FINRA_3110, PCI_DSS, BASEL_III]
+    healthcare: [HIPAA_SafeHarbor, FHIR_R4]
+    legal: [GDPR_Art25, CCPA]
+    all: [OWASP_Top10, EU_AI_Act]
+
+# ============================================================================
+# Intelligence / Autonomous
+# ============================================================================
+intelligence:
+  autocomplete:
+    enabled: true
+    latency_target_ms: 150
+    confidence_threshold: 0.7
+  proactive:
+    enabled: true
+    complexity_threshold: 10
+    test_gap_watcher: true
+  autonomous_loops:
+    enabled: true
+    max_iterations: 5
+    checkpoint_mode: manual

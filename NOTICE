@@ -1,0 +1,23 @@
+PromptWise
+Copyright (c) 2026 Anil Devarasetti
+Licensed under the MIT License (see LICENSE).
+
+==============================================================================
+Credits & attribution
+==============================================================================
+
+PromptWise orchestrates and interoperates with the following open-source
+agentic-development frameworks and standards. PromptWise does not bundle their
+source; it recommends, references, and is designed to wire them as optional
+backends. Each remains under its own license and copyright.
+
+- BMAD-METHOD            — MIT License            — https://github.com/bmad-code-org/BMAD-METHOD
+- GitHub Spec Kit        — OSS (see project)      — https://github.com/github/spec-kit
+- OpenSpec               — OSS (see project)      — https://github.com/Fission-AI/OpenSpec
+- TaskMaster             — OSS (see project)      — https://github.com/eyaltoledano/claude-task-master
+- Model Context Protocol — open standard          — https://modelcontextprotocol.io
+- AGENTS.md              — open convention         — https://agents.md
+
+If you wrap or redistribute any of the above as a backend, retain their LICENSE
+files and attribution. Star counts and adoption figures referenced in docs are
+as of mid-2026 and will drift — re-verify before relying on them.
