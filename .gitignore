@@ -10,6 +10,16 @@ build/
 *.egg
 .eggs/
 
+# ── Runtime / local governance artifacts ────────────────────────────────
+# hash-chained audit trail (runtime, per-machine)
+promptwise_audit.jsonl
+# local governance policy (copy from policy.example.yaml)
+config/policy.yaml
+
+# ── Source bundle drop (not part of the package) ─────────────────────────
+files/
+files.zip
+
 # ── Virtual environments / secrets ──────────────────────────────────────
 venv/
 .venv/

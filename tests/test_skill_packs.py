@@ -7,7 +7,12 @@ import yaml
 from promptwise.core import SkillLoader
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PACKS = sorted((ROOT / "skill_packs").rglob("*.md"))
+# Exclude templates/ — those are prose templates, intentionally frontmatter-less,
+# and are skipped by SkillLoader. They are not skill packs.
+PACKS = sorted(
+    p for p in (ROOT / "skill_packs").rglob("*.md")
+    if "templates" not in p.parts
+)
 
 
 def test_packs_exist():

@@ -1,8 +1,8 @@
 # PromptWise
 
 **The cross-agent intelligence layer for AI coding agents.** Role-aware prompting, model
-routing, cost & budget control, security/compliance scanning, workflow planning,
-and 63 portable skill packs — emitted in the formats every agent already reads.
+routing, cost & budget control, security/compliance scanning, workflow planning, a governed
+agile method, and 72 portable skill packs — emitted in the formats every agent already reads.
 
 > Built on open standards, not against them. PromptWise is a *conductor*, not a replacement
 > for Cursor / Copilot / Claude Code.
@@ -13,8 +13,8 @@ and 63 portable skill packs — emitted in the formats every agent already reads
 [![CI](https://github.com/u2anilgit/PromptWise/actions/workflows/ci.yml/badge.svg)](https://github.com/u2anilgit/PromptWise/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![Skill packs](https://img.shields.io/badge/skill%20packs-63-7C5BD4.svg)
-![MCP tools](https://img.shields.io/badge/MCP%20tools-57-4C5BD4.svg)
+![Skill packs](https://img.shields.io/badge/skill%20packs-72-7C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-65-4C5BD4.svg)
 
 📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -29,16 +29,17 @@ them have:
 
 - **Model routing** — right tier (Haiku/Sonnet/Opus) per task, with budget awareness.
 - **Context-budget engineering** — compression, caching, batching, thread handoff.
-- **Role intelligence** — 63 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
+- **Role intelligence** — 72 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
 - **Compliance gating** — auditable PRD→architecture→story→commit chain for regulated teams.
 - **Workflow planning** — classify a task → an ordered chain of PromptWise's *own* skill packs (PRD → design → stories → TDD → review). Fully self-contained, no external tools.
+- **Governed agile method** — analyst→pm→architect→po planning then per-story sm→dev→qa loop, with context-engineered stories, advisory quality gates, policy-as-code, and a hash-chained audit trail. See [docs/AGILE_METHOD.md](docs/AGILE_METHOD.md).
 
 ## Architecture — one source, three emitters
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
         ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (65+)
-        ├─▶ SKILL.md packs → 63 portable packs in skill_packs/
+        ├─▶ SKILL.md packs → 72 portable packs in skill_packs/
         └─▶ AGENTS.md      → project context + active constitution
 ```
 
@@ -73,7 +74,7 @@ Restart your agent, run `/mcp` — PromptWise tools appear. Then just `/promptwi
 | Path | What |
 |------|------|
 | `src/promptwise/` | Engine: MCP server + core logic, security, plugins, transports |
-| `skill_packs/` | 63 portable `SKILL.md` role/technique packs (copy into any agent) |
+| `skill_packs/` | 72 portable `SKILL.md` role/technique packs (incl. `agile/` personas; copy into any agent) |
 | `.claude-plugin/` | Plugin + marketplace manifests, the `/promptwise` hub skill |
 | `config/` | Pricing, providers, roles, security, compliance config |
 | `AGENTS.md` | Universal project-context emitter |
@@ -105,7 +106,7 @@ frameworks, CLIs, or network:
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest tests -q        # 22 tests: packs, planner, tracker, mermaid, tools
+python -m pytest tests -q        # 40 tests: packs, planner, agile method, governance, tracker, mermaid, tools
 ```
 
 ## Status

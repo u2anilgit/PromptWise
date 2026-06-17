@@ -1,0 +1,6 @@
+# Example cross-agent governance policy (consumed by core/policy.py).
+# Copy to config/policy.yaml and tune. Enforced identically across every agent.
+budget_cap_usd: 5.00            # per session/day; null = unlimited
+allowed_model_tiers: [haiku, sonnet]   # empty list = allow all tiers
+banned_operations: [force_push, delete_branch, disable_tests]
+required_gates: [quality]       # add "compliance" for regulated repos

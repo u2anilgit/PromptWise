@@ -8,7 +8,7 @@
       ],
       "cwd": "${projectDir}",
       "env": { "PYTHONPATH": "${projectDir}/src" },
-      "alwaysAllow": ["route_request", "compress_prompt", "optimize_context", "plan_cache", "batch_prompts", "plan_workflow", "detect_role", "security_check", "owasp_scan", "monitor_budget", "predict_cost", "get_budget_status", "budget_report", "validate_output", "cost_report", "track_roi", "get_roi_report"]
+      "alwaysAllow": ["route_request", "compress_prompt", "optimize_context", "plan_cache", "batch_prompts", "plan_workflow", "detect_role", "security_check", "owasp_scan", "monitor_budget", "predict_cost", "get_budget_status", "budget_report", "validate_output", "cost_report", "track_roi", "get_roi_report", "agile_plan", "shard_doc", "draft_story", "run_quality_gate", "check_policy", "export_audit"]
     }
   }
 }

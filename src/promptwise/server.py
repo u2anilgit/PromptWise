@@ -242,11 +242,42 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"}, "paths": {"type": "array", "items": {"type": "string"}}}}),
     Tool(name="run_security_suite", description="Run all security checks as a suite",
          inputSchema={"type": "object", "properties": {"targets": {"type": "array", "items": {"type": "string"}}, "context": {"type": "object"}}}),
+
+    # ── Agile method + governance (additive) ─────────────────────────────────
+    Tool(name="agile_plan", description="Two-phase, persona-aware agile plan (analyst->pm->[ux]->architect->po, then per-story sm->dev->qa loop) layered on the workflow classifier; carries the compliance gate and model-tier routing",
+         inputSchema={"type": "object", "properties": {"task": {"type": "string"}, "regulated": {"type": "boolean"}, "brownfield": {"type": "boolean"}}, "required": ["task"]}),
+    Tool(name="shard_doc", description="Split a PRD/architecture markdown document into focused, anchored shards by heading level",
+         inputSchema={"type": "object", "properties": {"markdown": {"type": "string"}, "by_level": {"type": "integer", "default": 2}}, "required": ["markdown"]}),
+    Tool(name="draft_story", description="Assemble a self-contained, context-engineered story: embeds architecture shards, constraints, and compliance rules inline so the dev executor needs no external lookup",
+         inputSchema={"type": "object", "properties": {"story_id": {"type": "string"}, "title": {"type": "string"}, "epic_id": {"type": "string", "default": ""}, "acceptance_criteria": {"type": "array", "items": {"type": "string"}, "default": []}, "arch_shards": {"type": "array", "items": {"type": "object"}, "default": []}, "files_to_touch": {"type": "array", "items": {"type": "string"}, "default": []}, "constraints": {"type": "array", "items": {"type": "string"}, "default": []}, "compliance_rules": {"type": "array", "items": {"type": "string"}, "default": []}, "tasks": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["story_id", "title"]}),
+    Tool(name="run_quality_gate", description="Issue an advisory, auditable quality-gate decision (PASS/CONCERNS/FAIL/WAIVED) from findings, risk score, and NFR assessment",
+         inputSchema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}}, "required": ["story_id"]}),
+    Tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons",
+         inputSchema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}}}),
+    Tool(name="record_audit", description="Append a tamper-evident, hash-chained audit record of an AI-assisted change ('the trace'); returns the record and chain verification status",
+         inputSchema={"type": "object", "properties": {"task": {"type": "string"}, "agent": {"type": "string", "default": ""}, "model": {"type": "string", "default": ""}, "cost_usd": {"type": "number", "default": 0.0}, "rules_applied": {"type": "array", "items": {"type": "string"}, "default": []}, "gate_decision": {"type": "string", "default": ""}, "compliance_decision": {"type": "string", "default": ""}, "files_touched": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["task"]}),
+    Tool(name="export_audit", description="Export the full AI-change audit trail (portable JSON + human-readable text) with hash-chain verification status",
+         inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["json", "text", "both"], "default": "both"}}}),
+    Tool(name="sync_agent_config", description="Compile one governance source (policy + packs + method) into every agent's native rules file (CLAUDE.md, AGENTS.md, .cursor/rules, copilot-instructions, .clinerules)",
+         inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}}, "required": ["project"]}),
 ]
 
 
 async def list_tools() -> list[Tool]:
     return _TOOL_DEFS
+
+
+_AUDIT_LOG = None
+
+
+def _get_audit_log():
+    """Lazy, process-wide hash-chained audit log persisted at the repo root."""
+    global _AUDIT_LOG
+    if _AUDIT_LOG is None:
+        from promptwise.core.audit_log import AuditLog
+        repo_root = Path(__file__).resolve().parents[2]
+        _AUDIT_LOG = AuditLog(repo_root / "promptwise_audit.jsonl")
+    return _AUDIT_LOG
 
 
 async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
@@ -669,6 +700,83 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
             owasp = ctx.security.check_owasp(text)
             return json.dumps({"security": {"passed": sec.passed, "violations": sec.violations, "risk_score": sec.risk_score},
                                "owasp": owasp, "status": "completed"})
+
+        # ── Agile method + governance (additive) ─────────────────────────────
+        elif name == "agile_plan":
+            from promptwise.core.agile_planner import AgilePlanner
+            cfg_path = Path(__file__).resolve().parents[2] / "config" / "agile.yaml"
+            plan = AgilePlanner(config_path=cfg_path).plan(
+                arguments.get("task", ""), arguments.get("regulated"), arguments.get("brownfield"))
+            return json.dumps(plan.to_dict())
+
+        elif name == "shard_doc":
+            from promptwise.core.doc_sharder import DocSharder
+            shards = DocSharder().shard(arguments.get("markdown", ""), int(arguments.get("by_level", 2)))
+            return json.dumps([s.__dict__ for s in shards])
+
+        elif name == "draft_story":
+            from promptwise.core.story_context import StoryContextBuilder
+            story = StoryContextBuilder().build(
+                story_id=arguments.get("story_id", ""), title=arguments.get("title", ""),
+                epic_id=arguments.get("epic_id", ""),
+                acceptance_criteria=arguments.get("acceptance_criteria", []),
+                arch_shards=arguments.get("arch_shards", []),
+                files_to_touch=arguments.get("files_to_touch", []),
+                constraints=arguments.get("constraints", []),
+                compliance_rules=arguments.get("compliance_rules", []),
+                tasks=arguments.get("tasks", []))
+            return json.dumps({"story": story.to_dict(), "markdown": story.to_markdown()})
+
+        elif name == "run_quality_gate":
+            from promptwise.core.quality_gate import QualityGate
+            res = QualityGate().evaluate(
+                arguments.get("story_id", ""), arguments.get("findings", []),
+                int(arguments.get("risk_score", 0)), arguments.get("nfr_assessment", {}),
+                arguments.get("waiver_reason", ""))
+            return json.dumps(res.to_dict())
+
+        elif name == "check_policy":
+            from promptwise.core.policy import Policy
+            policy_path = arguments.get("policy_path", "config/policy.yaml")
+            try:
+                pol = Policy.from_yaml(policy_path)
+            except FileNotFoundError:
+                return json.dumps({"error": f"policy file not found: {policy_path} (copy config/policy.example.yaml -> config/policy.yaml)", "type": "PolicyNotConfigured"})
+            dec = pol.evaluate_action(
+                model_tier=arguments.get("model_tier"), estimated_cost=arguments.get("estimated_cost"),
+                spent_so_far=arguments.get("spent_so_far"), operation=arguments.get("operation"),
+                gates_passed=arguments.get("gates_passed", []))
+            return json.dumps(dec.to_dict())
+
+        elif name == "record_audit":
+            audit = _get_audit_log()
+            rec = audit.append(
+                arguments.get("task", ""), agent=arguments.get("agent", ""), model=arguments.get("model", ""),
+                cost_usd=float(arguments.get("cost_usd", 0.0)), rules_applied=arguments.get("rules_applied", []),
+                gate_decision=arguments.get("gate_decision", ""), compliance_decision=arguments.get("compliance_decision", ""),
+                files_touched=arguments.get("files_touched", []))
+            ok, msg = audit.verify()
+            return json.dumps({"record": rec.__dict__, "chain_ok": ok, "chain_msg": msg})
+
+        elif name == "export_audit":
+            audit = _get_audit_log()
+            ok, msg = audit.verify()
+            fmt = arguments.get("format", "both")
+            out = {"chain_ok": ok, "chain_msg": msg, "record_count": len(audit.records)}
+            if fmt in ("json", "both"):
+                out["json"] = json.loads(audit.export_json())
+            if fmt in ("text", "both"):
+                out["text"] = audit.export_text()
+            return json.dumps(out)
+
+        elif name == "sync_agent_config":
+            from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
+            bundle = GovernanceBundle(
+                project=arguments.get("project", "this project"),
+                policy_summary=arguments.get("policy_summary", []),
+                packs=arguments.get("packs", []), rules=arguments.get("rules", []))
+            res = ConfigEmitter().sync(bundle, arguments.get("repo_root", "."), arguments.get("targets"))
+            return json.dumps({"written": res})
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})

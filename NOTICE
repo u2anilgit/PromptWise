@@ -15,6 +15,14 @@ external framework code and runs entirely on its own engine.
 - SKILL.md                     — portable skill format (YAML frontmatter + prompt)
 
 ==============================================================================
+Methodology attribution
+==============================================================================
+
+The agile-method skill packs (skill_packs/agile/) are an independent, clean-room
+implementation inspired by the publicly described BMAD agile-AI-development
+methodology (MIT-licensed). No BMAD source code or content is bundled or required.
+
+==============================================================================
 Third-party Python dependencies
 ==============================================================================
 

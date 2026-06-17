@@ -1,0 +1,22 @@
+# PromptWise agile-method config. Additive — read by agile_planner when present.
+schema_version: 1
+
+# Two-phase persona order.
+planning_order: [agile-analyst, agile-pm, agile-ux, agile-architect, agile-po]
+dev_loop:       [agile-sm, agile-dev, agile-qa]
+
+# Map the method's phases onto PromptWise model routing (cost win):
+# expensive model for planning, cheaper executor for the high-volume story loop.
+model_tiers:
+  planning: opus
+  execution: sonnet
+
+# Quality-gate thresholds (consumed by core/quality_gate.py).
+gate:
+  concerns_risk_threshold: 40
+  fail_on_high_severity: true
+
+# When the task is regulated, graft these in (reuses existing packs/tools).
+regulated_inject:
+  planning: [security-architecture]
+  dev_loop_tools: [owasp_scan, get_sbom]
