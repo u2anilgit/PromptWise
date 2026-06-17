@@ -32,7 +32,7 @@ security:
   injection_threshold: 0.7        # 0–1; higher = stricter
 
 skills:
-  directory: skill_packs/         # where the 63 packs live (loaded by SkillLoader)
+  directory: skill_packs/         # where the 72 packs live (loaded by SkillLoader)
   auto_trigger: true
   confidence_threshold: 0.6
 

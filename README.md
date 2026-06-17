@@ -111,10 +111,11 @@ python -m pytest tests -q        # 40 tests: packs, planner, agile method, gover
 
 ## Status
 
-**Early-stage, building in public.** v1.0 ships the engine, the three emitters, the 63
-skill packs, the self-contained workflow planner, diagram generators, and a task/effort/
-token tracker. Everything runs directly from PromptWise — no third-party integrations.
-Runtime constitution gating is on the roadmap.
+**Early-stage, building in public.** v1.1 ships the engine, the five emitters, the 72
+skill packs (incl. the `agile/` method personas), the self-contained workflow planner, the
+governed agile method (quality gates, policy-as-code, hash-chained audit trail), diagram
+generators, and a task/effort/token tracker. Everything runs directly from PromptWise — no
+third-party integrations.
 
 ## License
 

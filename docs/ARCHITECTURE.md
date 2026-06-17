@@ -21,7 +21,7 @@ flowchart TB
   end
   mcp --> Capabilities
   Capabilities --> emit["Emitters: MCP · SKILL.md · AGENTS.md"]
-  packs[("63 skill packs")] --> mcp
+  packs[("72 skill packs")] --> mcp
   store[("SQLite ~/.promptwise")] --> Capabilities
 ```
 

@@ -1,4 +1,4 @@
-"""All 63 skill packs must have valid frontmatter, unique names, and load."""
+"""All skill packs must have valid frontmatter, unique names, and load."""
 import re
 import pathlib
 

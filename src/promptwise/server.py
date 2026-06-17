@@ -840,7 +840,7 @@ async def main() -> None:
 
     init_opts = InitializationOptions(
         server_name="promptwise",
-        server_version="1.0.0",
+        server_version="1.1.0",
         capabilities=server.get_capabilities(
             notification_options=NotificationOptions(),
             experimental_capabilities={},
