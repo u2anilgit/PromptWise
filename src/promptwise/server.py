@@ -258,8 +258,17 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"task": {"type": "string"}, "agent": {"type": "string", "default": ""}, "model": {"type": "string", "default": ""}, "cost_usd": {"type": "number", "default": 0.0}, "rules_applied": {"type": "array", "items": {"type": "string"}, "default": []}, "gate_decision": {"type": "string", "default": ""}, "compliance_decision": {"type": "string", "default": ""}, "files_touched": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["task"]}),
     Tool(name="export_audit", description="Export the full AI-change audit trail (portable JSON + human-readable text) with hash-chain verification status",
          inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["json", "text", "both"], "default": "both"}}}),
-    Tool(name="sync_agent_config", description="Compile one governance source (policy + packs + method) into every agent's native rules file (CLAUDE.md, AGENTS.md, .cursor/rules, copilot-instructions, .clinerules)",
-         inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}}, "required": ["project"]}),
+    Tool(name="sync_agent_config", description="Compile one governance source (policy + packs + method) into every agent's native rules file (CLAUDE.md, AGENTS.md, .cursor/rules, copilot-instructions, .clinerules). Non-destructive: only the managed block is regenerated; user edits are preserved",
+         inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "mode": {"type": "string", "enum": ["apply", "preview", "check"], "default": "apply"}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]}),
+    # ── Cross-agent config compiler (additive) ──────────────────────────────
+    Tool(name="detect_agents", description="Detect which coding agents a repo is configured for (CLAUDE.md, AGENTS.md, .cursor/rules, copilot) + confidence + recommended targets",
+         inputSchema={"type": "object", "properties": {"repo_root": {"type": "string", "default": "."}}}),
+    Tool(name="build_context_model", description="Derive structured intent/role/stack/domain/regulated context from a prompt (+ optional repo) to drive config emission",
+         inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}}, "required": ["text"]}),
+    Tool(name="propose_agent_config", description="Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing — the review step before apply",
+         inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]}),
+    Tool(name="lint_agent_config", description="Lint an agent rules file (or content) for token tax, byte caps, missing .mdc frontmatter, and inferable bloat",
+         inputSchema={"type": "object", "properties": {"content": {"type": "string"}, "path": {"type": "string"}, "fmt": {"type": "string", "enum": ["md", "mdc"], "default": "md"}, "max_bytes": {"type": "integer"}, "always_apply": {"type": "boolean", "default": False}, "token_budget": {"type": "integer", "default": 0}}}),
 ]
 
 
@@ -771,12 +780,42 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
 
         elif name == "sync_agent_config":
             from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
-            bundle = GovernanceBundle(
-                project=arguments.get("project", "this project"),
-                policy_summary=arguments.get("policy_summary", []),
-                packs=arguments.get("packs", []), rules=arguments.get("rules", []))
-            res = ConfigEmitter().sync(bundle, arguments.get("repo_root", "."), arguments.get("targets"))
+            bundle = GovernanceBundle.from_context(arguments)
+            res = ConfigEmitter().sync(
+                bundle, arguments.get("repo_root", "."), arguments.get("targets"),
+                mode=arguments.get("mode", "apply"), adopt=arguments.get("adopt", False))
             return json.dumps({"written": res})
+
+        elif name == "detect_agents":
+            from promptwise.core.agent_detector import detect_agents
+            d = detect_agents(arguments.get("repo_root", "."))
+            return json.dumps({"targets": d.targets, "confidence": d.confidence, "fingerprints": d.fingerprints})
+
+        elif name == "build_context_model":
+            from promptwise.core.context_model import build_context_model
+            cm = build_context_model(arguments["text"], arguments.get("repo_root", "."))
+            return json.dumps({"intent": cm.intent, "role": cm.role, "stack": cm.stack,
+                               "domain": cm.domain, "regulated": cm.regulated})
+
+        elif name == "propose_agent_config":
+            from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
+            from promptwise.core.agent_detector import detect_agents
+            root = arguments.get("repo_root", ".")
+            targets = arguments.get("targets") or detect_agents(root).targets
+            bundle = GovernanceBundle.from_context(arguments)
+            return json.dumps(ConfigEmitter().diff(bundle, root, targets, adopt=arguments.get("adopt", False)))
+
+        elif name == "lint_agent_config":
+            from promptwise.core.config_linter import ConfigLinter
+            linter = ConfigLinter()
+            kw = {"fmt": arguments.get("fmt", "md"), "max_bytes": arguments.get("max_bytes"),
+                  "always_apply": arguments.get("always_apply", False), "token_budget": arguments.get("token_budget", 0)}
+            if arguments.get("path"):
+                res = linter.lint_file(arguments["path"], **kw)
+            else:
+                res = linter.lint(arguments.get("content", ""), **kw)
+            return json.dumps({"valid": res.valid,
+                               "issues": [{"severity": i.severity, "message": i.message, "line": i.line} for i in res.issues]})
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})

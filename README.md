@@ -14,7 +14,7 @@ agile method, and 72 portable skill packs — emitted in the formats every agent
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Skill packs](https://img.shields.io/badge/skill%20packs-72-7C5BD4.svg)
-![MCP tools](https://img.shields.io/badge/MCP%20tools-65-4C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-69-4C5BD4.svg)
 
 📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -38,7 +38,7 @@ them have:
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (65+)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (69+)
         ├─▶ SKILL.md packs → 72 portable packs in skill_packs/
         └─▶ AGENTS.md      → project context + active constitution
 ```

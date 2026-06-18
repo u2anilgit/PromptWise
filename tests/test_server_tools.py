@@ -11,6 +11,10 @@ AGILE_TOOLS = [
     "record_audit", "export_audit", "sync_agent_config",
 ]
 
+CONFIG_COMPILER_TOOLS = [
+    "detect_agents", "build_context_model", "propose_agent_config", "lint_agent_config",
+]
+
 EXPECTED = [
     "route_request", "rewrite_prompt", "optimize_context", "compress_prompt",
     "plan_cache", "batch_prompts", "summarize_thread", "compare_providers",
@@ -39,12 +43,32 @@ def test_every_tool_has_object_schema():
 
 
 def test_tool_count_floor():
-    assert len(s._TOOL_DEFS) >= 57
+    assert len(s._TOOL_DEFS) >= 69
 
 
 def test_agile_governance_tools_registered():
     missing = [n for n in AGILE_TOOLS if n not in NAMES]
     assert not missing, missing
+
+
+def test_config_compiler_tools_registered():
+    missing = [n for n in CONFIG_COMPILER_TOOLS if n not in NAMES]
+    assert not missing, missing
+
+
+def test_detect_agents_dispatch(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text("# x", encoding="utf-8")
+    out = asyncio.run(s.call_tool(None, "detect_agents", {"repo_root": str(tmp_path)}))
+    assert "claude" in json.loads(out)["targets"]
+
+
+def test_propose_agent_config_writes_nothing(tmp_path):
+    out = asyncio.run(s.call_tool(None, "propose_agent_config",
+                                  {"project": "acme", "policy_summary": ["x"],
+                                   "repo_root": str(tmp_path), "targets": ["claude"]}))
+    res = json.loads(out)
+    assert res["CLAUDE.md"]["status"] == "create"
+    assert not (tmp_path / "CLAUDE.md").exists()
 
 
 def test_shard_doc_dispatch():

@@ -1,8 +1,17 @@
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from promptwise.config import AppConfig, ModelPricing
 from promptwise.types import RouteResult
+
+
+@dataclass
+class EmissionPlan:
+    """What to emit, derived from prompt intent (config-compiler helper)."""
+    intent: str
+    sections: list[str] = field(default_factory=list)
+    targets: list[str] = field(default_factory=list)
 
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
 _OPUS_MODEL = "claude-opus-4-7"
@@ -67,6 +76,21 @@ class Router:
 
     def fallback_models(self, current: str) -> list[str]:
         return [m for m in _ALL_MODELS if m != current]
+
+    def plan_emission(self, text: str) -> "EmissionPlan":
+        """Map a prompt's intent onto which config sections matter most.
+
+        Additive helper for the cross-agent config compiler; ``route()`` is
+        unchanged. Targets default to AGENTS.md-first (the shared base most
+        agents read), with the detector free to widen them later.
+        """
+        intent = self._detect_intent(text)
+        sections = ["method", "policy", "house_rules"]
+        if intent in ("code", "analysis"):
+            sections = ["commands", "policy", "method", "house_rules"]
+        elif intent in ("research", "question"):
+            sections = ["method", "policy"]
+        return EmissionPlan(intent=intent, sections=sections, targets=["codex"])
 
     def _detect_intent(self, text: str) -> str:
         t = text.lower()
