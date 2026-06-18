@@ -128,3 +128,30 @@ def test_diff_surfaces_byte_cap_warning(tmp_path):
 def test_diff_has_warnings_key(tmp_path):
     out = ConfigEmitter().diff(GovernanceBundle(project="acme"), tmp_path, targets=["claude"])
     assert "warnings" in out["CLAUDE.md"]
+
+
+# ── Copilot path-scoped instruction files ───────────────────────────────────
+def test_copilot_path_scoped_files_emitted(tmp_path):
+    b = GovernanceBundle(project="acme", path_rules={"src/**/*.ts": ["Use strict mode", "No any"]})
+    res = ConfigEmitter().sync(b, tmp_path, targets=["copilot"])
+    scoped = ".github/instructions/src-ts.instructions.md"
+    assert ".github/copilot-instructions.md" in res  # main file still emitted
+    assert scoped in res                              # plus the path-scoped file
+    text = (tmp_path / scoped).read_text(encoding="utf-8")
+    assert 'applyTo: "src/**/*.ts"' in text
+    assert "Use strict mode" in text
+
+
+def test_no_path_rules_means_no_scoped_files(tmp_path):
+    res = ConfigEmitter().sync(GovernanceBundle(project="acme"), tmp_path, targets=["copilot"])
+    assert res == {".github/copilot-instructions.md": "written"}  # unchanged behavior
+
+
+def test_path_scoped_files_are_non_destructive(tmp_path):
+    b = GovernanceBundle(project="acme", path_rules={"api/**": ["Frozen — no edits"]})
+    e = ConfigEmitter()
+    e.sync(b, tmp_path, targets=["copilot"])
+    scoped = tmp_path / ".github/instructions/api.instructions.md"
+    scoped.write_text(scoped.read_text(encoding="utf-8") + "\n- my hand note\n", encoding="utf-8")
+    e.sync(b, tmp_path, targets=["copilot"])  # regenerate
+    assert "my hand note" in scoped.read_text(encoding="utf-8")

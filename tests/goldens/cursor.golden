@@ -1,0 +1,20 @@
+---
+description: PromptWise governance + method
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# acme-pay — PromptWise governance
+
+Method: PromptWise governed agile method.
+
+Governance policy (enforced via PromptWise):
+- Budget cap $5/day
+- Tiers: haiku/sonnet only
+
+Active expert packs:
+- banking
+- agile-sm
+
+House rules:
+- No secrets in code
