@@ -32,20 +32,24 @@ def _split_frontmatter(text: str) -> tuple[str, str]:
     Cursor .mdc files require their YAML frontmatter on the first line, so it
     must stay ABOVE the managed markers rather than inside them.
     """
-    if text.startswith("---\n"):
-        m = re.match(r"---\n.*?\n---\n", text, flags=re.S)
-        if m:
-            return m.group(0), text[m.end():]
+    # CRLF-aware: a Windows-authored .mdc has "---\r\n…"; still treat as frontmatter.
+    m = re.match(r"---\r?\n.*?\r?\n---\r?\n", text, flags=re.S)
+    if m:
+        return m.group(0), text[m.end():]
     return "", text
 
 
 def merge_managed(existing: str | None, new_block: str, *, adopt: bool = False) -> str:
     """Return file content with ONLY the managed region replaced.
 
-    Three cases:
-      * file absent            -> managed block + empty user section beneath it
-      * file has markers       -> replace just the managed region, keep user text
-      * file present, unmarked -> refuse unless adopt=True (then wrap it below)
+    Cases:
+      * file absent              -> managed block + empty user section beneath it
+      * file has both markers    -> replace just the managed region; preserve the
+                                    user's content BOTH above the start marker and
+                                    below the end marker
+      * file has a lone start    -> corrupted managed file; rebuild the region
+        marker (no end)             rather than erroring or duplicating the block
+      * file present, unmarked   -> refuse unless adopt=True (then wrap it below)
     """
     prefix, body = _split_frontmatter(new_block)
     body = body.strip("\n")
@@ -53,9 +57,16 @@ def merge_managed(existing: str | None, new_block: str, *, adopt: bool = False) 
     block = f"{MANAGED_START.format(h=h)}\n{body}\n{MANAGED_END}"
     if existing is None:
         return f"{prefix}{block}\n\n{USER_HEADER}\n"
-    if MANAGED_END in existing and re.search(_START_RE, existing):
-        tail = existing.split(MANAGED_END, 1)[1]
-        return f"{prefix}{block}{tail}"
+    start = re.search(_START_RE, existing)
+    if start:
+        # Everything before the start marker is user-owned (e.g. frontmatter,
+        # a hand-written title) and must survive regeneration verbatim.
+        head = existing[: start.start()]
+        if MANAGED_END in existing:
+            tail = existing.split(MANAGED_END, 1)[1]
+        else:  # lone/corrupted start marker: drop the partial region, fresh notes
+            tail = f"\n\n{USER_HEADER}\n"
+        return f"{head}{block}{tail}"
     if not adopt:
         raise ConfigConflict("unmanaged file present; pass adopt=True to wrap it")
     return f"{prefix}{block}\n\n## Your notes\n{existing}"
@@ -216,8 +227,13 @@ class ConfigEmitter:
         unless the caller opts in.
         """
         out: dict[str, str] = {}
+        used: dict[str, int] = {}
         for glob, rules in (b.path_rules or {}).items():
-            rel = f".github/instructions/{_glob_slug(glob)}.instructions.md"
+            base = _glob_slug(glob)
+            n = used.get(base, 0)
+            used[base] = n + 1
+            slug = base if n == 0 else f"{base}-{n + 1}"  # disambiguate collisions
+            rel = f".github/instructions/{slug}.instructions.md"
             body = "\n".join(f"- {r}" for r in rules)
             out[rel] = f'---\napplyTo: "{glob}"\n---\n\n# Scoped rules for `{glob}`\n\n{body}\n'
         return out
@@ -241,22 +257,6 @@ class ConfigEmitter:
         if fn is None:
             raise ValueError(f"unknown target '{target}' (known: {list(TARGETS)})")
         return fn(bundle)
-
-    def render_for_profile(self, bundle: GovernanceBundle, profile) -> dict[str, str]:
-        """Profile-driven render: return {relative_path: content} for each of a
-        profile's target files. Falls back to the legacy ``render`` per key.
-
-        ``profile`` is an ``AgentProfile`` from ``agent_profiles``. This is the
-        dynamic mechanism — file paths and format come from declarative data,
-        not branching logic.
-        """
-        out: dict[str, str] = {}
-        for tf in profile.targets:
-            # Reuse the matching legacy emitter when one exists; the profile key
-            # ("claude"/"cursor"/…) maps onto emit_<key>.
-            content = self.render(bundle, profile.key) if hasattr(self, f"emit_{profile.key}") else self.emit_agents(bundle)
-            out[tf.path] = content
-        return out
 
     def sync(
         self,

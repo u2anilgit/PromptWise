@@ -14,7 +14,7 @@ When the user invokes `/promptwise` with no subcommand, show this menu, then ask
 **"What would you like to optimize?"** Otherwise, pick the right tool automatically.
 
 ```
-PromptWise v1.1 — command groups (65 MCP tools · 72 skill packs):
+PromptWise v1.1 — command groups (69 MCP tools · 72 skill packs):
 
   Optimization
   route_request        Pick the right model (Haiku/Sonnet/Opus) for a task
@@ -37,7 +37,11 @@ PromptWise v1.1 — command groups (65 MCP tools · 72 skill packs):
   check_policy         Evaluate an action vs the cross-agent governance policy
   record_audit         Append a hash-chained AI-change record (the "trace")
   export_audit         Export the audit trail (JSON + text) with chain verify
-  sync_agent_config    Emit one governance source → every agent's rules file
+  sync_agent_config    Emit one governance source → every agent's rules file (non-destructive managed blocks)
+  detect_agents        Sniff a repo for configured agents (CLAUDE.md, AGENTS.md, .cursor, copilot) + confidence
+  build_context_model  Derive intent / role / stack / regulated context from a prompt
+  propose_agent_config Preview a per-file diff of agent rules before writing (the review step)
+  lint_agent_config    Lint an agent rules file for token tax, byte caps, missing .mdc frontmatter
 
   Task / effort / token tracker
   add_task             Create a task with an effort estimate

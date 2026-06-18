@@ -10,7 +10,7 @@ What PromptWise does and for whom — capabilities, not code.
 ```mermaid
 flowchart TB
   dev([Developer]) --> hub["/promptwise hub skill"]
-  hub --> mcp["MCP server (65+ tools)"]
+  hub --> mcp["MCP server (69+ tools)"]
   subgraph Capabilities
     opt[Optimization: route / compress / cache / batch]
     flow[Workflow planning]

@@ -32,6 +32,32 @@ def test_existing_marked_file_replaces_only_managed_region():
     assert "prefer pnpm; legacy api/ is frozen." in second
 
 
+def test_premarker_user_content_preserved():
+    # user wrote a title ABOVE the managed block; resync must keep it
+    first = merge_managed(None, NEW)
+    with_head = "# My own title\n\n" + first
+    second = merge_managed(with_head, "# acme\n\nMethod: NEW.\n")
+    assert "# My own title" in second          # head above block survives
+    assert "NEW." in second                     # managed region still refreshed
+    assert second.count("promptwise:managed:start") == 1
+
+
+def test_lone_start_marker_is_rebuilt_not_conflicted():
+    # corrupted managed file: start marker present, end marker missing
+    corrupted = "<!-- promptwise:managed:start v=1 hash=dead -->\nstale body\n"
+    out = merge_managed(corrupted, NEW)          # must NOT raise ConfigConflict
+    assert out.count("promptwise:managed:start") == 1   # exactly one block, no dup
+    assert MANAGED_END in out
+    assert "stale body" not in out               # corrupted region rebuilt
+
+
+def test_crlf_frontmatter_detected():
+    mdc = "---\r\ndescription: x\r\nalwaysApply: true\r\n---\r\n\r\n# body\r\nMethod: m.\r\n"
+    out = merge_managed(None, mdc)
+    assert out.startswith("---")                 # frontmatter kept above block
+    assert out.index("---") < out.index("promptwise:managed:start")
+
+
 def test_unmanaged_file_refused_without_adopt():
     with pytest.raises(ConfigConflict):
         merge_managed("# my hand-written CLAUDE.md\n", NEW)
@@ -140,6 +166,14 @@ def test_copilot_path_scoped_files_emitted(tmp_path):
     text = (tmp_path / scoped).read_text(encoding="utf-8")
     assert 'applyTo: "src/**/*.ts"' in text
     assert "Use strict mode" in text
+
+
+def test_glob_slug_collision_disambiguated(tmp_path):
+    # two distinct globs that slug identically must NOT overwrite each other
+    b = GovernanceBundle(project="acme", path_rules={"src/**/*.ts": ["A"], "src/*.ts": ["B"]})
+    res = ConfigEmitter().sync(b, tmp_path, targets=["copilot"])
+    scoped = [k for k in res if k.startswith(".github/instructions/")]
+    assert len(scoped) == 2  # both rule sets emitted, no silent drop
 
 
 def test_no_path_rules_means_no_scoped_files(tmp_path):

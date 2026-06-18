@@ -3,10 +3,8 @@
 import asyncio
 import difflib
 import json
-import os
 import sys
 import re as _re
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 

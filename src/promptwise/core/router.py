@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from promptwise.config import AppConfig, ModelPricing
+from promptwise.config import AppConfig
 from promptwise.types import RouteResult
 
 
