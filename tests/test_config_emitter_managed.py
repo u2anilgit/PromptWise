@@ -94,3 +94,37 @@ def test_from_context_regulated_enrichment():
         {"project": "acme", "text": "Ensure HIPAA compliance for patient records"}
     )
     assert any("healthcare" in line for line in b.policy_summary)
+
+
+# ── P3: per-agent emit depth ────────────────────────────────────────────────
+def test_gemini_is_a_real_target(tmp_path):
+    b = GovernanceBundle(project="acme", policy_summary=["Budget cap $5/day"])
+    res = ConfigEmitter().sync(b, tmp_path, targets=["gemini"])
+    assert res == {"GEMINI.md": "written"}
+    assert "Budget cap $5/day" in (tmp_path / "GEMINI.md").read_text(encoding="utf-8")
+
+
+def test_codex_aliases_to_agents(tmp_path):
+    b = GovernanceBundle(project="acme")
+    res = ConfigEmitter().sync(b, tmp_path, targets=["codex"])
+    assert "AGENTS.md" in res  # codex -> AGENTS.md
+
+
+def test_cursor_frontmatter_is_profile_driven():
+    cur = ConfigEmitter().render(GovernanceBundle(project="acme"), "cursor")
+    assert cur.startswith("---\n")
+    assert "alwaysApply: true" in cur  # cursor profile has "always" mode
+    assert "globs:" in cur             # cursor profile supports_globs
+
+
+def test_diff_surfaces_byte_cap_warning(tmp_path):
+    big = "x" * 40000
+    b = GovernanceBundle(project="acme", rules=[big])
+    out = ConfigEmitter().diff(b, tmp_path, targets=["agents"])
+    warns = out["AGENTS.md"]["warnings"]
+    assert any("max_bytes" in w for w in warns)  # Codex ~32 KiB cap surfaced
+
+
+def test_diff_has_warnings_key(tmp_path):
+    out = ConfigEmitter().diff(GovernanceBundle(project="acme"), tmp_path, targets=["claude"])
+    assert "warnings" in out["CLAUDE.md"]

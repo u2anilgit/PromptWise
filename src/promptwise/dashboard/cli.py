@@ -30,3 +30,28 @@ class CLIDashboard:
     def render_burn_rate(self, rate_usd_per_min: float) -> str:
         bar = "|" * min(40, int(rate_usd_per_min * 100))
         return f"Burn Rate: ${rate_usd_per_min:.4f}/min  [{bar:<40}]"
+
+    def render_drift(self, results: dict[str, str]) -> str:
+        lines = [
+            "+-- Config Drift ----------------------------+",
+        ]
+        needs_attention = 0
+        for path, status in results.items():
+            if status == "in-sync":
+                marker = "[OK]"
+            elif status == "drift":
+                marker = "[DRIFT]"
+                needs_attention += 1
+            elif status.startswith("conflict"):
+                marker = "[CONFLICT]"
+                needs_attention += 1
+            else:
+                marker = "[?]"
+            lines.append(f"| {marker:<11} {path}")
+        if needs_attention:
+            summary = f"{needs_attention} file(s) need attention"
+        else:
+            summary = "all in sync"
+        lines.append(f"| {summary}")
+        lines.append("+--------------------------------------------+")
+        return "\n".join(lines)
