@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptWise — Cross-Agent Config Compiler · Implementation Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0C12; --bg2:#0E111A; --panel:#141926; --panel2:#1A2030;
+    --border:#262D3F; --border-soft:#1E2536;
+    --indigo:#818CF8; --indigo-deep:#6366F1; --indigo-dim:#3A3F6B;
+    --amber:#FBBF24; --amber-deep:#F59E0B;
+    --text:#E7EAF0; --muted:#98A2B6; --faint:#5B6479;
+    --green:#34D399; --red:#F87171; --cyan:#22D3EE;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif; --disp:'Space Grotesk',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:var(--indigo);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+  code,.mono{font-family:var(--mono);font-size:.86em}
+  .ic{color:var(--amber);background:rgba(245,158,11,.08);padding:1px 6px;border-radius:5px;border:1px solid rgba(245,158,11,.18);white-space:nowrap}
+  .ic-i{color:var(--indigo);background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.22);padding:1px 6px;border-radius:5px;white-space:nowrap}
+
+  /* HERO */
+  .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--border);
+    background:
+      radial-gradient(120% 90% at 85% -10%, rgba(99,102,241,.16), transparent 55%),
+      radial-gradient(90% 70% at 5% 0%, rgba(245,158,11,.07), transparent 50%),
+      var(--bg2);}
+  .hero .wrap{padding-top:70px;padding-bottom:58px}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:22px}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(34px,5.2vw,56px);line-height:1.04;letter-spacing:-.02em;margin:0 0 20px}
+  h1 .hl{color:var(--indigo)}
+  .lede{font-size:19px;color:var(--muted);max-width:760px;margin:0 0 30px}
+  .lede strong{color:var(--text);font-weight:600}
+  .badges{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+  .badge{font-family:var(--mono);font-size:12px;padding:7px 13px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--muted)}
+  .badge.ok{border-color:rgba(52,211,153,.3);color:var(--green);background:rgba(52,211,153,.06)}
+  .badge.key{border-color:rgba(99,102,241,.35);color:var(--indigo);background:rgba(99,102,241,.07)}
+
+  /* PIPELINE SIGNATURE */
+  .pipe{margin:42px 0 6px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--bg2));padding:26px 24px}
+  .pipe-grid{display:grid;grid-template-columns:1.1fr auto 1.4fr;gap:18px;align-items:center}
+  .pipe-col h4{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 12px}
+  .src{border:1px solid var(--indigo-dim);background:rgba(99,102,241,.06);border-radius:12px;padding:16px}
+  .src .ttl{font-family:var(--disp);font-weight:600;font-size:15px;color:var(--text)}
+  .src .sub{font-family:var(--mono);font-size:11.5px;color:var(--indigo);margin-top:3px}
+  .src ul{margin:11px 0 0;padding-left:16px;font-size:12.5px;color:var(--muted)}
+  .src ul li{margin:3px 0}
+  .arrow{display:flex;flex-direction:column;align-items:center;color:var(--amber);font-family:var(--mono);font-size:11px;gap:4px}
+  .arrow .a{font-size:24px;line-height:1}
+  .fan{display:grid;gap:8px}
+  .leaf{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;padding:9px 12px}
+  .leaf .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);flex:none;box-shadow:0 0 8px rgba(245,158,11,.5)}
+  .leaf .fn{font-family:var(--mono);font-size:12.5px;color:var(--text)}
+  .leaf .ag{font-size:11.5px;color:var(--faint);margin-left:auto}
+
+  /* SECTIONS */
+  section{padding:54px 0;border-bottom:1px solid var(--border-soft)}
+  .snum{font-family:var(--mono);font-size:12px;color:var(--amber);letter-spacing:.14em}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(24px,3.4vw,33px);letter-spacing:-.01em;margin:8px 0 18px}
+  h3{font-family:var(--disp);font-weight:600;font-size:20px;margin:34px 0 12px;color:var(--text)}
+  h4{font-family:var(--disp);font-weight:600;font-size:15.5px;margin:22px 0 8px;color:var(--indigo)}
+  p{margin:0 0 16px;color:var(--text)}
+  .muted{color:var(--muted)}
+  ul.clean{list-style:none;padding:0;margin:0 0 16px}
+  ul.clean li{position:relative;padding-left:22px;margin:9px 0;color:var(--text)}
+  ul.clean li::before{content:"→";position:absolute;left:0;color:var(--amber);font-family:var(--mono)}
+
+  /* TABLE */
+  .tbl{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .tbl th{background:var(--panel2);text-align:left;padding:12px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border)}
+  .tbl td{padding:12px 14px;border-bottom:1px solid var(--border-soft);vertical-align:top;color:var(--text)}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl td.mono,.tbl th.mono{font-family:var(--mono);font-size:12.5px}
+  .tag{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:5px;letter-spacing:.04em}
+  .tag.new{background:rgba(52,211,153,.1);color:var(--green);border:1px solid rgba(52,211,153,.28)}
+  .tag.ext{background:rgba(99,102,241,.1);color:var(--indigo);border:1px solid rgba(99,102,241,.28)}
+  .tag.wire{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.28)}
+  .tag.keep{background:rgba(91,100,121,.12);color:var(--muted);border:1px solid var(--border)}
+
+  /* CODE */
+  pre{background:#0C0F18;border:1px solid var(--border);border-radius:12px;padding:18px 20px;overflow-x:auto;margin:16px 0;font-family:var(--mono);font-size:13px;line-height:1.6;color:#C9D1E0}
+  pre .c{color:var(--faint)}
+  pre .k{color:var(--indigo)}
+  pre .s{color:var(--green)}
+  pre .a{color:var(--amber)}
+  pre .d{color:var(--cyan)}
+  .filehdr{font-family:var(--mono);font-size:12px;color:var(--amber);background:var(--panel2);border:1px solid var(--border);border-bottom:none;border-radius:10px 10px 0 0;padding:8px 16px;margin:16px 0 0;display:flex;justify-content:space-between;align-items:center}
+  .filehdr + pre{margin-top:0;border-radius:0 0 12px 12px}
+
+  /* CALLOUT */
+  .note{border-left:3px solid var(--indigo-deep);background:rgba(99,102,241,.06);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+  .note.warn{border-left-color:var(--amber-deep);background:rgba(245,158,11,.06)}
+  .note .lbl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);margin-bottom:5px}
+  .note.info .lbl{color:var(--indigo)}
+
+  /* CARDS */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:18px 0}
+  .card{border:1px solid var(--border);background:var(--panel);border-radius:12px;padding:18px}
+  .card .ph{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.1em}
+  .card h4{margin:6px 0 8px;color:var(--text)}
+  .card p{font-size:13.5px;color:var(--muted);margin:0}
+  .card .ship{margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--green);border-top:1px solid var(--border-soft);padding-top:10px}
+
+  /* CHECKLIST */
+  .chk{list-style:none;padding:0;margin:14px 0}
+  .chk li{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-soft);font-size:14px}
+  .chk li::before{content:"";width:16px;height:16px;border:1.5px solid var(--indigo);border-radius:4px;flex:none;margin-top:3px}
+  .chk .step{font-family:var(--mono);font-size:11px;color:var(--faint);flex:none;width:38px;padding-top:1px}
+
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 0}
+  .toc a{font-family:var(--mono);font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;color:var(--muted);background:var(--panel)}
+  .toc a:hover{border-color:var(--indigo);color:var(--indigo);text-decoration:none}
+
+  footer{padding:40px 0 60px;color:var(--faint);font-size:13px;font-family:var(--mono)}
+  @media(max-width:820px){
+    .pipe-grid{grid-template-columns:1fr;gap:14px}
+    .arrow{flex-direction:row;justify-content:center}.arrow .a{transform:rotate(90deg)}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">PromptWise · Implementation Plan · v2 Governance Pillar</div>
+    <h1>The Cross-Agent<br><span class="hl">Config Compiler</span></h1>
+    <p class="lede">One governed source of truth, understood from the user's intent, <strong>compiled into every coding agent's native rules file</strong> — CLAUDE.md, AGENTS.md, Cursor <code>.mdc</code>, Copilot instructions — then surfaced for the user to review and edit. The dynamic mechanism: PromptWise detects which agent is in play and follows <em>that</em> agent's format, hierarchy, and limits.</p>
+    <div class="badges">
+      <span class="badge ok">✓ Zero breaking changes — additive only</span>
+      <span class="badge key">Extends existing config_emitter.py</span>
+      <span class="badge">Conductor, not replacement</span>
+      <span class="badge">Rides AGENTS.md · MCP · SKILL.md</span>
+    </div>
+
+    <div class="pipe">
+      <div class="pipe-grid">
+        <div class="pipe-col">
+          <h4>Canonical Source</h4>
+          <div class="src">
+            <div class="ttl">GovernanceBundle</div>
+            <div class="sub">core/config_emitter.py</div>
+            <ul>
+              <li>policy + gates</li>
+              <li>active skill packs</li>
+              <li>method + house rules</li>
+              <li>+ intent &amp; stack context</li>
+            </ul>
+          </div>
+        </div>
+        <div class="arrow"><span class="a">→</span><span>compile</span></div>
+        <div class="pipe-col">
+          <h4>Native Agent Files</h4>
+          <div class="fan">
+            <div class="leaf"><span class="dot"></span><span class="fn">CLAUDE.md</span><span class="ag">claude code</span></div>
+            <div class="leaf"><span class="dot"></span><span class="fn">AGENTS.md</span><span class="ag">codex · gemini · +</span></div>
+            <div class="leaf"><span class="dot"></span><span class="fn">.cursor/rules/*.mdc</span><span class="ag">cursor</span></div>
+            <div class="leaf"><span class="dot"></span><span class="fn">.github/copilot-instructions.md</span><span class="ag">copilot</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toc">
+      <a href="#vision">01 Vision fit</a>
+      <a href="#state">02 What exists</a>
+      <a href="#arch">03 Architecture</a>
+      <a href="#modules">04 Modules</a>
+      <a href="#blocks">05 Managed blocks</a>
+      <a href="#profiles">06 Profile registry</a>
+      <a href="#tools">07 New MCP tools</a>
+      <a href="#phases">08 Phased rollout</a>
+      <a href="#safety">09 Non-breaking guarantees</a>
+      <a href="#tests">10 Tests</a>
+      <a href="#checklist">11 Checklist</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="vision">
+  <div class="snum">01</div>
+  <h2>How it fits the plugin vision</h2>
+  <p>PromptWise's thesis is <strong>orchestration over replacement</strong>: a conductor that sits above coding agents and rides open standards rather than rebuilding them. This feature is the most direct expression of that thesis yet — it is <em>literally</em> a conductor writing one score into each instrument's notation.</p>
+  <p>It isn't a new pillar. Your <span class="ic">config_emitter.py</span> already opens with: <em>"Pillar 1 (agent-neutral portability): the same policy + packs + method renders into CLAUDE.md / AGENTS.md, .cursor/rules…"</em>. The plan below <strong>completes Pillar 1</strong> by adding the three things a v1 emitter is missing: intent-awareness (so it knows <em>what</em> to write), agent-awareness (so it follows each tool's real rules), and a review loop (so the user stays in control).</p>
+  <ul class="clean">
+    <li><strong>Open standards as moat:</strong> AGENTS.md is now the shared base read by Codex, Cursor, Copilot, Gemini, Windsurf, Zed and more — so it becomes the canonical target, and per-tool files are emitted only as <em>deltas</em> where a tool adds capability plain markdown can't express.</li>
+    <li><strong>Freemium-ready surface:</strong> detect + preview is free-tier; multi-repo sync, drift enforcement, and the compliance overlay are natural Team/Enterprise gates.</li>
+    <li><strong>Regulated-industry credibility:</strong> the compliance gate and policy-as-code you already have become the <em>non-negotiable</em> sections injected into every agent file — auditable, consistent, verified.</li>
+  </ul>
+</section>
+
+<section id="state">
+  <div class="snum">02</div>
+  <h2>What already exists (verified in source)</h2>
+  <p>Cloned <span class="ic">github.com/u2anilgit/PromptWise</span> and inspected <span class="ic">src/promptwise/</span>. The governance pillar is partly shipped — this plan extends real modules, it does not invent parallel ones.</p>
+  <table class="tbl">
+    <tr><th>Module / artifact</th><th class="mono">today</th><th>gap this plan closes</th></tr>
+    <tr><td class="mono">core/config_emitter.py</td><td><span class="tag keep">live</span></td><td><code>GovernanceBundle</code> + <code>ConfigEmitter</code> emit CLAUDE/AGENTS/cursor/copilot/cline with a <code>sync(write=False)</code> preview. <strong>Gaps:</strong> hardcoded targets, no managed-block ownership, no diff, blunt Cursor frontmatter, no byte caps.</td></tr>
+    <tr><td class="mono">sync_agent_config (tool)</td><td><span class="tag keep">live</span></td><td>Already wired in <code>server.py</code> → emitter. Will gain <code>mode</code> (preview/diff/apply) and detector-driven <code>targets</code>, fully backward-compatible.</td></tr>
+    <tr><td class="mono">core/router.py</td><td><span class="tag keep">live</span></td><td><code>_detect_intent</code>/<code>_detect_stakes</code> exist. Add <code>plan_emission()</code> mapping intent → which files + sections.</td></tr>
+    <tr><td class="mono">core/role_detector.py</td><td><span class="tag keep">live</span></td><td>Keyword/pattern/tier roles already drive <code>detect_role</code>. Feeds the context model; no change to existing behavior.</td></tr>
+    <tr><td class="mono">core/policy.py</td><td><span class="tag keep">live</span></td><td><code>Policy</code> / <code>required_gates</code> exist + <code>check_policy</code> tool. Becomes a <em>source</em> for the bundle's policy_summary.</td></tr>
+    <tr><td class="mono">security/compliance.py</td><td><span class="tag keep">live</span></td><td><code>ComplianceEngine</code> loads YAML profiles + redacts. Becomes the compliance overlay injected per agent.</td></tr>
+    <tr><td class="mono">core/codex_validator.py</td><td><span class="tag keep">live</span></td><td>Validates generated code. Pattern reused for the new config <em>linter</em>.</td></tr>
+    <tr><td class="mono">server.py dispatch</td><td><span class="tag keep">live</span></td><td>65 tools via <code>Tool(name=…)</code> list + if/elif handler. New tools append; none change.</td></tr>
+  </table>
+  <div class="note warn">
+    <div class="lbl">Accuracy note</div>
+    The repo now registers <strong>65</strong> MCP tools (counted from <code>server.py</code>), not 57 — the README/badge is stale again. Worth a one-line fix in the same PR, since public-claim accuracy is a credibility lever in your market.
+  </div>
+</section>
+
+<section id="arch">
+  <div class="snum">03</div>
+  <h2>Target architecture</h2>
+  <p>Five stages, each a small composable unit. Stages 1–2 produce the <em>content</em>; 3–5 produce and reconcile the <em>files</em>.</p>
+  <pre><span class="c"># the pipeline (all stdlib + PyYAML; no network — matches existing constraints)</span>
+
+  user prompt
+       │
+  <span class="k">[1] CONTEXT</span>   build_context_model()        <span class="c"># router + role_detector + repo scan</span>
+       │        → ProjectContextModel{intent, role, stack, domain, regulated?}
+       │
+  <span class="k">[2] BUNDLE</span>    GovernanceBundle.from_context()  <span class="c"># + policy + compliance overlay + packs</span>
+       │
+  <span class="k">[3] DETECT</span>    detect_agents(repo_root)         <span class="c"># which agents are in play → targets</span>
+       │        → ["claude","cursor"]  (or explicit user list)
+       │
+  <span class="k">[4] COMPILE</span>   ConfigEmitter.render(profile)    <span class="c"># profile-driven, per-agent format</span>
+       │        → managed-block content for each target file
+       │
+  <span class="k">[5] RECONCILE</span> merge_managed(existing,new)      <span class="c"># preview · diff · apply, never clobber</span>
+       │        → lint(file, profile)            <span class="c"># token-tax / byte-cap / frontmatter</span>
+       ▼
+  files written  +  diff shown to user  →  user edits freely</pre>
+  <p class="muted">The arrows are pure function calls. Each stage is independently testable and independently shippable, which is what lets the rollout stay non-breaking.</p>
+</section>
+
+<section id="modules">
+  <div class="snum">04</div>
+  <h2>Module-by-module plan</h2>
+
+  <h3>New files (4)</h3>
+  <table class="tbl">
+    <tr><th>Path</th><th>Type</th><th>Responsibility</th></tr>
+    <tr><td class="mono">core/agent_profiles.py</td><td><span class="tag new">new</span></td><td>The <code>AgentProfile</code> dataclass + <code>ProfileRegistry</code>. Data-driven: built-in defaults in code, overridable from <code>config/agent_profiles/*.yaml</code>. This is the dynamic mechanism.</td></tr>
+    <tr><td class="mono">core/agent_detector.py</td><td><span class="tag new">new</span></td><td><code>detect_agents(repo_root)</code> sniffs the workspace for agent fingerprints, returns ranked targets + confidence.</td></tr>
+    <tr><td class="mono">core/context_model.py</td><td><span class="tag new">new</span></td><td><code>ProjectContextModel</code> + <code>build_context_model(text, repo_root)</code> composing router intent, role, and a light stack scan.</td></tr>
+    <tr><td class="mono">core/config_linter.py</td><td><span class="tag new">new</span></td><td><code>ConfigLinter</code> — the token-tax / over-stuffing / schema linter. Mirrors <code>codex_validator.py</code>'s result shape.</td></tr>
+  </table>
+
+  <h3>Extended files (4) — additive methods only</h3>
+  <table class="tbl">
+    <tr><th>Path</th><th>Type</th><th>What's added (existing signatures untouched)</th></tr>
+    <tr><td class="mono">core/config_emitter.py</td><td><span class="tag ext">extend</span></td><td><code>GovernanceBundle.from_context()</code>; profile-driven <code>render(bundle, profile)</code>; <code>merge_managed()</code>; <code>diff()</code>; <code>sync(mode=…)</code>. Old <code>render(target)</code>/<code>sync(write=)</code> kept as thin shims.</td></tr>
+    <tr><td class="mono">core/router.py</td><td><span class="tag ext">extend</span></td><td><code>plan_emission(text) → EmissionPlan</code> (intent → sections/targets). <code>route()</code> unchanged.</td></tr>
+    <tr><td class="mono">core/policy.py + security/compliance.py</td><td><span class="tag wire">wire</span></td><td>Read-only adapters that turn a loaded <code>Policy</code> + compliance profile into <code>policy_summary</code> lines for the bundle. No behavior change.</td></tr>
+    <tr><td class="mono">server.py</td><td><span class="tag ext">extend</span></td><td>Append 4 new <code>Tool(...)</code> entries + 4 new <code>elif</code> handlers; extend <code>sync_agent_config</code> args with defaults.</td></tr>
+  </table>
+
+  <h3>Config (optional, defaulted)</h3>
+  <ul class="clean">
+    <li><span class="ic">config/agent_profiles/*.yaml</span> — one file per agent; if absent, built-in defaults apply so the feature works with zero config.</li>
+    <li><span class="ic">promptwise.yaml</span> — optional <code>governance:</code> block (canonical policy summary, packs, house rules, managed-block toggle). All keys optional.</li>
+  </ul>
+</section>
+
+<section id="blocks">
+  <div class="snum">05</div>
+  <h2>The managed-block protocol</h2>
+  <p>This is the mechanism that delivers <strong>"create the files automatically, then let the user change them."</strong> PromptWise owns a fenced region; everything outside it belongs to the user and is never touched on regeneration.</p>
+
+  <div class="filehdr"><span>CLAUDE.md — after first sync</span><span>generated + user-owned regions</span></div>
+  <pre><span class="a">&lt;!-- promptwise:managed:start v=1 hash=8f3c… --&gt;</span>
+<span class="c"># this project — agent guidance (generated by PromptWise)</span>
+Method: PromptWise governed agile method.
+Governance policy (enforced via PromptWise):
+- Block destructive ops without an audit record
+- All AI-assisted changes require the quality gate
+<span class="a">&lt;!-- promptwise:managed:end --&gt;</span>
+
+<span class="d">## Your notes (PromptWise will never edit below this line)</span>
+- Prefer pnpm; the legacy api/ folder is frozen.</pre>
+
+  <h4>Merge algorithm — three cases</h4>
+  <table class="tbl">
+    <tr><th>State of file on disk</th><th>Action</th></tr>
+    <tr><td>Does not exist</td><td>Write managed block + an empty user section beneath it.</td></tr>
+    <tr><td>Exists <em>with</em> markers</td><td>Replace only the bytes between <code>:start</code> and <code>:end</code>. Hash in the marker lets us skip writes when nothing changed (clean diffs, no churn).</td></tr>
+    <tr><td>Exists <em>without</em> markers (hand-authored)</td><td><strong>Never overwrite.</strong> Emit a diff and require an explicit <code>adopt=true</code> to wrap the existing content as the user section and insert the managed block above it.</td></tr>
+  </table>
+
+  <div class="filehdr"><span>core/config_emitter.py</span><span>additive</span></div>
+  <pre><span class="k">MANAGED_START</span> = <span class="s">"&lt;!-- promptwise:managed:start v=1 hash={h} --&gt;"</span>
+<span class="k">MANAGED_END</span>   = <span class="s">"&lt;!-- promptwise:managed:end --&gt;"</span>
+
+<span class="k">def</span> <span class="d">merge_managed</span>(existing: str | None, new_block: str, *, adopt=False) -> str:
+    <span class="s">"""Return file content with ONLY the managed region replaced."""</span>
+    h = hashlib.sha256(new_block.encode()).hexdigest()[:8]
+    block = f<span class="s">"{MANAGED_START.format(h=h)}\n{new_block}\n{MANAGED_END}"</span>
+    <span class="k">if</span> existing <span class="k">is</span> <span class="k">None</span>:
+        <span class="k">return</span> block + <span class="s">"\n\n## Your notes (PromptWise will never edit below this line)\n"</span>
+    <span class="k">if</span> MANAGED_START.split(<span class="s">" hash"</span>)[0] <span class="k">in</span> existing:
+        <span class="k">return</span> re.sub(<span class="s">r"&lt;!-- promptwise:managed:start.*?managed:end --&gt;"</span>,
+                      block, existing, flags=re.S)
+    <span class="k">if</span> <span class="k">not</span> adopt:
+        <span class="k">raise</span> ConfigConflict(<span class="s">"unmanaged file present; pass adopt=True to wrap it"</span>)
+    <span class="k">return</span> block + <span class="s">"\n\n## Your notes\n"</span> + existing</pre>
+  <p class="muted">For files that are wholly structural (Cursor <code>.mdc</code> with frontmatter), the same idea applies with an HTML-comment fence below the frontmatter, so user additions live after the managed body.</p>
+</section>
+
+<section id="profiles">
+  <div class="snum">06</div>
+  <h2>Agent profile registry — the dynamic mechanism</h2>
+  <p>"If the user is on Claude, follow Claude's process; if Codex, follow Codex's" becomes a <strong>data lookup</strong>, not branching logic. Each agent is one declarative profile. Because formats change monthly, profiles are versioned data you can ship without a code release.</p>
+
+  <h4>The profile schema</h4>
+  <div class="filehdr"><span>core/agent_profiles.py</span><span>new</span></div>
+  <pre><span class="k">@dataclass</span>
+<span class="k">class</span> <span class="d">AgentProfile</span>:
+    key: str                      <span class="c"># "claude" | "cursor" | "codex" | "copilot" | "gemini"</span>
+    display_name: str
+    targets: list[TargetFile]     <span class="c"># path + format + scope</span>
+    max_bytes: int | None = <span class="k">None</span>   <span class="c"># Codex truncates ~32 KiB; warn before</span>
+    frontmatter: bool = <span class="k">False</span>      <span class="c"># Cursor .mdc requires it</span>
+    supports_globs: bool = <span class="k">False</span>   <span class="c"># Cursor/Copilot path-scoping</span>
+    activation_modes: list[str] = ()  <span class="c"># cursor: always|auto|agent|manual</span>
+    nested_hierarchy: bool = <span class="k">False</span>  <span class="c"># Codex: root→cwd concat, nearest wins</span>
+    supports_imports: bool = <span class="k">False</span>  <span class="c"># Claude @path includes</span>
+    always_on_token_budget: int = 0   <span class="c"># 0 = no cap; Cursor ~2000 soft cap</span>
+    commands_first: bool = <span class="k">True</span>     <span class="c"># lead with setup/test/build</span>
+
+<span class="k">class</span> <span class="d">ProfileRegistry</span>:
+    <span class="k">def</span> <span class="d">get</span>(self, key) -> AgentProfile: ...      <span class="c"># built-in default…</span>
+    <span class="k">def</span> <span class="d">load_overrides</span>(self, config_dir): ...     <span class="c"># …merged with YAML</span></pre>
+
+  <h4>Encoded per-agent facts (the part that has to be right)</h4>
+  <table class="tbl">
+    <tr><th>Agent</th><th class="mono">target path</th><th>format</th><th>hard rules to honor</th></tr>
+    <tr><td>Claude Code</td><td class="mono">CLAUDE.md</td><td>plain md</td><td>Hierarchical; supports <code>@path</code> imports; nested files merge.</td></tr>
+    <tr><td>Codex</td><td class="mono">AGENTS.md</td><td>plain md</td><td>One file per dir, concatenated root→cwd, nearest overrides; stops at ~32 KiB (<code>project_doc_max_bytes</code>); <code>AGENTS.override.md</code> layering.</td></tr>
+    <tr><td>Cursor</td><td class="mono">.cursor/rules/promptwise.mdc</td><td>mdc + YAML</td><td>Plain <code>.md</code> is ignored — needs frontmatter (<code>description</code>, <code>globs</code>, <code>alwaysApply</code>). Four activation modes. Keep always-apply small (token tax). AGENTS.md is the plain-md fallback.</td></tr>
+    <tr><td>Copilot</td><td class="mono">.github/copilot-instructions.md</td><td>plain md</td><td>Also reads path-scoped <code>.github/instructions/*.instructions.md</code> with <code>applyTo</code> globs. Reads AGENTS.md too.</td></tr>
+    <tr><td>Gemini</td><td class="mono">GEMINI.md</td><td>plain md</td><td>Reads AGENTS.md; CLI + IDE both honor it.</td></tr>
+  </table>
+
+  <div class="note info">
+    <div class="lbl">Scope discipline</div>
+    Because Codex, Cursor, Copilot and Gemini all read <strong>AGENTS.md</strong>, ship that as the canonical file first. Per-tool files are emitted only where the tool adds something AGENTS.md can't carry — Cursor's glob-scoped <code>.mdc</code>, Claude's <code>@</code>-imports. That keeps the v1 surface tiny and avoids five files drifting out of sync.
+  </div>
+</section>
+
+<section id="tools">
+  <div class="snum">07</div>
+  <h2>New MCP tools</h2>
+  <p>Four new tools, appended to the existing 65. Each mirrors the current <code>Tool(name=…, description=…, inputSchema=…)</code> shape and adds one <code>elif</code> branch in the dispatcher — the live <code>sync_agent_config</code> stays valid as-is.</p>
+  <table class="tbl">
+    <tr><th class="mono">tool</th><th>does</th><th>maps to</th></tr>
+    <tr><td class="mono">detect_agents</td><td>Sniff a repo and report which agents are configured + confidence + recommended targets.</td><td>agent_detector.py</td></tr>
+    <tr><td class="mono">build_context_model</td><td>Turn a prompt (+ optional repo) into the structured intent/role/stack/regulated model that drives emission.</td><td>context_model.py</td></tr>
+    <tr><td class="mono">propose_agent_config</td><td>The review step: render the managed blocks and return a <strong>diff</strong> per file without writing. This is "inform the user."</td><td>config_emitter.diff()</td></tr>
+    <tr><td class="mono">lint_agent_config</td><td>Check an existing agent file for token-tax, byte-cap, missing frontmatter, inferable bloat, cross-file duplication.</td><td>config_linter.py</td></tr>
+  </table>
+
+  <div class="filehdr"><span>server.py — append to the Tool list + dispatcher</span><span>additive</span></div>
+  <pre><span class="c"># ── Cross-agent config compiler (additive) ──────────────────────</span>
+Tool(name=<span class="s">"detect_agents"</span>, description=<span class="s">"Detect which coding agents a repo is configured for"</span>, inputSchema={...}),
+Tool(name=<span class="s">"propose_agent_config"</span>, description=<span class="s">"Preview a diff of agent rules files before writing"</span>, inputSchema={...}),
+Tool(name=<span class="s">"lint_agent_config"</span>, description=<span class="s">"Lint an agent rules file for token tax, size caps, schema"</span>, inputSchema={...}),
+Tool(name=<span class="s">"build_context_model"</span>, description=<span class="s">"Derive intent/role/stack/regulated context from a prompt"</span>, inputSchema={...}),
+
+<span class="c"># dispatcher — new branches, nothing existing changes</span>
+<span class="k">elif</span> name == <span class="s">"propose_agent_config"</span>:
+    <span class="k">from</span> promptwise.core.config_emitter <span class="k">import</span> ConfigEmitter, GovernanceBundle
+    <span class="k">from</span> promptwise.core.agent_detector <span class="k">import</span> detect_agents
+    root = arguments.get(<span class="s">"repo_root"</span>, <span class="s">"."</span>)
+    targets = arguments.get(<span class="s">"targets"</span>) <span class="k">or</span> detect_agents(root).targets
+    bundle = GovernanceBundle.from_context(arguments)
+    <span class="k">return</span> json.dumps(ConfigEmitter().diff(bundle, root, targets))</pre>
+</section>
+
+<section id="phases">
+  <div class="snum">08</div>
+  <h2>Phased rollout</h2>
+  <p>Sequenced so every phase ships independently and the repo is releasable after each. Earlier phases carry no dependency on later ones.</p>
+  <div class="cards">
+    <div class="card">
+      <div class="ph">PHASE 0 · foundation</div>
+      <h4>Make sync non-destructive</h4>
+      <p>Add managed-block markers + <code>merge_managed()</code> to the existing emitter. Existing <code>sync()</code> now preserves user edits. No new tools, no UX change.</p>
+      <div class="ship">Ships: safe regeneration</div>
+    </div>
+    <div class="card">
+      <div class="ph">PHASE 1 · the mechanism</div>
+      <h4>Profiles + detector + diff</h4>
+      <p>Add <code>agent_profiles.py</code>, <code>agent_detector.py</code>, and <code>propose_agent_config</code>. Emitter renders from profiles. AGENTS.md-first.</p>
+      <div class="ship">Ships: detect → preview diff → apply</div>
+    </div>
+    <div class="card">
+      <div class="ph">PHASE 2 · intelligence</div>
+      <h4>Intent + compliance overlay</h4>
+      <p>Wire <code>context_model.py</code> + <code>plan_emission()</code> so content follows intent; inject policy/compliance as non-negotiable sections.</p>
+      <div class="ship">Ships: regulated-aware config</div>
+    </div>
+    <div class="card">
+      <div class="ph">PHASE 3 · polish + moat</div>
+      <h4>Linter + per-agent depth</h4>
+      <p>Add <code>config_linter.py</code>, Cursor glob-scoping/activation modes, Codex nested + byte-cap, Copilot path-scoped files, drift detection.</p>
+      <div class="ship">Ships: lint + advanced targeting</div>
+    </div>
+  </div>
+  <div class="note">
+    <div class="lbl">Scope-creep guard</div>
+    Your planning sessions tend to expand. Resist generating skills, hooks, slash-commands, and subagent configs in this feature — that's a separate pillar. Phase 1's AGENTS.md-first path already covers the majority of the ecosystem; ship it before widening.
+  </div>
+</section>
+
+<section id="safety">
+  <div class="snum">09</div>
+  <h2>Zero-breaking-change guarantees</h2>
+  <ul class="clean">
+    <li><strong>Additive modules.</strong> The 4 new files import nothing that imports them back; deleting them reverts to today's behavior.</li>
+    <li><strong>Existing tool signatures frozen.</strong> All 65 current tools keep identical names, schemas, and outputs. <code>sync_agent_config</code> gains only optional args with defaults that reproduce current behavior.</li>
+    <li><strong>Emitter back-compat shims.</strong> Old <code>render(bundle, target)</code> and <code>sync(bundle, root, targets, write=)</code> remain; new profile-driven paths are added alongside, with the old calls delegating to them.</li>
+    <li><strong>Config is optional.</strong> No <code>config/agent_profiles/</code> and no <code>governance:</code> block → built-in defaults run. Existing <code>promptwise.yaml</code> stays valid untouched.</li>
+    <li><strong>Files on disk are safe.</strong> Managed blocks mean regeneration never touches user content; unmarked hand-authored files are refused unless explicitly adopted.</li>
+    <li><strong>Same runtime constraints.</strong> Stdlib + PyYAML only, no network — consistent with <code>policy.py</code> / <code>config_emitter.py</code> today, so the sandbox and offline guarantees hold.</li>
+    <li><strong>Detector is read-only.</strong> It only reads the filesystem; it never writes during detection.</li>
+  </ul>
+</section>
+
+<section id="tests">
+  <div class="snum">10</div>
+  <h2>Test plan</h2>
+  <p>Mirror the existing <span class="ic">tests/</span> layout (<code>test_workflow_planner.py</code>, <code>test_skill_packs.py</code>, …). All offline, deterministic.</p>
+  <table class="tbl">
+    <tr><th class="mono">test file</th><th>covers</th></tr>
+    <tr><td class="mono">test_config_emitter_managed.py</td><td>Three merge cases; idempotent re-sync (hash match → no write); user-section preservation; adopt flow.</td></tr>
+    <tr><td class="mono">test_agent_profiles.py</td><td>Built-in defaults load; YAML override merge; Cursor frontmatter required keys present; Codex byte cap set.</td></tr>
+    <tr><td class="mono">test_agent_detector.py</td><td>Fixture repos (.claude/, .cursor/rules/, AGENTS.md, copilot file) → correct targets + confidence; empty repo → AGENTS.md default.</td></tr>
+    <tr><td class="mono">test_config_linter.py</td><td>Oversized always-apply → warn; &gt;max_bytes → error; missing <code>.mdc</code> frontmatter → error; architecture-prose → inferable-bloat warn.</td></tr>
+    <tr><td class="mono">test_emitter_goldens.py</td><td>Golden-file render per agent from a fixed bundle, so format drift is caught in CI.</td></tr>
+    <tr><td class="mono">test_server_tools.py (extend)</td><td>4 new tools resolve, return JSON, and don't shadow existing names; tool count assertion updated.</td></tr>
+  </table>
+</section>
+
+<section id="checklist">
+  <div class="snum">11</div>
+  <h2>Implementation checklist</h2>
+  <p class="muted">Copy-paste into an issue. Ordered for non-breaking, phase-by-phase delivery.</p>
+  <ul class="chk">
+    <li><span class="step">P0·1</span> Add <code>MANAGED_START/END</code> + <code>merge_managed()</code> + <code>ConfigConflict</code> to <code>config_emitter.py</code>.</li>
+    <li><span class="step">P0·2</span> Route existing <code>sync()</code> writes through <code>merge_managed()</code>; add <code>test_config_emitter_managed.py</code>.</li>
+    <li><span class="step">P1·1</span> Create <code>agent_profiles.py</code> with the 5 built-in profiles + YAML override loader.</li>
+    <li><span class="step">P1·2</span> Create <code>agent_detector.py</code>; add fixtures + <code>test_agent_detector.py</code>.</li>
+    <li><span class="step">P1·3</span> Add profile-driven <code>render()</code> + <code>diff()</code> to emitter; AGENTS.md-first canonical.</li>
+    <li><span class="step">P1·4</span> Register <code>detect_agents</code> + <code>propose_agent_config</code> tools in <code>server.py</code>.</li>
+    <li><span class="step">P2·1</span> Create <code>context_model.py</code>; add <code>plan_emission()</code> to <code>router.py</code>.</li>
+    <li><span class="step">P2·2</span> Add <code>GovernanceBundle.from_context()</code> + policy/compliance overlay adapters.</li>
+    <li><span class="step">P2·3</span> Register <code>build_context_model</code> tool.</li>
+    <li><span class="step">P3·1</span> Create <code>config_linter.py</code> + <code>lint_agent_config</code> tool + tests.</li>
+    <li><span class="step">P3·2</span> Cursor glob/activation, Codex nested + byte-cap, Copilot path-scoped emit.</li>
+    <li><span class="step">P3·3</span> Drift detection in <code>sync(mode="check")</code>; surface in dashboard.</li>
+    <li><span class="step">★</span> Fix README/badge tool count 57 → 65 in the same PR.</li>
+  </ul>
+</section>
+
+</main>
+
+<footer class="wrap">
+  PromptWise · Cross-Agent Config Compiler · completes Pillar 1 (agent-neutral portability) · all references verified against src/promptwise/ @ main
+</footer>
+
+</body>
+</html>
