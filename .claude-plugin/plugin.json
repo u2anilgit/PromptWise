@@ -9,6 +9,7 @@
   "homepage": "https://github.com/u2anilgit/PromptWise",
   "license": "MIT",
   "keywords": ["mcp", "ai-agents", "claude", "cursor", "skill-md", "agentic-ai", "llm-tools", "cost-optimization", "compliance"],
+  "hooks": "./hooks/hooks.json",
   "mcpServers": {
     "promptwise": {
       "command": "python",
