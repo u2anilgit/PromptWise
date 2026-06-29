@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -194,16 +195,36 @@ class MemoryManager:
         return [MemoryEntry(entry_id=e.entry_id, session_id=e.session_id, ts=e.ts, tool=e.tool, summary=e.summary, cost_usd=e.cost_usd, tags=json.loads(e.tags)) for e in entries]
 
     async def save_fact(self, key: str, value: str, scope: str = "org") -> None:
+        # Upsert by (key, scope): refresh an existing fact instead of piling up
+        # duplicate rows that all surface in query_facts.
+        ts = datetime.now(timezone.utc).isoformat()
         async with self.async_session() as session:
             async with session.begin():
-                session.add(SemanticFactModel(fact_id=str(uuid.uuid4()), key=key, value=value, ts=datetime.now(timezone.utc).isoformat(), scope=scope))
+                stmt = select(SemanticFactModel).where(
+                    SemanticFactModel.key == key, SemanticFactModel.scope == scope)
+                existing = (await session.execute(stmt)).scalars().first()
+                if existing is not None:
+                    existing.value = value
+                    existing.ts = ts
+                else:
+                    session.add(SemanticFactModel(fact_id=str(uuid.uuid4()), key=key, value=value, ts=ts, scope=scope))
 
     async def query_facts(self, query: str) -> list[dict]:
         async with self.async_session() as session:
-            stmt = select(SemanticFactModel).where(SemanticFactModel.key.contains(query) | SemanticFactModel.value.contains(query))
+            stmt = (select(SemanticFactModel)
+                    .where(SemanticFactModel.key.contains(query) | SemanticFactModel.value.contains(query))
+                    .order_by(SemanticFactModel.ts.desc()))
             result = await session.execute(stmt)
             facts = result.scalars().all()
-        return [{"key": f.key, "value": f.value, "scope": f.scope} for f in facts]
+        # Rank by query-term overlap first, then recency (rows already ts-desc).
+        terms = [t for t in re.findall(r"[a-zA-Z0-9_]+", (query or "").lower()) if len(t) > 1]
+
+        def _score(f) -> int:
+            hay = f"{f.key} {f.value}".lower()
+            return sum(hay.count(t) for t in terms)
+
+        ranked = sorted(facts, key=_score, reverse=True) if terms else list(facts)
+        return [{"key": f.key, "value": f.value, "scope": f.scope} for f in ranked]
 
     async def save_prompt(self, name: str, content: str, version: str = "1.0.0", description: str = "", tags: list[str] | None = None) -> None:
         async with self.async_session() as session:
@@ -212,7 +233,9 @@ class MemoryManager:
 
     async def search_prompts(self, query: str) -> list[dict]:
         async with self.async_session() as session:
-            stmt = select(PromptModel).where(PromptModel.name.contains(query) | PromptModel.description.contains(query))
+            stmt = (select(PromptModel)
+                    .where(PromptModel.name.contains(query) | PromptModel.description.contains(query))
+                    .order_by(PromptModel.ts.desc()))
             result = await session.execute(stmt)
             prompts = result.scalars().all()
         return [{"name": p.name, "content": p.content, "version": p.version, "description": p.description, "tags": json.loads(p.tags)} for p in prompts]
