@@ -8,6 +8,9 @@ from promptwise.config import SecurityConfig
 _SECRET_PATTERNS = [
     re.compile(r'(?i)(api[_-]?key|secret|password|token|sk-)[=:\s]["\']?[a-z0-9\-_]{8,}'),
     re.compile(r'(?i)bearer\s+[a-z0-9\-_\.]{20,}'),
+    # Spaced assignment with optional quotes: API_KEY = "sk-...", password: 'hunter2pass'.
+    # Requires an explicit ':' or '=' separator so plain identifiers (passwordHasher) don't match.
+    re.compile(r'(?i)(api[_-]?key|secret|password|token)\s*[:=]\s*["\']?[a-z0-9\-_]{8,}'),
 ]
 _DESTRUCTIVE_PATTERNS = [
     re.compile(r'\brm\s+-rf\b'), re.compile(r'\bdrop\s+table\b', re.I),
