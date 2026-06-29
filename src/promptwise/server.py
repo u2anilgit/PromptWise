@@ -284,6 +284,24 @@ _TOOL_DEFS = [
          "required": ["task"]}),
     Tool(name="learning_insights", description="Correction trends from the local learning store: counts by category, project, month, and the most-repeated mistakes.",
          inputSchema={"type": "object", "properties": {}}),
+
+    # ── Policy intelligence & searchable trace (Phase 4, additive · offline) ──
+    Tool(name="tune_permissions", description="Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
+         inputSchema={"type": "object", "properties": {
+             "state_dir": {"type": "string", "default": ".", "description": "project dir holding .promptwise/denials.jsonl"},
+             "min_count": {"type": "integer", "default": 2, "minimum": 1},
+             "mcp_json": {"type": "string", "description": "path to .mcp.json for the current allowlist"}}}),
+    Tool(name="audit_mcp_servers", description="Audit declared MCP servers (.mcp.json + plugin.json) for security flags, allow-surface, and redundancy. Offline; inspects config, does not call servers.",
+         inputSchema={"type": "object", "properties": {
+             "repo_root": {"type": "string", "default": "."},
+             "extra_configs": {"type": "array", "items": {"type": "string"}}}}),
+    Tool(name="search_trace", description="Search the trace (hash-chained audit trail + learnings) by meaning. Keyword/FTS by default; optional local embeddings if installed and enabled. Offline.",
+         inputSchema={"type": "object", "properties": {
+             "query": {"type": "string"}, "k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 25},
+             "repo_root": {"type": "string", "default": "."},
+             "audit_path": {"type": "string"},
+             "use_embeddings": {"type": "boolean", "default": False}},
+         "required": ["query"]}),
 ]
 
 
@@ -849,6 +867,28 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
         elif name == "learning_insights":
             from promptwise.core.insights import compute_insights
             return json.dumps(compute_insights())
+
+        # ── Policy intelligence & searchable trace (Phase 4) ─────────────────
+        elif name == "tune_permissions":
+            from promptwise.core.permission_tuner import tune_permissions
+            return json.dumps(tune_permissions(
+                state_dir=arguments.get("state_dir", "."),
+                min_count=arguments.get("min_count", 2),
+                mcp_json=arguments.get("mcp_json")))
+
+        elif name == "audit_mcp_servers":
+            from promptwise.core.mcp_auditor import audit_mcp_servers
+            return json.dumps(audit_mcp_servers(
+                repo_root=arguments.get("repo_root", "."),
+                extra_configs=arguments.get("extra_configs")))
+
+        elif name == "search_trace":
+            from promptwise.core.semantic_index import search_trace
+            return json.dumps(search_trace(
+                arguments.get("query", ""), k=arguments.get("k", 5),
+                repo_root=arguments.get("repo_root", "."),
+                audit_path=arguments.get("audit_path"),
+                use_embeddings=arguments.get("use_embeddings", False)))
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})
