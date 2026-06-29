@@ -267,6 +267,23 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "path_rules": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]}),
     Tool(name="lint_agent_config", description="Lint an agent rules file (or content) for token tax, byte caps, missing .mdc frontmatter, and inferable bloat",
          inputSchema={"type": "object", "properties": {"content": {"type": "string"}, "path": {"type": "string"}, "fmt": {"type": "string", "enum": ["md", "mdc"], "default": "md"}, "max_bytes": {"type": "integer"}, "always_apply": {"type": "boolean", "default": False}, "token_budget": {"type": "integer", "default": 0}}}),
+
+    # ── Continuous learning loop (Phase 2, additive · local SQLite + FTS5) ────
+    Tool(name="capture_learning", description="Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline.",
+         inputSchema={"type": "object", "properties": {
+             "category": {"type": "string", "description": "e.g. 'style', 'security', 'api-misuse'"},
+             "mistake": {"type": "string", "description": "what went wrong"},
+             "correction": {"type": "string", "description": "the fix / the rule going forward"},
+             "project": {"type": "string", "default": ""},
+             "tags": {"type": "array", "items": {"type": "string"}}},
+         "required": ["category", "mistake", "correction"]}),
+    Tool(name="replay_learnings", description="Top-K relevant past corrections for a task description (FTS5 BM25, LIKE fallback) plus a ready-to-inject reminder block.",
+         inputSchema={"type": "object", "properties": {
+             "task": {"type": "string"}, "k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 25},
+             "project": {"type": "string"}},
+         "required": ["task"]}),
+    Tool(name="learning_insights", description="Correction trends from the local learning store: counts by category, project, month, and the most-repeated mistakes.",
+         inputSchema={"type": "object", "properties": {}}),
 ]
 
 
@@ -814,6 +831,24 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
                 res = linter.lint(arguments.get("content", ""), **kw)
             return json.dumps({"valid": res.valid,
                                "issues": [{"severity": i.severity, "message": i.message, "line": i.line} for i in res.issues]})
+
+        # ── Continuous learning loop (Phase 2) ───────────────────────────────
+        elif name == "capture_learning":
+            from promptwise.core.learning_store import LearningStore
+            learning = LearningStore().capture(
+                category=arguments.get("category", ""), mistake=arguments.get("mistake", ""),
+                correction=arguments.get("correction", ""), project=arguments.get("project", ""),
+                tags=arguments.get("tags", []))
+            return json.dumps({"captured": learning.to_dict()})
+
+        elif name == "replay_learnings":
+            from promptwise.core.learning_replay import replay
+            return json.dumps(replay(arguments.get("task", ""), k=arguments.get("k", 5),
+                                     project=arguments.get("project")))
+
+        elif name == "learning_insights":
+            from promptwise.core.insights import compute_insights
+            return json.dumps(compute_insights())
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})
