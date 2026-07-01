@@ -95,6 +95,21 @@ def _run_doctor(as_json: bool = False) -> None:
     raise SystemExit(0 if report.get("ok") else 1)
 
 
+def _run_local(url: str) -> None:
+    from promptwise.core.local_runtime import probe_device, discover_ollama, recommend_token_config
+    dev = probe_device()
+    print(f"Device: {dev['cores']} cores, RAM {dev['ram_gb']}GB, VRAM {dev['vram_gb']}GB ({dev['platform']})")
+    cfg = recommend_token_config(dev)
+    print(f"Recommended: num_ctx={cfg['num_ctx']}, max_output={cfg['max_output_tokens']} ({cfg['basis']}; {cfg['note']})")
+    models = discover_ollama(url)
+    if models:
+        print(f"Local models at {url}:")
+        for m in models:
+            print(f"  - {m['alias']}")
+    else:
+        print(f"No local runtime reachable at {url} (feature dormant — this is fine).")
+
+
 def _run_scaffold(text: str, out: str, repo: str) -> None:
     from promptwise.core.scaffold import scaffold
     from pathlib import Path
@@ -145,6 +160,9 @@ def main() -> None:
 
     sub.add_parser("bootstrap", help="Create local state (.promptwise/ + learning DB) on first run")
 
+    lo = sub.add_parser("local", help="Probe device, list local models, recommend token config")
+    lo.add_argument("--url", help="Local runtime base URL", default="http://localhost:11434")
+
     sc = sub.add_parser("scaffold", help="Classify a request, propose options, emit an interactive spec page + diagram")
     sc.add_argument("text", help="What you want to build / re-engineer / re-architect / diagram")
     sc.add_argument("--out", "-o", help="Output HTML path", default="promptwise_scaffold.html")
@@ -164,6 +182,8 @@ def main() -> None:
         _run_bootstrap()
     elif args.command == "scaffold":
         _run_scaffold(args.text, args.out, args.repo)
+    elif args.command == "local":
+        _run_local(args.url)
 
 
 if __name__ == "__main__":
