@@ -289,6 +289,12 @@ def sessionstart_replay(payload: dict) -> HookDecision:
     store into a push. Local SQLite only; never blocks."""
     try:
         import os
+        # Opt-in, daily-cached model registry refresh (off by default, fail-open).
+        try:
+            from promptwise.core.model_refresh import maybe_refresh
+            maybe_refresh(state_dir=_state_dir(payload))
+        except Exception:
+            pass
         k = int(os.environ.get("PROMPTWISE_REPLAY_K", "5"))
         if k <= 0:
             return HookDecision(action="allow", event="SessionStart")
