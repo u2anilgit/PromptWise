@@ -84,6 +84,28 @@ def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> No
     app.run(host="0.0.0.0", port=port, debug=False)
 
 
+def _run_doctor(as_json: bool = False) -> None:
+    from promptwise.core.doctor import run_diagnostics, format_report
+    report = run_diagnostics()
+    if as_json:
+        import json as _json
+        print(_json.dumps(report, indent=2))
+    else:
+        print(format_report(report))
+    raise SystemExit(0 if report.get("ok") else 1)
+
+
+def _run_bootstrap() -> None:
+    from promptwise.core.doctor import bootstrap
+    res = bootstrap()
+    if res.get("ok"):
+        made = res.get("created") or []
+        print(f"Bootstrapped state at {res['state_dir']}" + (f" (created: {', '.join(made)})" if made else " (already present)"))
+    else:
+        print(f"Bootstrap failed: {res.get('error')}")
+        raise SystemExit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="promptwise",
@@ -106,6 +128,11 @@ def main() -> None:
     serve.add_argument("--cli", action="store_true", help="Use CLI dashboard instead of web")
     serve.add_argument("--config", help="Config directory", default=None)
 
+    doc = sub.add_parser("doctor", help="Health-check the plugin (hooks, DB, modules, policy)")
+    doc.add_argument("--json", action="store_true", help="Emit the raw report as JSON")
+
+    sub.add_parser("bootstrap", help="Create local state (.promptwise/ + learning DB) on first run")
+
     args = parser.parse_args()
 
     if args.command == "stats":
@@ -114,6 +141,10 @@ def main() -> None:
         _run_eval(args.config, args.prompt, args.model)
     elif args.command == "serve":
         _start_serve(args.config, args.port, getattr(args, "cli", False))
+    elif args.command == "doctor":
+        _run_doctor(getattr(args, "json", False))
+    elif args.command == "bootstrap":
+        _run_bootstrap()
 
 
 if __name__ == "__main__":
