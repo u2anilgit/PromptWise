@@ -82,6 +82,14 @@ with online-refresh on), instead of a code edit.
 
 ## WP7 — Dashboard modernize + configurable retention (up to 1 year)
 
+> **Status: implemented.** `dashboard/retention.py` (windows, rollups, the metric
+> model incl. the net-savings North Star + governance summary), a modernized
+> windowed `dashboard/web.py` (7/30/60/90 hot, 180/365 archive; no CDN), a
+> `lines` column + `raw_cost_logs` accessor on the store, and changed-line capture
+> in the audit hook. The `usage_daily` persisted-rollup *table* is deferred —
+> rollups are computed on read, which is fast at this scale; persist them only if
+> a year of raw rows ever gets slow.
+
 ### Problem (grounded)
 `src/promptwise/dashboard/web.py` is a self-contained Flask app (inline HTML, no CDN)
 with four static cards and no date-range control. ROI/usage data already lives in the

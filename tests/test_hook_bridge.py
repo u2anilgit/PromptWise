@@ -49,6 +49,13 @@ def test_posttooluse_audit_appends_and_chains(tmp_path):
     assert (tmp_path / ".promptwise" / "audit.jsonl").exists()
 
 
+def test_posttooluse_audit_counts_changed_lines(tmp_path):
+    content = "line one\nline two\n\n  \nline three\n"  # 3 non-blank lines
+    p = _payload(tmp_path, tool_name="Write", tool_input={"file_path": "a.py", "content": content})
+    d = hb.posttooluse_audit(p)
+    assert d.extra["lines_changed"] == 3
+
+
 # ── tool-call budget ─────────────────────────────────────────────────────────
 def test_tool_call_budget_blocks_over_ceiling(tmp_path, monkeypatch):
     monkeypatch.setenv("PROMPTWISE_TOOL_CALL_CEILING", "3")

@@ -33,6 +33,7 @@ class CostLogModel(Base):
     output_tokens = Column(Float, default=0.0)
     cost_usd = Column(Float, default=0.0)
     saving_pct = Column(Float, default=0.0)
+    lines = Column(Float, default=0.0)
 
 
 class MemoryEntryModel(Base):
@@ -283,10 +284,25 @@ class MemoryManager:
                     await session.delete(entry)
         return count
 
-    async def record_cost(self, *, session_id: str, tool: str, model: str, input_tokens: float = 0, output_tokens: float = 0, cost_usd: float = 0, saving_pct: float = 0) -> None:
+    async def record_cost(self, *, session_id: str, tool: str, model: str, input_tokens: float = 0, output_tokens: float = 0, cost_usd: float = 0, saving_pct: float = 0, lines: float = 0) -> None:
         async with self.async_session() as session:
             async with session.begin():
-                session.add(CostLogModel(log_id=str(uuid.uuid4()), session_id=session_id, ts=datetime.now(timezone.utc).isoformat(), tool=tool, model=model, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd, saving_pct=saving_pct))
+                session.add(CostLogModel(log_id=str(uuid.uuid4()), session_id=session_id, ts=datetime.now(timezone.utc).isoformat(), tool=tool, model=model, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd, saving_pct=saving_pct, lines=lines))
+
+    async def raw_cost_logs(self, since: str | None = None) -> list[dict]:
+        """Raw cost events (optionally since an ISO cutoff) for the dashboard's
+        retention/rollup layer."""
+        async with self.async_session() as session:
+            stmt = select(CostLogModel)
+            if since:
+                stmt = stmt.where(CostLogModel.ts >= since)
+            stmt = stmt.order_by(CostLogModel.ts)
+            result = await session.execute(stmt)
+            logs = result.scalars().all()
+        return [{"ts": l.ts, "session_id": l.session_id, "tool": l.tool, "model": l.model,
+                 "input_tokens": l.input_tokens, "output_tokens": l.output_tokens,
+                 "cost_usd": l.cost_usd, "saving_pct": l.saving_pct,
+                 "lines": getattr(l, "lines", 0) or 0} for l in logs]
 
     async def snapshot(self, since: str | None = None) -> dict:
         async with self.async_session() as session:

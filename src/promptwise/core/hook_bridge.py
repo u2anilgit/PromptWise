@@ -212,6 +212,7 @@ def posttooluse_audit(payload: dict) -> HookDecision:
         ti = _tool_input(payload)
         file_path = ti.get("file_path") or ti.get("path") or ""
         tool_name = payload.get("tool_name") or "edit"
+        lines_changed = len([ln for ln in _edited_text(ti).splitlines() if ln.strip()])
         audit_file = _state_dir(payload) / "audit.jsonl"
         log = AuditLog(audit_file)
         rec = log.append(
@@ -222,7 +223,8 @@ def posttooluse_audit(payload: dict) -> HookDecision:
         )
         ok, msg = log.verify()
         return HookDecision(action="allow", event="PostToolUse",
-                            extra={"index": rec.index, "hash": rec.hash, "chain_ok": ok, "chain_msg": msg})
+                            extra={"index": rec.index, "hash": rec.hash, "chain_ok": ok,
+                                   "chain_msg": msg, "lines_changed": lines_changed})
     except Exception as e:
         return HookDecision(action="allow", event="PostToolUse", extra={"hook_error": f"{type(e).__name__}: {e}"})
 
