@@ -13,6 +13,12 @@ Order: **WP6 first** (stale routing/pricing is a correctness bug), then **WP7** 
 
 ## WP6 — Dynamic model + auto-pricing resolver
 
+> **Status: implemented.** `config/models.yaml` registry + `core/model_registry.py`
+> resolver landed; `router.py` no longer hardcodes any model id. The stale
+> `claude-opus-4-7` literal is gone — `powerful` now resolves to the current
+> `claude-opus-4-8` from the registry, with its price applied automatically. The
+> opt-in daily online refresh below remains future work.
+
 ### Problem (grounded)
 Routing is static. `src/promptwise/core/router.py:16-19` hardcodes concrete model ids
 (`_HAIKU_MODEL`, `_OPUS_MODEL`, `_DEFAULT_MODEL`, `_ALL_MODELS`), and `_pick_model` /
@@ -34,9 +40,15 @@ purely additive.
 - **Deprecated ≠ deleted.** `status: deprecated` retires a model from *selection* but
   keeps it for *historical display and label resolution* (see WP7). A model that
   disappears from the host still renders correctly in old stats.
-- **Opt-in online refresh, off by default.** An explicit, user-triggered refresh may
-  update `status` / `release_date` / prices from a provider list. When offline (default),
-  the registry is authoritative — air-gapped operation preserved.
+- **Opt-in online refresh, off by default.** An explicit refresh may update
+  `status` / `release_date` / prices from the provider's published list. When offline
+  (default), the registry is authoritative — air-gapped operation preserved.
+  - **Shape (when built):** trigger on the already-wired `SessionStart` hook, guarded by
+    a 24h cache stamp (`.promptwise/models_refreshed.json`) so it fetches at most once a
+    day; gate the network call behind an explicit flag (`PROMPTWISE_MODEL_REFRESH=on`);
+    fail-open — a refresh error keeps the current registry. Discovery caveat stands: the
+    provider list is the only source; the host build's exposed models can't be enumerated
+    offline, so that remains a one-row registry edit.
 
 ### Correctness rules
 1. **Point-in-time pricing.** Each usage record stores the unit prices used *at that

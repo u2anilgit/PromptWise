@@ -1,0 +1,53 @@
+# PromptWise — Model Registry (tier -> family -> newest current alias)
+#
+# The single source of truth for *which concrete model a tier resolves to*.
+# Routing logic references tiers and families, never a frozen id in code — so a
+# new model going live is a one-row edit here, not a code change.
+#
+# How resolution works:
+#   route(tier) -> among models whose family sits in that tier and whose
+#   status == current, pick the newest by release_date. Deprecated models are
+#   never selected but are KEPT here so historical stats and labels still
+#   resolve after a model is retired.
+#
+# Local-first: this file is authoritative offline. An opt-in online refresh may
+# update status / release_date / price, but it is off by default.
+
+schema_version: 1
+
+# Families group successive versions of one model line onto a routing tier.
+families:
+  claude-opus:
+    provider: claude
+    tier: powerful
+  claude-sonnet:
+    provider: claude
+    tier: balanced
+  claude-haiku:
+    provider: claude
+    tier: fast
+
+# One row per concrete model. `price` is the point-in-time unit price; usage
+# records snapshot the price of the model they used, so a later price change
+# never rewrites historical cost.
+models:
+  - alias: claude-opus-4-8
+    family: claude-opus
+    status: current
+    release_date: "2026-06-01"
+    price: { input_per_mtok: 15.0, output_per_mtok: 75.0, cache_write_per_mtok: 18.75, cache_hit_per_mtok: 1.50 }
+  - alias: claude-opus-4-7
+    family: claude-opus
+    status: deprecated
+    release_date: "2026-01-15"
+    price: { input_per_mtok: 15.0, output_per_mtok: 75.0, cache_write_per_mtok: 18.75, cache_hit_per_mtok: 1.50 }
+  - alias: claude-sonnet-4-6
+    family: claude-sonnet
+    status: current
+    release_date: "2025-10-01"
+    price: { input_per_mtok: 3.0, output_per_mtok: 15.0, cache_write_per_mtok: 3.75, cache_hit_per_mtok: 0.30 }
+  - alias: claude-haiku-4-5-20251001
+    family: claude-haiku
+    status: current
+    release_date: "2025-10-01"
+    price: { input_per_mtok: 1.0, output_per_mtok: 5.0, cache_write_per_mtok: 1.25, cache_hit_per_mtok: 0.10 }
