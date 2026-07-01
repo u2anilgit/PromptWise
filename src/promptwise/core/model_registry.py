@@ -31,6 +31,12 @@ def _registry_paths() -> list[Path]:
     ]
 
 
+def _overlay_paths() -> list[Path]:
+    """Machine-local overlay (e.g. auto-discovered on-device models). Kept out of
+    the tracked registry so a device's models never pollute the shared config."""
+    return [Path(".promptwise") / "models.local.yaml"]
+
+
 class ModelRegistry:
     """Tier/family -> concrete alias resolver over ``config/models.yaml``."""
 
@@ -60,7 +66,34 @@ class ModelRegistry:
             self._models = [m for m in models if isinstance(m, dict) and m.get("alias")]
             self._by_alias = {m["alias"]: m for m in self._models}
             self.loaded = True
-            return
+            break
+        # Overlay machine-local models (auto-discovered on-device) on top of the
+        # base registry — only when loading the default registry, not an explicit path.
+        if path is None:
+            self._apply_overlay()
+
+    def _apply_overlay(self) -> None:
+        for p in _overlay_paths():
+            try:
+                if not p.exists():
+                    continue
+                import yaml
+                data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+            except Exception:
+                continue
+            for fam, meta in (data.get("families") or {}).items():
+                if isinstance(meta, dict):
+                    self._families.setdefault(fam, meta)
+            for m in (data.get("models") or []):
+                if not isinstance(m, dict) or not m.get("alias"):
+                    continue
+                if m["alias"] in self._by_alias:
+                    self._by_alias[m["alias"]].update(m)
+                else:
+                    self._models.append(m)
+                    self._by_alias[m["alias"]] = m
+            if self._models:
+                self.loaded = True
 
     # ── helpers ──────────────────────────────────────────────────────────────
     def _tier_of(self, model: dict) -> str:

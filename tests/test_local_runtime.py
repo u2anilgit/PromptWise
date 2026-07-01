@@ -50,6 +50,55 @@ def test_to_registry_rows_tiers_by_size():
     assert all(r["family"] == "local" and r["price"]["input_per_mtok"] == 0.0 for r in rows)
 
 
+# ── discovery -> registry auto-population ────────────────────────────────────
+def _seed_registry(tmp_path):
+    reg = tmp_path / "models.yaml"
+    reg.write_text(
+        "schema_version: 1\n"
+        "families:\n  claude-opus: { provider: claude, tier: powerful }\n"
+        "models:\n  - { alias: claude-opus-4-8, family: claude-opus, status: current, release_date: \"2026-06-01\" }\n",
+        encoding="utf-8")
+    return reg
+
+
+def test_populate_local_adds_local_models(tmp_path):
+    from promptwise.core.model_registry import ModelRegistry
+    reg = _seed_registry(tmp_path)
+    get = lambda url: {"models": [{"name": "llama3:8b", "size": 8e9}, {"name": "qwen2:0.5b", "size": 5e8}]}
+    out = L.populate_local(registry_path=reg, http_get=get)
+    assert out["populated"] is True and out["added"] == 2
+    r = ModelRegistry(reg)
+    assert "llama3:8b" in r.all_aliases()
+    assert r.resolve("fast", "local") in ("llama3:8b", "qwen2:0.5b")
+    # cloud family untouched
+    assert "claude-opus-4-8" in r.all_aliases() and not r.is_deprecated("claude-opus-4-8")
+
+
+def test_populate_local_is_idempotent(tmp_path):
+    reg = _seed_registry(tmp_path)
+    get = lambda url: {"models": [{"name": "llama3:8b", "size": 8e9}]}
+    L.populate_local(registry_path=reg, http_get=get)
+    again = L.populate_local(registry_path=reg, http_get=get)
+    assert again["populated"] is False and again["reason"] == "no change"
+
+
+def test_populate_local_deprecates_vanished_local_model(tmp_path):
+    from promptwise.core.model_registry import ModelRegistry
+    reg = _seed_registry(tmp_path)
+    L.populate_local(registry_path=reg, http_get=lambda url: {"models": [{"name": "gone:7b", "size": 7e9}]})
+    # next discovery no longer lists it -> deprecated, not deleted
+    L.populate_local(registry_path=reg, http_get=lambda url: {"models": [{"name": "here:7b", "size": 7e9}]})
+    r = ModelRegistry(reg)
+    assert r.is_deprecated("gone:7b") and "gone:7b" in r.all_aliases()
+    assert not r.is_deprecated("here:7b")
+
+
+def test_populate_local_noop_when_no_daemon(tmp_path):
+    reg = _seed_registry(tmp_path)
+    out = L.populate_local(registry_path=reg, http_get=lambda url: {"models": []})
+    assert out["populated"] is False and out["reason"] == "no local runtime"
+
+
 # ── long-output splitting (the hard part) ────────────────────────────────────
 def test_short_output_is_single_chunk():
     out = L.split_output("hello world", max_chars=100)

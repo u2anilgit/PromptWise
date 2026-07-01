@@ -106,6 +106,12 @@ def _run_local(url: str) -> None:
         print(f"Local models at {url}:")
         for m in models:
             print(f"  - {m['alias']}")
+        from promptwise.core.local_runtime import populate_local
+        res = populate_local(base_url=url)
+        if res.get("populated"):
+            print(f"Registry updated: +{res.get('added', 0)} local model(s).")
+        else:
+            print(f"Registry: {res.get('reason', res.get('error', 'unchanged'))}.")
     else:
         print(f"No local runtime reachable at {url} (feature dormant — this is fine).")
 

@@ -122,6 +122,65 @@ def to_registry_rows(local_models: list[dict]) -> list[dict]:
     return rows
 
 
+def _local_signature(models: list[dict]) -> set:
+    """(alias, status) for the local family — used to write only on real change."""
+    return {(m.get("alias"), m.get("status", "current"))
+            for m in models if m.get("family") == "local"}
+
+
+def populate_local(*, registry_path=None, base_url: str = DEFAULT_OLLAMA_URL,
+                   http_get=None) -> dict:
+    """Discover a local runtime's models and reflect them in a **machine-local
+    overlay** (``.promptwise/models.local.yaml``) that the registry reads on top of
+    the tracked base config — so a device's models never pollute the shared config.
+
+    Touches only the ``local`` family: discovered models are added/updated as
+    ``current``; local models that disappeared are marked ``deprecated`` (retained,
+    never deleted). The file is written only when the local set actually changes,
+    so it is safe to call every session. Fail-soft: no daemon -> no-op.
+    """
+    models = discover_ollama(base_url, http_get)
+    if not models:
+        return {"populated": False, "reason": "no local runtime"}
+    rows = to_registry_rows(models)
+    discovered = {r["alias"] for r in rows}
+    try:
+        import yaml
+        from pathlib import Path as _P
+        if registry_path is not None:
+            path = _P(registry_path)
+        else:
+            from promptwise.core.model_registry import _overlay_paths
+            path = _overlay_paths()[0]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = (yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}) or {}
+        data.setdefault("families", {})
+        data.setdefault("models", [])
+        data["families"].setdefault("local", {"provider": "local", "tier": "balanced"})
+
+        before = _local_signature(data["models"])
+        by_alias = {m.get("alias"): m for m in data["models"]}
+        added = 0
+        for r in rows:
+            if r["alias"] in by_alias:
+                for k in ("tier", "status", "price", "family"):
+                    by_alias[r["alias"]][k] = r[k]
+            else:
+                data["models"].append(r)
+                added += 1
+        for m in data["models"]:
+            if m.get("family") == "local" and m.get("alias") not in discovered:
+                m["status"] = "deprecated"
+        after = _local_signature(data["models"])
+
+        if before == after and added == 0:
+            return {"populated": False, "reason": "no change", "local_models": len(discovered)}
+        path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        return {"populated": True, "added": added, "local_models": len(discovered), "path": str(path)}
+    except Exception as e:  # fail-soft
+        return {"populated": False, "error": f"{type(e).__name__}: {e}"}
+
+
 # ── long-output continuation ─────────────────────────────────────────────────
 _FENCE = re.compile(r"```.*?```", re.DOTALL)
 

@@ -60,6 +60,21 @@ def test_missing_registry_is_empty_and_resolves_none(tmp_path):
     assert r.all_current() == []
 
 
+def test_registry_overlays_local_models_on_base(tmp_path, monkeypatch):
+    # a machine-local overlay adds on-device models on top of the tracked base
+    import promptwise.core.model_registry as MR
+    overlay = tmp_path / "models.local.yaml"
+    overlay.write_text(
+        "families:\n  local: { provider: local, tier: fast }\n"
+        "models:\n  - { alias: mymodel:7b, family: local, tier: fast, status: current }\n",
+        encoding="utf-8")
+    monkeypatch.setattr(MR, "_overlay_paths", lambda: [overlay])
+    r = MR.ModelRegistry()  # default base (repo config) + overlay
+    assert "mymodel:7b" in r.all_aliases()          # local model visible
+    assert "claude-opus-4-8" in r.all_aliases()     # base cloud models still present
+    assert r.resolve("fast", "local") == "mymodel:7b"
+
+
 # ── acceptance: router resolves the CURRENT model, not the stale literal ─────
 def test_router_resolves_current_opus_from_registry():
     # Uses the repo's real config/models.yaml. The old code hardcoded the

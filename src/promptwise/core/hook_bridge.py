@@ -295,6 +295,14 @@ def sessionstart_replay(payload: dict) -> HookDecision:
             maybe_refresh(state_dir=_state_dir(payload))
         except Exception:
             pass
+        # On-device model discovery -> registry (localhost only, opt-out, fail-soft;
+        # writes only when the local model set changes).
+        try:
+            if os.environ.get("PROMPTWISE_LOCAL_DISCOVERY", "on").strip().lower() not in ("0", "off", "false", "no"):
+                from promptwise.core.local_runtime import populate_local
+                populate_local()
+        except Exception:
+            pass
         k = int(os.environ.get("PROMPTWISE_REPLAY_K", "5"))
         if k <= 0:
             return HookDecision(action="allow", event="SessionStart")
