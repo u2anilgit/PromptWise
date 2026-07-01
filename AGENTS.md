@@ -1,5 +1,7 @@
 # AGENTS.md — PromptWise
 
+**The governance & intelligence layer for AI agents.**
+
 Universal project-context file for AI coding agents (the open standard that supersedes
 agent-specific files like CLAUDE.md / .cursorrules). Any agent that reads `AGENTS.md`
 gets this context.

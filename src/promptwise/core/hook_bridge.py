@@ -212,6 +212,7 @@ def posttooluse_audit(payload: dict) -> HookDecision:
         ti = _tool_input(payload)
         file_path = ti.get("file_path") or ti.get("path") or ""
         tool_name = payload.get("tool_name") or "edit"
+        lines_changed = len([ln for ln in _edited_text(ti).splitlines() if ln.strip()])
         audit_file = _state_dir(payload) / "audit.jsonl"
         log = AuditLog(audit_file)
         rec = log.append(
@@ -222,7 +223,8 @@ def posttooluse_audit(payload: dict) -> HookDecision:
         )
         ok, msg = log.verify()
         return HookDecision(action="allow", event="PostToolUse",
-                            extra={"index": rec.index, "hash": rec.hash, "chain_ok": ok, "chain_msg": msg})
+                            extra={"index": rec.index, "hash": rec.hash, "chain_ok": ok,
+                                   "chain_msg": msg, "lines_changed": lines_changed})
     except Exception as e:
         return HookDecision(action="allow", event="PostToolUse", extra={"hook_error": f"{type(e).__name__}: {e}"})
 
@@ -287,6 +289,20 @@ def sessionstart_replay(payload: dict) -> HookDecision:
     store into a push. Local SQLite only; never blocks."""
     try:
         import os
+        # Opt-in, daily-cached model registry refresh (off by default, fail-open).
+        try:
+            from promptwise.core.model_refresh import maybe_refresh
+            maybe_refresh(state_dir=_state_dir(payload))
+        except Exception:
+            pass
+        # On-device model discovery -> registry (localhost only, opt-out, fail-soft;
+        # writes only when the local model set changes).
+        try:
+            if os.environ.get("PROMPTWISE_LOCAL_DISCOVERY", "on").strip().lower() not in ("0", "off", "false", "no"):
+                from promptwise.core.local_runtime import populate_local
+                populate_local()
+        except Exception:
+            pass
         k = int(os.environ.get("PROMPTWISE_REPLAY_K", "5"))
         if k <= 0:
             return HookDecision(action="allow", event="SessionStart")

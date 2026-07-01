@@ -82,6 +82,14 @@ with online-refresh on), instead of a code edit.
 
 ## WP7 — Dashboard modernize + configurable retention (up to 1 year)
 
+> **Status: implemented.** `dashboard/retention.py` (windows, rollups, the metric
+> model incl. the net-savings North Star + governance summary), a modernized
+> windowed `dashboard/web.py` (7/30/60/90 hot, 180/365 archive; no CDN), a
+> `lines` column + `raw_cost_logs` accessor on the store, and changed-line capture
+> in the audit hook. The `usage_daily` persisted-rollup *table* is deferred —
+> rollups are computed on read, which is fast at this scale; persist them only if
+> a year of raw rows ever gets slow.
+
 ### Problem (grounded)
 `src/promptwise/dashboard/web.py` is a self-contained Flask app (inline HTML, no CDN)
 with four static cards and no date-range control. ROI/usage data already lives in the
@@ -157,6 +165,21 @@ presentation + a time filter + a rollup, not new plumbing.
 - No external CDN/framework; served entirely by the existing local server.
 
 ---
+
+## WP4 — Safe-parallelization planner
+
+> **Status: implemented (planner only).** `core/task_graph.py` decides *which*
+> tasks are safe to run at once and emits ordered **waves** — the one decision the
+> agent harness can't make for itself. Dispatch, result fan-in, and file-write
+> isolation stay with the harness (native parallel subagents + worktrees), so this
+> is additive and non-breaking.
+>
+> Rails: Kahn-layered waves; cycle detection (unscheduled tasks are reported, never
+> misordered); shared-file serialization (two writers of one file never share a
+> wave); fan-out cap (parallelism can't blow the budget). Actual concurrent
+> execution is emitted-not-run — the parent turn dispatches each wave. Full-fat
+> worktree/agent-team coordination remains deferred; the planner is the durable,
+> reusable core of it.
 
 ## Metric priority (WP7) — North Star first, not a flat list
 

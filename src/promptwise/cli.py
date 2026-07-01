@@ -84,10 +84,65 @@ def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> No
     app.run(host="0.0.0.0", port=port, debug=False)
 
 
+def _run_doctor(as_json: bool = False) -> None:
+    from promptwise.core.doctor import run_diagnostics, format_report
+    report = run_diagnostics()
+    if as_json:
+        import json as _json
+        print(_json.dumps(report, indent=2))
+    else:
+        print(format_report(report))
+    raise SystemExit(0 if report.get("ok") else 1)
+
+
+def _run_local(url: str) -> None:
+    from promptwise.core.local_runtime import probe_device, discover_ollama, recommend_token_config
+    dev = probe_device()
+    print(f"Device: {dev['cores']} cores, RAM {dev['ram_gb']}GB, VRAM {dev['vram_gb']}GB ({dev['platform']})")
+    cfg = recommend_token_config(dev)
+    print(f"Recommended: num_ctx={cfg['num_ctx']}, max_output={cfg['max_output_tokens']} ({cfg['basis']}; {cfg['note']})")
+    models = discover_ollama(url)
+    if models:
+        print(f"Local models at {url}:")
+        for m in models:
+            print(f"  - {m['alias']}")
+        from promptwise.core.local_runtime import populate_local
+        res = populate_local(base_url=url)
+        if res.get("populated"):
+            print(f"Registry updated: +{res.get('added', 0)} local model(s).")
+        else:
+            print(f"Registry: {res.get('reason', res.get('error', 'unchanged'))}.")
+    else:
+        print(f"No local runtime reachable at {url} (feature dormant — this is fine).")
+
+
+def _run_scaffold(text: str, out: str, repo: str) -> None:
+    from promptwise.core.scaffold import scaffold
+    from pathlib import Path
+    r = scaffold(text, repo_root=repo)
+    Path(out).write_text(r["page_html"], encoding="utf-8")
+    print(f"[{r['mode']}] scaffold — {len(r['options'])} option(s), diagram: {r['diagram_kind']}")
+    for o in r["options"]:
+        print(f"  - {o['title']} ({o['effort']}): {o['approach']}")
+    print(f"\nInteractive spec page: {out}")
+    print("Mermaid diagram:\n" + r["mermaid"])
+
+
+def _run_bootstrap() -> None:
+    from promptwise.core.doctor import bootstrap
+    res = bootstrap()
+    if res.get("ok"):
+        made = res.get("created") or []
+        print(f"Bootstrapped state at {res['state_dir']}" + (f" (created: {', '.join(made)})" if made else " (already present)"))
+    else:
+        print(f"Bootstrap failed: {res.get('error')}")
+        raise SystemExit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="promptwise",
-        description=f"PromptWise v{__version__} — Token-aware prompt routing",
+        description=f"PromptWise v{__version__} — the governance & intelligence layer for AI agents",
     )
     parser.add_argument("--config", help="Path to config directory", default=None)
 
@@ -106,6 +161,19 @@ def main() -> None:
     serve.add_argument("--cli", action="store_true", help="Use CLI dashboard instead of web")
     serve.add_argument("--config", help="Config directory", default=None)
 
+    doc = sub.add_parser("doctor", help="Health-check the plugin (hooks, DB, modules, policy)")
+    doc.add_argument("--json", action="store_true", help="Emit the raw report as JSON")
+
+    sub.add_parser("bootstrap", help="Create local state (.promptwise/ + learning DB) on first run")
+
+    lo = sub.add_parser("local", help="Probe device, list local models, recommend token config")
+    lo.add_argument("--url", help="Local runtime base URL", default="http://localhost:11434")
+
+    sc = sub.add_parser("scaffold", help="Classify a request, propose options, emit an interactive spec page + diagram")
+    sc.add_argument("text", help="What you want to build / re-engineer / re-architect / diagram")
+    sc.add_argument("--out", "-o", help="Output HTML path", default="promptwise_scaffold.html")
+    sc.add_argument("--repo", help="Repo root to scan for stack context", default=".")
+
     args = parser.parse_args()
 
     if args.command == "stats":
@@ -114,6 +182,14 @@ def main() -> None:
         _run_eval(args.config, args.prompt, args.model)
     elif args.command == "serve":
         _start_serve(args.config, args.port, getattr(args, "cli", False))
+    elif args.command == "doctor":
+        _run_doctor(getattr(args, "json", False))
+    elif args.command == "bootstrap":
+        _run_bootstrap()
+    elif args.command == "scaffold":
+        _run_scaffold(args.text, args.out, args.repo)
+    elif args.command == "local":
+        _run_local(args.url)
 
 
 if __name__ == "__main__":
