@@ -166,6 +166,21 @@ presentation + a time filter + a rollup, not new plumbing.
 
 ---
 
+## WP4 — Safe-parallelization planner
+
+> **Status: implemented (planner only).** `core/task_graph.py` decides *which*
+> tasks are safe to run at once and emits ordered **waves** — the one decision the
+> agent harness can't make for itself. Dispatch, result fan-in, and file-write
+> isolation stay with the harness (native parallel subagents + worktrees), so this
+> is additive and non-breaking.
+>
+> Rails: Kahn-layered waves; cycle detection (unscheduled tasks are reported, never
+> misordered); shared-file serialization (two writers of one file never share a
+> wave); fan-out cap (parallelism can't blow the budget). Actual concurrent
+> execution is emitted-not-run — the parent turn dispatches each wave. Full-fat
+> worktree/agent-team coordination remains deferred; the planner is the durable,
+> reusable core of it.
+
 ## Metric priority (WP7) — North Star first, not a flat list
 
 The metric menu above is comprehensive; this is the decision on what leads.
