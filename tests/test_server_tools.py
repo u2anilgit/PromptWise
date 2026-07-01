@@ -71,6 +71,26 @@ def test_propose_agent_config_writes_nothing(tmp_path):
     assert not (tmp_path / "CLAUDE.md").exists()
 
 
+def test_orchestrate_emits_wave_plan_for_structured_tasks():
+    tasks = [
+        {"id": "a"},
+        {"id": "b", "depends_on": ["a"]},
+        {"id": "c", "depends_on": ["a"]},
+        {"id": "d", "depends_on": ["b", "c"]},
+    ]
+    out = json.loads(asyncio.run(s.call_tool(None, "orchestrate_tasks", {"text": "", "tasks": tasks})))
+    assert out["mode"] == "plan"
+    assert out["waves"][0] == ["a"]
+    assert set(out["waves"][1]) == {"b", "c"}
+    assert not out["has_cycle"]
+
+
+def test_orchestrate_plan_flags_cycle():
+    tasks = [{"id": "a", "depends_on": ["b"]}, {"id": "b", "depends_on": ["a"]}]
+    out = json.loads(asyncio.run(s.call_tool(None, "orchestrate_tasks", {"text": "", "tasks": tasks})))
+    assert out["has_cycle"] and out["cycle"] == ["a", "b"]
+
+
 def test_shard_doc_dispatch():
     # these tools ignore ctx -> safe to dispatch with ctx=None
     out = asyncio.run(s.call_tool(None, "shard_doc", {"markdown": "# A\nx\n## B\ny\n"}))
