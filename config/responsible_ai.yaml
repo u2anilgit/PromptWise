@@ -1,0 +1,98 @@
+# Responsible-AI advisory lexicon (tunable).
+#
+# Consumed by src/promptwise/core/responsible_ai.py. Every signal here is
+# ADVISORY — surfaced as a warning, never an automatic block. Edit freely to fit
+# your domain; unknown keys are ignored, and a missing file falls back to the
+# in-code defaults. Local-only, no infrastructure.
+
+# Group terms — only flagged when wrapped in a sweeping generalization
+# ("all X are…", "no X can…"), never on plain mention.
+group_terms:
+  - women
+  - men
+  - girls
+  - boys
+  - immigrants
+  - foreigners
+  - muslims
+  - christians
+  - jews
+  - hindus
+  - buddhists
+  - atheists
+  - asians
+  - africans
+  - americans
+  - europeans
+  - elderly
+  - millennials
+  - boomers
+  - teenagers
+  - disabled people
+  - poor people
+  - rich people
+  - liberals
+  - conservatives
+
+# Advice domains that require a disclosure/disclaimer to accompany them.
+advice_domains:
+  medical:
+    - diagnos
+    - symptom
+    - dosage
+    - medication
+    - prescription
+    - treatment
+    - cure
+    - disease
+  legal:
+    - lawsuit
+    - liable
+    - legally
+    - prosecut
+    - statute
+    - court will
+  financial:
+    - invest
+    - stock
+    - portfolio
+    - guaranteed return
+    - retirement fund
+
+# Presence of any of these tokens counts as an adequate disclosure.
+disclaimer_tokens:
+  - consult
+  - professional
+  - not financial advice
+  - not legal advice
+  - not medical advice
+  - seek advice
+  - disclaimer
+  - for informational
+  - qualified
+  - your own research
+
+# Overconfident absolutes — advisory low severity.
+overconfidence:
+  - guaranteed
+  - 100% safe
+  - risk-free
+  - always works
+  - will definitely
+  - no side effects
+  - completely safe
+  - never fails
+
+# Phrases that assert authority with no cited source.
+attribution_no_source:
+  - studies show
+  - research shows
+  - experts say
+  - it is well known
+  - scientists agree
+  - everyone knows
+  - proven that
+
+# Optional hard harm categories (high severity when the literal term appears).
+# Empty by default — populate per your policy.
+harm_categories: []

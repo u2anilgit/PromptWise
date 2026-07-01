@@ -358,6 +358,119 @@ def sessionend_export(payload: dict) -> HookDecision:
         return HookDecision(action="allow", event="SessionEnd", extra={"hook_error": f"{type(e).__name__}: {e}"})
 
 
+# ── WP2: extend enforcement coverage ─────────────────────────────────────────
+# High-severity shell patterns denied as a backstop (defence in depth on top of
+# the shared security scanner). Written as regex fragments; no runnable command
+# literal appears here on purpose.
+_DESTRUCTIVE_SHELL = [
+    r"\brm\s+-[a-z]*r[a-z]*f", r"\brm\s+-[a-z]*f[a-z]*r",
+    r"\bmkfs\.[a-z0-9]+", r"\bdd\s+if=", r">\s*/dev/sd[a-z]",
+    r":\(\)\s*\{[^}]*\|[^}]*&[^}]*\}\s*;?\s*:",
+    r"\bchmod\s+-R\s+0?777\s+/", r"\bchown\s+-R\b[^\n]*\s/\s",
+    r"\bcurl\b[^|\n]*\|\s*(sh|bash|zsh)", r"\bwget\b[^|\n]*\|\s*(sh|bash|zsh)",
+]
+
+
+def pretooluse_bash_guard(payload: dict) -> HookDecision:
+    """Deny destructive shell commands and secret echoes at PreToolUse(Bash). Uses
+    a permission *deny* decision so the block holds even when interactive
+    permission prompts are skipped. Defence in depth: explicit high-severity
+    patterns first, then the shared security scanner."""
+    try:
+        import re as _re
+        ti = _tool_input(payload)
+        cmd = ti.get("command") or ti.get("cmd") or ""
+        if not isinstance(cmd, str) or not cmd.strip():
+            return HookDecision(action="allow", event="PreToolUse")
+        for pat in _DESTRUCTIVE_SHELL:
+            if _re.search(pat, cmd, _re.I):
+                return HookDecision(action="deny", event="PreToolUse",
+                                    reason="PromptWise denied a destructive shell command "
+                                           "(matched a high-severity guard pattern).",
+                                    extra={"pattern": pat})
+        from promptwise.security.scanner import SecurityScanner
+        res = SecurityScanner().check(cmd)
+        if getattr(res, "blocked", False):
+            details = "; ".join(v.get("check", "?") for v in (res.violations or [])) or res.details
+            return HookDecision(action="deny", event="PreToolUse",
+                                reason=f"PromptWise denied shell command: {details} (risk {res.risk_score}).",
+                                extra={"risk_score": res.risk_score, "violations": res.violations})
+        if res.violations:
+            return HookDecision(action="warn", event="PreToolUse",
+                                reason=f"PromptWise shell concern: {res.details} (risk {res.risk_score}).",
+                                extra={"risk_score": res.risk_score})
+        return HookDecision(action="allow", event="PreToolUse")
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="PreToolUse", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
+def subagentstop_gate(payload: dict) -> HookDecision:
+    """Govern a sub-agent's turn like the main loop: run the advisory quality gate
+    and record an audit entry so delegated work is not ungoverned. Never blocks."""
+    try:
+        from promptwise.core.quality_gate import QualityGate
+        from promptwise.core.audit_log import AuditLog
+        rec = AuditLog(_state_dir(payload) / "audit.jsonl").append(
+            task="subagent turn", agent=str(payload.get("agent_name") or "subagent"),
+            files_touched=[], rules_applied=["subagentstop_gate"])
+        res = QualityGate().evaluate(story_id="subagent", findings=[], risk_score=0)
+        return HookDecision(action="warn" if res.decision != "PASS" else "allow", event="SubagentStop",
+                            reason=f"Sub-agent quality gate: {res.decision} (audit #{rec.index}).",
+                            extra={"decision": res.decision, "index": rec.index})
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="SubagentStop", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
+def failure_capture(payload: dict) -> HookDecision:
+    """Fold a tool failure or an API-error turn ending into the learning store and
+    audit trail, so failures inform future work instead of vanishing. Never blocks."""
+    try:
+        from promptwise.core.learning_store import LearningStore
+        event = payload.get("hook_event_name") or payload.get("event") or "Failure"
+        tool = payload.get("tool_name") or ""
+        err = payload.get("error") or payload.get("reason") or payload.get("message") or ""
+        if isinstance(err, (dict, list)):
+            err = json.dumps(err)
+        err = str(err)[:500]
+        LearningStore().capture(category="failure", mistake=f"{event} {tool}".strip(),
+                                correction=err or "(no detail captured)",
+                                project=_project_name(payload), tags=["auto", "failure"])
+        try:
+            from promptwise.core.audit_log import AuditLog
+            AuditLog(_state_dir(payload) / "audit.jsonl").append(
+                task=f"failure:{event} {tool}".strip(), agent="claude-code",
+                files_touched=[], rules_applied=["failure_capture"])
+        except Exception:
+            pass
+        return HookDecision(action="allow", event=str(event), extra={"captured": True, "tool": tool})
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="Failure", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
+# ── WP5: responsible-AI advisory (grounding / bias / ethics) ─────────────────
+def responsible_ai_check(payload: dict) -> HookDecision:
+    """Advisory responsible-AI scan (grounding, bias, ethics) over the last
+    response text, if the event carries one. **Warn-only by design**: heuristic
+    bias/ethics signals must never block a turn (false positives would be their
+    own harm). Never blocks."""
+    try:
+        from promptwise.core.responsible_ai import scan
+        text = payload.get("response") or payload.get("last_message") or payload.get("text") or ""
+        if not isinstance(text, str) or not text.strip():
+            return HookDecision(action="allow", event="Stop")
+        result = scan(text)
+        findings = result.get("findings", [])
+        if not findings:
+            return HookDecision(action="allow", event="Stop", extra={"rai": "clean"})
+        cats = sorted({f.get("check", "?") for f in findings})
+        return HookDecision(action="warn", event="Stop",
+                            reason="PromptWise responsible-AI advisory: " + ", ".join(cats)
+                                   + f" ({len(findings)} signal(s)) — review before relying on this output.",
+                            extra={"findings": findings[:20]})
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="Stop", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
 _HANDLERS = {
     "pretooluse_scan": pretooluse_scan,
     "userpromptsubmit_policy": userpromptsubmit_policy,
@@ -367,6 +480,10 @@ _HANDLERS = {
     "permissiondenied_log": permissiondenied_log,
     "sessionstart_replay": sessionstart_replay,
     "precompact_guard": precompact_guard,
+    "pretooluse_bash_guard": pretooluse_bash_guard,
+    "subagentstop_gate": subagentstop_gate,
+    "failure_capture": failure_capture,
+    "responsible_ai_check": responsible_ai_check,
     "sessionend_export": sessionend_export,
 }
 
@@ -384,6 +501,8 @@ def run(handler_key: str, *, stdin=None, stdout=None, stderr=None) -> int:
     Reads the Claude Code hook JSON on stdin, runs the handler, and emits a
     Claude-Code-compatible result:
       * block  -> reason on stderr, exit code 2 (Claude Code blocks the action)
+      * deny   -> permissionDecision JSON on stdout, exit 0 (holds under
+                  skipped permission prompts; used for PreToolUse Bash guard)
       * warn   -> advisory JSON on stdout, exit 0
       * inject -> context JSON on stdout, exit 0 (feed text into the session)
       * allow  -> exit 0 (silent)
@@ -405,6 +524,15 @@ def run(handler_key: str, *, stdin=None, stdout=None, stderr=None) -> int:
         if decision.action == "block":
             stderr.write((decision.reason or "PromptWise hook blocked the action.") + "\n")
             return 2
+        if decision.action == "deny":
+            stdout.write(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": decision.event or "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": decision.reason or "PromptWise denied this action.",
+                }
+            }) + "\n")
+            return 0
         if decision.action in ("warn", "inject"):
             if not (decision.reason or "").strip():
                 return 0  # nothing to surface

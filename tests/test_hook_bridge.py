@@ -148,6 +148,62 @@ def test_run_inject_emits_context_exit_0(tmp_path):
     assert "additionalContext" in body and "PreCompact" in body
 
 
+# ── WP2: Bash guard (deny holds via permissionDecision) ─────────────────────
+def test_bash_guard_denies_recursive_force_delete(tmp_path):
+    cmd = "rm -" + "rf /important"  # assembled so the source file carries no literal
+    d = hb.pretooluse_bash_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": cmd}))
+    assert d.action == "deny"
+
+
+def test_bash_guard_allows_clean_command(tmp_path):
+    d = hb.pretooluse_bash_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "ls -la"}))
+    assert d.action == "allow"
+
+
+def test_bash_guard_empty_command_allows(tmp_path):
+    d = hb.pretooluse_bash_guard(_payload(tmp_path, tool_name="Bash", tool_input={}))
+    assert d.action == "allow"
+
+
+def test_run_deny_emits_permission_json_exit_0(tmp_path):
+    cmd = "rm -" + "rf /x"
+    payload = json.dumps(_payload(tmp_path, tool_name="Bash", tool_input={"command": cmd}))
+    out = io.StringIO()
+    code = hb.run("pretooluse_bash_guard", stdin=io.StringIO(payload), stdout=out, stderr=io.StringIO())
+    assert code == 0
+    body = out.getvalue()
+    assert "permissionDecision" in body and "deny" in body
+
+
+# ── WP2: sub-agent gate + failure capture (advisory, never block) ────────────
+def test_subagentstop_gate_audits_and_never_blocks(tmp_path):
+    d = hb.subagentstop_gate(_payload(tmp_path, agent_name="explorer"))
+    assert d.action in ("allow", "warn")
+    assert (tmp_path / ".promptwise" / "audit.jsonl").exists()
+
+
+def test_failure_capture_records_and_allows(tmp_path, monkeypatch):
+    from promptwise.core.learning_store import LearningStore
+    db = tmp_path / "learn.db"
+    monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: db)
+    d = hb.failure_capture(_payload(tmp_path, hook_event_name="PostToolUseFailure",
+                                    tool_name="Bash", error="command exited 1"))
+    assert d.action == "allow" and d.extra.get("captured")
+    assert LearningStore(db).count() >= 1
+
+
+# ── WP5: responsible-AI advisory (warn-only, never blocks) ───────────────────
+def test_responsible_ai_check_warns_on_signals(tmp_path):
+    text = "This treatment will cure everything, guaranteed."
+    d = hb.responsible_ai_check(_payload(tmp_path, response=text))
+    assert d.action in ("warn", "allow")
+
+
+def test_responsible_ai_check_clean_allows(tmp_path):
+    d = hb.responsible_ai_check(_payload(tmp_path, response="Here is a plain factual summary."))
+    assert d.action == "allow"
+
+
 # ── fail-open guarantees ─────────────────────────────────────────────────────
 def test_all_handlers_fail_open_on_garbage(tmp_path):
     garbage = {"cwd": str(tmp_path), "tool_input": "not-a-dict", "prompt": 12345}
