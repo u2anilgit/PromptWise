@@ -1,7 +1,7 @@
 {
   "name": "promptwise",
   "version": "1.2.0",
-  "description": "PromptWise — the cross-agent intelligence layer for AI coding agents. Role-aware prompting, model routing, cost/budget control, security & compliance scanning, workflow planning, a governed agile method (agile personas, quality gates, policy-as-code, hash-chained audit trail), runtime enforcement hooks that auto-run security/policy/audit checks and can block, a continuous learning loop, diagrams, task tracking, and 80 portable skill packs. Rides the open standards (MCP · SKILL.md · AGENTS.md) instead of replacing your agent.",
+  "description": "PromptWise — the governance & intelligence layer for AI agents. Role-aware prompting, model routing, cost/budget control, security & compliance scanning, responsible-AI advisories, workflow planning, a governed agile method (agile personas, quality gates, policy-as-code, hash-chained audit trail), runtime enforcement hooks that auto-run security/policy/audit checks and can block, a continuous learning loop, diagrams, task tracking, and 80 portable skill packs. Rides the open standards (MCP · SKILL.md · AGENTS.md) instead of replacing your agent.",
   "author": {
     "name": "Anil Devarasetti",
     "email": "u2anil@gmail.com"

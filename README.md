@@ -1,8 +1,9 @@
 # PromptWise
 
-**The cross-agent intelligence layer for AI coding agents.** Role-aware prompting, model
-routing, cost & budget control, security/compliance scanning, workflow planning, a governed
-agile method, runtime enforcement hooks, and 80 portable skill packs — emitted in the formats every agent already reads.
+**The governance & intelligence layer for AI agents.** Role-aware prompting, model
+routing, cost & budget control, security/compliance scanning, responsible-AI advisories,
+workflow planning, a governed agile method, runtime enforcement hooks, and 80 portable skill
+packs — emitted in the formats every agent already reads.
 
 > Built on open standards, not against them. PromptWise is a *conductor*, not a replacement
 > for Cursor / Copilot / Claude Code.
