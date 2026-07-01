@@ -271,6 +271,73 @@ def permissiondenied_log(payload: dict) -> HookDecision:
         return HookDecision(action="allow", event="PermissionDenied", extra={"hook_error": f"{type(e).__name__}: {e}"})
 
 
+def _project_name(payload: dict) -> str:
+    """Best-effort project label from the session cwd (basename)."""
+    try:
+        cwd = payload.get("cwd") or "."
+        name = Path(cwd).name
+        return name or ""
+    except Exception:
+        return ""
+
+
+def sessionstart_replay(payload: dict) -> HookDecision:
+    """On session start / resume, surface the most relevant recent corrections as
+    context the model sees before any work begins. Turns the pull-based learning
+    store into a push. Local SQLite only; never blocks."""
+    try:
+        import os
+        k = int(os.environ.get("PROMPTWISE_REPLAY_K", "5"))
+        if k <= 0:
+            return HookDecision(action="allow", event="SessionStart")
+        from promptwise.core.learning_store import LearningStore
+        from promptwise.core.learning_replay import _format_reminder
+        store = LearningStore()
+        project = _project_name(payload)
+        hits = store.recent(k=k, project=project) if project else store.recent(k=k)
+        if not hits and project:
+            hits = store.recent(k=k)  # fall back to global if none for this project
+        reminder = _format_reminder(hits)
+        if not reminder:
+            return HookDecision(action="allow", event="SessionStart")
+        return HookDecision(action="inject", event="SessionStart", reason=reminder,
+                            extra={"matched": len(hits), "project": project})
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="SessionStart", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
+def precompact_guard(payload: dict) -> HookDecision:
+    """Before the context is compacted, inject a note that preserves the governance
+    state — audit-chain status and the files under audit — so it survives the
+    summary. Advisory context only; never blocks."""
+    try:
+        from promptwise.core.audit_log import AuditLog
+        audit_file = _state_dir(payload) / "audit.jsonl"
+        if not audit_file.exists():
+            return HookDecision(action="allow", event="PreCompact")
+        log = AuditLog(audit_file)
+        records = log.records
+        if not records:
+            return HookDecision(action="allow", event="PreCompact")
+        ok, _ = log.verify()
+        files: list[str] = []
+        for rec in records[-8:]:
+            for f in (getattr(rec, "files_touched", None) or []):
+                if f and f not in files:
+                    files.append(f)
+        parts = [
+            "Preserve across compaction — PromptWise governance state:",
+            f"- Audit chain: {len(records)} recorded change(s), chain_ok={ok}.",
+        ]
+        if files:
+            parts.append("- Files under audit: " + ", ".join(files[:12]) + ".")
+        parts.append("- Keep the audit trail intact; do not discard governance context.")
+        return HookDecision(action="inject", event="PreCompact", reason="\n".join(parts),
+                            extra={"records": len(records), "chain_ok": ok, "files": files[:12]})
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="PreCompact", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
 def sessionend_export(payload: dict) -> HookDecision:
     """Emit the portable trace for the session on the way out."""
     try:
@@ -298,6 +365,8 @@ _HANDLERS = {
     "posttooluse_audit": posttooluse_audit,
     "stop_quality_gate": stop_quality_gate,
     "permissiondenied_log": permissiondenied_log,
+    "sessionstart_replay": sessionstart_replay,
+    "precompact_guard": precompact_guard,
     "sessionend_export": sessionend_export,
 }
 
@@ -316,6 +385,7 @@ def run(handler_key: str, *, stdin=None, stdout=None, stderr=None) -> int:
     Claude-Code-compatible result:
       * block  -> reason on stderr, exit code 2 (Claude Code blocks the action)
       * warn   -> advisory JSON on stdout, exit 0
+      * inject -> context JSON on stdout, exit 0 (feed text into the session)
       * allow  -> exit 0 (silent)
     ANY failure path returns exit 0 (fail-open).
     """
@@ -335,7 +405,9 @@ def run(handler_key: str, *, stdin=None, stdout=None, stderr=None) -> int:
         if decision.action == "block":
             stderr.write((decision.reason or "PromptWise hook blocked the action.") + "\n")
             return 2
-        if decision.action == "warn":
+        if decision.action in ("warn", "inject"):
+            if not (decision.reason or "").strip():
+                return 0  # nothing to surface
             stdout.write(json.dumps({
                 "hookSpecificOutput": {
                     "hookEventName": decision.event,

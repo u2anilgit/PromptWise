@@ -93,12 +93,67 @@ def test_sessionend_exports_trace(tmp_path):
     assert (tmp_path / ".promptwise" / "audit_export.json").exists()
 
 
+# ── SessionStart replay (inject recent learnings, never blocks) ──────────────
+def test_sessionstart_replay_injects_recent_learnings(tmp_path, monkeypatch):
+    from promptwise.core.learning_store import LearningStore
+    db = tmp_path / "learning.db"
+    store = LearningStore(db)
+    store.capture(category="style", mistake="used tabs", correction="use spaces", project=tmp_path.name)
+    monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: db)
+    d = hb.sessionstart_replay(_payload(tmp_path))
+    assert d.action == "inject"
+    assert "use spaces" in d.reason
+    assert d.event == "SessionStart"
+
+
+def test_sessionstart_replay_empty_store_allows(tmp_path, monkeypatch):
+    from promptwise.core.learning_store import LearningStore
+    db = tmp_path / "empty.db"
+    LearningStore(db)  # create schema, no rows
+    monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: db)
+    d = hb.sessionstart_replay(_payload(tmp_path))
+    assert d.action == "allow"
+
+
+def test_sessionstart_replay_disabled_when_k_zero(tmp_path, monkeypatch):
+    monkeypatch.setenv("PROMPTWISE_REPLAY_K", "0")
+    d = hb.sessionstart_replay(_payload(tmp_path))
+    assert d.action == "allow"
+
+
+# ── PreCompact guard (preserve governance state, never blocks) ───────────────
+def test_precompact_guard_preserves_audit_state(tmp_path):
+    hb.posttooluse_audit(_payload(tmp_path, tool_name="Write",
+                                  tool_input={"file_path": "a.py", "content": "x=1"}))
+    d = hb.precompact_guard(_payload(tmp_path))
+    assert d.action == "inject"
+    assert "audit" in d.reason.lower()
+    assert d.extra.get("records", 0) >= 1
+
+
+def test_precompact_guard_no_audit_allows(tmp_path):
+    d = hb.precompact_guard(_payload(tmp_path))
+    assert d.action == "allow"
+
+
+# ── run() inject action emits additionalContext on exit 0 ────────────────────
+def test_run_inject_emits_context_exit_0(tmp_path):
+    hb.posttooluse_audit(_payload(tmp_path, tool_name="Write",
+                                  tool_input={"file_path": "a.py", "content": "x=1"}))
+    payload = json.dumps(_payload(tmp_path))
+    out = io.StringIO()
+    code = hb.run("precompact_guard", stdin=io.StringIO(payload), stdout=out, stderr=io.StringIO())
+    assert code == 0
+    body = out.getvalue()
+    assert "additionalContext" in body and "PreCompact" in body
+
+
 # ── fail-open guarantees ─────────────────────────────────────────────────────
 def test_all_handlers_fail_open_on_garbage(tmp_path):
     garbage = {"cwd": str(tmp_path), "tool_input": "not-a-dict", "prompt": 12345}
     for key in hb._HANDLERS:
         d = hb.dispatch(key, garbage)
-        assert d.action in ("allow", "warn", "block")  # never raises
+        assert d.action in ("allow", "warn", "block", "inject")  # never raises
 
 
 def test_unknown_handler_allows():
