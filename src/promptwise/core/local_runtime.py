@@ -222,3 +222,77 @@ def continuation_prompt(previous_tail: str, tail_chars: int = 400) -> str:
     return ("Continue the response from exactly where it stopped. Do not repeat any "
             "text already produced and do not restart. Here is the tail of what you "
             f"have written so far:\n\n{tail}")
+
+
+# ── live client (Ollama /api/generate) ───────────────────────────────────────
+def _urllib_post_json(url: str, body: dict, timeout: float = 120.0):
+    import json
+    import urllib.request
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (localhost only)
+        return json.loads(r.read().decode("utf-8"))
+
+
+class OllamaClient:
+    """Minimal client for a local runtime's ``/api/generate``. ``http_post`` is
+    injected for tests; the default posts JSON over localhost. Fail-soft."""
+
+    def __init__(self, base_url: str = DEFAULT_OLLAMA_URL, http_post=None):
+        self.base = base_url.rstrip("/")
+        self.post = http_post or _urllib_post_json
+
+    def generate(self, model: str, prompt: str, *, num_ctx: int | None = None,
+                 context: list | None = None, options: dict | None = None) -> dict | None:
+        """One non-streaming call. Returns the raw response dict (with ``response``
+        and the ``context`` KV array for seamless continuation), or ``None``."""
+        body: dict = {"model": model, "prompt": prompt or "", "stream": False}
+        opts = dict(options or {})
+        if num_ctx:
+            opts["num_ctx"] = int(num_ctx)
+        if opts:
+            body["options"] = opts
+        if context:
+            body["context"] = context  # KV state passthrough -> seamless continuation
+        try:
+            return self.post(self.base + "/api/generate", body)
+        except Exception:
+            return None
+
+
+def generate_long(model: str, prompt: str, *, num_ctx: int | None = None,
+                  max_rounds: int = 6, base_url: str = DEFAULT_OLLAMA_URL,
+                  http_post=None) -> dict:
+    """Produce a long answer that a small context window would otherwise cut short.
+
+    Clean path: reuse the ``context`` array Ollama returns so each continuation
+    resumes with KV state intact -- no re-priming, no lost coherence. If a runtime
+    returns no context, fall back to a re-priming continuation prompt. Chunks are
+    stitched with overlap removal. Fail-soft: an unreachable daemon yields whatever
+    was produced (possibly empty).
+    """
+    client = OllamaClient(base_url, http_post)
+    texts: list[str] = []
+    context = None
+    reason = None
+    rounds = 0
+    used_fallback = False
+    nxt = prompt
+    while rounds < max_rounds:
+        rounds += 1
+        res = client.generate(model, nxt, num_ctx=num_ctx, context=context)
+        if not res:
+            break
+        texts.append(res.get("response", "") or "")
+        context = res.get("context") or context
+        reason = res.get("done_reason")
+        incomplete = (reason == "length") or (res.get("done") is False)
+        if not incomplete:
+            break  # completed naturally
+        if context:
+            nxt = ""                                   # KV context carries state -- seamless
+        else:
+            used_fallback = True
+            nxt = continuation_prompt("".join(texts))  # general fallback: re-prime
+    return {"text": stitch(texts), "rounds": rounds, "done_reason": reason,
+            "incomplete": reason == "length", "used_reprime_fallback": used_fallback}

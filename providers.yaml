@@ -45,7 +45,6 @@ providers:
       powerful: codex-5.5-max
     switch_command: ""
     peak_hours_utc: [14, 15, 16, 17, 18]
-    api_endpoint: "http://localhost:11434/v1"
     features:
       supports_caching: true
       supports_batching: true
@@ -56,3 +55,25 @@ providers:
       - "Codex 5.5 optimized for code generation; may be overkill for non-code tasks"
       - "Context window varies by tier (8K/32K/128K); larger files may need chunking"
       - "Peak hours 2-6 PM UTC; consider scheduling large jobs outside these hours"
+
+  # On-device runtime (localhost). Models are discovered live from the daemon,
+  # not fixed here; tiers below are placeholders resolved by local_runtime at run
+  # time. localhost is an on-device call, not a network dependency.
+  local:
+    display_name: "Local runtime (on-device)"
+    aliases: [ollama, on-device, localhost]
+    tiers:
+      fast: local
+      balanced: local
+      powerful: local
+    switch_command: ""
+    peak_hours_utc: []
+    api_endpoint: "http://localhost:11434"
+    features:
+      supports_caching: false
+      supports_batching: false
+      supports_streaming: true
+      on_device: true
+    feature_warnings:
+      - "Models are discovered from the running daemon; if none is up, the feature is dormant"
+      - "Context window and speed depend on device RAM/VRAM; see 'promptwise local'"

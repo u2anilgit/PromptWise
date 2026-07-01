@@ -98,3 +98,69 @@ def test_continuation_prompt_contains_tail():
     p = L.continuation_prompt("...the final words of the draft", tail_chars=100)
     assert "final words of the draft" in p
     assert "not repeat" in p.lower() or "do not repeat" in p.lower()
+
+
+# ── live client (injected transport) ─────────────────────────────────────────
+def test_ollama_client_builds_generate_body():
+    seen = {}
+
+    def post(url, body):
+        seen["url"] = url
+        seen["body"] = body
+        return {"response": "ok", "context": [1, 2, 3], "done": True}
+
+    c = L.OllamaClient(http_post=post)
+    out = c.generate("llama3", "hi", num_ctx=4096, context=[9, 9])
+    assert seen["url"].endswith("/api/generate")
+    assert seen["body"]["model"] == "llama3" and seen["body"]["stream"] is False
+    assert seen["body"]["options"]["num_ctx"] == 4096
+    assert seen["body"]["context"] == [9, 9]
+    assert out["response"] == "ok"
+
+
+def test_generate_long_uses_context_passthrough():
+    posts = []
+
+    def post(url, body):
+        posts.append(body)
+        if len(posts) == 1:
+            return {"response": "Part one ", "context": [1, 2, 3], "done_reason": "length"}
+        return {"response": "and part two.", "context": [1, 2, 3, 4], "done_reason": "stop", "done": True}
+
+    out = L.generate_long("llama3", "write a long thing", http_post=post, max_rounds=5)
+    assert out["text"] == "Part one and part two."
+    assert out["rounds"] == 2
+    assert out["incomplete"] is False
+    assert out["used_reprime_fallback"] is False
+    # the continuation call carried the KV context and an empty prompt (seamless)
+    assert posts[1]["context"] == [1, 2, 3]
+    assert posts[1]["prompt"] == ""
+
+
+def test_generate_long_reprime_fallback_without_context():
+    posts = []
+
+    def post(url, body):
+        posts.append(body)
+        if len(posts) == 1:
+            return {"response": "chunk A ", "done_reason": "length"}   # no context returned
+        return {"response": "chunk B", "done_reason": "stop", "done": True}
+
+    out = L.generate_long("m", "prompt", http_post=post)
+    assert out["used_reprime_fallback"] is True
+    assert "chunk A" in out["text"] and "chunk B" in out["text"]
+    assert "not repeat" in posts[1]["prompt"].lower()
+
+
+def test_generate_long_failsoft_when_unreachable():
+    def post(url, body):
+        raise ConnectionError("no daemon")
+    out = L.generate_long("m", "prompt", http_post=post)
+    assert out["text"] == "" and out["rounds"] >= 1
+
+
+def test_generate_long_stops_at_max_rounds():
+    def post(url, body):
+        return {"response": "x", "context": [1], "done_reason": "length"}  # never completes
+    out = L.generate_long("m", "prompt", http_post=post, max_rounds=3)
+    assert out["rounds"] == 3 and out["incomplete"] is True
