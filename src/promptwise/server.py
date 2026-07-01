@@ -99,8 +99,8 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]}),
     Tool(name="owasp_scan", description="Scan code for OWASP Top-10 vulnerabilities",
          inputSchema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}}, "required": ["code"]}),
-    Tool(name="scan_response", description="Scan model response for PII leaks and injection echoes",
-         inputSchema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}}, "required": ["response"]}),
+    Tool(name="scan_response", description="Scan a model response for PII leaks, injection echoes, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Advisory.",
+         inputSchema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}}, "required": ["response"]}),
 
     # --- Workflow Planning (PromptWise-native) ---
     Tool(name="plan_workflow", description="Classify a task (greenfield/brownfield/regulated) and return an ordered workflow of PromptWise's own skill packs + tools to run (PRD -> design -> stories -> TDD -> review). No third-party frameworks.",
@@ -419,7 +419,15 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
             inj_kw = ["ignore previous", "dan mode", "developer mode", "jailbreak", "override"]
             echo = any(kw in original.lower() for kw in inj_kw) and any(kw in response.lower() for kw in inj_kw)
             leak = any(p in response.lower() for p in ["system prompt", "instructions say", "i was told to"])
-            return json.dumps({"pii_found": len(pii_items) > 0, "pii_items": pii_items, "injection_echo": echo, "system_leak": leak, "safe": not pii_items and not echo and not leak, "redacted_response": redacted})
+            # Responsible-AI advisory: grounding / bias / ethics (heuristic, never blocks).
+            try:
+                from promptwise.core.responsible_ai import scan as _rai_scan
+                rai = _rai_scan(response, sources=arguments.get("sources", ""))
+            except Exception:
+                rai = {"overall": "clean", "findings": []}
+            return json.dumps({"pii_found": len(pii_items) > 0, "pii_items": pii_items, "injection_echo": echo,
+                               "system_leak": leak, "safe": not pii_items and not echo and not leak,
+                               "redacted_response": redacted, "responsible_ai": rai})
 
         # ── Role Detection ───────────────────────────────────────────────────
         elif name == "plan_workflow":

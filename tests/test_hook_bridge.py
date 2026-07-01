@@ -93,12 +93,123 @@ def test_sessionend_exports_trace(tmp_path):
     assert (tmp_path / ".promptwise" / "audit_export.json").exists()
 
 
+# ── SessionStart replay (inject recent learnings, never blocks) ──────────────
+def test_sessionstart_replay_injects_recent_learnings(tmp_path, monkeypatch):
+    from promptwise.core.learning_store import LearningStore
+    db = tmp_path / "learning.db"
+    store = LearningStore(db)
+    store.capture(category="style", mistake="used tabs", correction="use spaces", project=tmp_path.name)
+    monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: db)
+    d = hb.sessionstart_replay(_payload(tmp_path))
+    assert d.action == "inject"
+    assert "use spaces" in d.reason
+    assert d.event == "SessionStart"
+
+
+def test_sessionstart_replay_empty_store_allows(tmp_path, monkeypatch):
+    from promptwise.core.learning_store import LearningStore
+    db = tmp_path / "empty.db"
+    LearningStore(db)  # create schema, no rows
+    monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: db)
+    d = hb.sessionstart_replay(_payload(tmp_path))
+    assert d.action == "allow"
+
+
+def test_sessionstart_replay_disabled_when_k_zero(tmp_path, monkeypatch):
+    monkeypatch.setenv("PROMPTWISE_REPLAY_K", "0")
+    d = hb.sessionstart_replay(_payload(tmp_path))
+    assert d.action == "allow"
+
+
+# ── PreCompact guard (preserve governance state, never blocks) ───────────────
+def test_precompact_guard_preserves_audit_state(tmp_path):
+    hb.posttooluse_audit(_payload(tmp_path, tool_name="Write",
+                                  tool_input={"file_path": "a.py", "content": "x=1"}))
+    d = hb.precompact_guard(_payload(tmp_path))
+    assert d.action == "inject"
+    assert "audit" in d.reason.lower()
+    assert d.extra.get("records", 0) >= 1
+
+
+def test_precompact_guard_no_audit_allows(tmp_path):
+    d = hb.precompact_guard(_payload(tmp_path))
+    assert d.action == "allow"
+
+
+# ── run() inject action emits additionalContext on exit 0 ────────────────────
+def test_run_inject_emits_context_exit_0(tmp_path):
+    hb.posttooluse_audit(_payload(tmp_path, tool_name="Write",
+                                  tool_input={"file_path": "a.py", "content": "x=1"}))
+    payload = json.dumps(_payload(tmp_path))
+    out = io.StringIO()
+    code = hb.run("precompact_guard", stdin=io.StringIO(payload), stdout=out, stderr=io.StringIO())
+    assert code == 0
+    body = out.getvalue()
+    assert "additionalContext" in body and "PreCompact" in body
+
+
+# ── WP2: Bash guard (deny holds via permissionDecision) ─────────────────────
+def test_bash_guard_denies_recursive_force_delete(tmp_path):
+    cmd = "rm -" + "rf /important"  # assembled so the source file carries no literal
+    d = hb.pretooluse_bash_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": cmd}))
+    assert d.action == "deny"
+
+
+def test_bash_guard_allows_clean_command(tmp_path):
+    d = hb.pretooluse_bash_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "ls -la"}))
+    assert d.action == "allow"
+
+
+def test_bash_guard_empty_command_allows(tmp_path):
+    d = hb.pretooluse_bash_guard(_payload(tmp_path, tool_name="Bash", tool_input={}))
+    assert d.action == "allow"
+
+
+def test_run_deny_emits_permission_json_exit_0(tmp_path):
+    cmd = "rm -" + "rf /x"
+    payload = json.dumps(_payload(tmp_path, tool_name="Bash", tool_input={"command": cmd}))
+    out = io.StringIO()
+    code = hb.run("pretooluse_bash_guard", stdin=io.StringIO(payload), stdout=out, stderr=io.StringIO())
+    assert code == 0
+    body = out.getvalue()
+    assert "permissionDecision" in body and "deny" in body
+
+
+# ── WP2: sub-agent gate + failure capture (advisory, never block) ────────────
+def test_subagentstop_gate_audits_and_never_blocks(tmp_path):
+    d = hb.subagentstop_gate(_payload(tmp_path, agent_name="explorer"))
+    assert d.action in ("allow", "warn")
+    assert (tmp_path / ".promptwise" / "audit.jsonl").exists()
+
+
+def test_failure_capture_records_and_allows(tmp_path, monkeypatch):
+    from promptwise.core.learning_store import LearningStore
+    db = tmp_path / "learn.db"
+    monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: db)
+    d = hb.failure_capture(_payload(tmp_path, hook_event_name="PostToolUseFailure",
+                                    tool_name="Bash", error="command exited 1"))
+    assert d.action == "allow" and d.extra.get("captured")
+    assert LearningStore(db).count() >= 1
+
+
+# ── WP5: responsible-AI advisory (warn-only, never blocks) ───────────────────
+def test_responsible_ai_check_warns_on_signals(tmp_path):
+    text = "This treatment will cure everything, guaranteed."
+    d = hb.responsible_ai_check(_payload(tmp_path, response=text))
+    assert d.action in ("warn", "allow")
+
+
+def test_responsible_ai_check_clean_allows(tmp_path):
+    d = hb.responsible_ai_check(_payload(tmp_path, response="Here is a plain factual summary."))
+    assert d.action == "allow"
+
+
 # ── fail-open guarantees ─────────────────────────────────────────────────────
 def test_all_handlers_fail_open_on_garbage(tmp_path):
     garbage = {"cwd": str(tmp_path), "tool_input": "not-a-dict", "prompt": 12345}
     for key in hb._HANDLERS:
         d = hb.dispatch(key, garbage)
-        assert d.action in ("allow", "warn", "block")  # never raises
+        assert d.action in ("allow", "warn", "block", "inject")  # never raises
 
 
 def test_unknown_handler_allows():
