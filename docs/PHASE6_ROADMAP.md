@@ -146,6 +146,37 @@ presentation + a time filter + a rollup, not new plumbing.
 
 ---
 
+## Metric priority (WP7) — North Star first, not a flat list
+
+The metric menu above is comprehensive; this is the decision on what leads.
+
+**North Star — one hero number: Net savings this window (`$` and `%`).**
+`= (baseline cost if every call ran top-tier with no cache) − actual spend`.
+Folds routing + caching + compression + batching into the single figure that
+justifies the tool. Everything else supports it.
+
+**Headline cards — exactly four:**
+1. Total cost (USD) — input / output / **cached** split
+2. Tokens saved **%**
+3. **Cost per completed task** — the efficiency trend that matters (down = better)
+4. Governance status — audit chain OK + block/denial count
+
+**Trends:** spend/day · **model mix over time** (visual proof routing works;
+deprecated models retained) · cache-hit rate.
+
+**Governance panel:** blocked writes · denied shell · responsible-AI advisories ·
+failure captures · audit-chain status.
+
+**Prune (credibility cost outweighs value):**
+- *Estimated time saved* / *productivity score* (`plugins/roi.py`) — invented
+  multipliers; keep out of the hero row.
+- *Lines of code as a KPI* — vanity and gameable. Keep it **only as a
+  denominator** (`cost per 100 lines changed`) and as context, never as a
+  success metric.
+
+**Best composite:** `cost per completed task` (or per session) — clearest
+efficiency signal; trending down means the routing/caching stack is working.
+
 ## Guardrails (both packages)
 - No new infrastructure; local-first and air-gapped-safe.
 - No branded/competitor/third-party names in code, config, or UI — tiers and families only.
