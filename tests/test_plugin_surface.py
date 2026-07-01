@@ -44,8 +44,8 @@ def test_every_command_has_description():
 
 def test_each_command_fronts_a_real_tool():
     tools = _server_tool_names()
-    # doctor drives the CLI, not an MCP tool
-    exempt = {"doctor"}
+    # these drive the CLI / core engine, not an MCP tool
+    exempt = {"doctor", "scaffold"}
     problems = []
     for c in COMMANDS:
         if c.stem in exempt:

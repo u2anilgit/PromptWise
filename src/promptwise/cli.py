@@ -95,6 +95,18 @@ def _run_doctor(as_json: bool = False) -> None:
     raise SystemExit(0 if report.get("ok") else 1)
 
 
+def _run_scaffold(text: str, out: str, repo: str) -> None:
+    from promptwise.core.scaffold import scaffold
+    from pathlib import Path
+    r = scaffold(text, repo_root=repo)
+    Path(out).write_text(r["page_html"], encoding="utf-8")
+    print(f"[{r['mode']}] scaffold — {len(r['options'])} option(s), diagram: {r['diagram_kind']}")
+    for o in r["options"]:
+        print(f"  - {o['title']} ({o['effort']}): {o['approach']}")
+    print(f"\nInteractive spec page: {out}")
+    print("Mermaid diagram:\n" + r["mermaid"])
+
+
 def _run_bootstrap() -> None:
     from promptwise.core.doctor import bootstrap
     res = bootstrap()
@@ -109,7 +121,7 @@ def _run_bootstrap() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="promptwise",
-        description=f"PromptWise v{__version__} — Token-aware prompt routing",
+        description=f"PromptWise v{__version__} — the governance & intelligence layer for AI agents",
     )
     parser.add_argument("--config", help="Path to config directory", default=None)
 
@@ -133,6 +145,11 @@ def main() -> None:
 
     sub.add_parser("bootstrap", help="Create local state (.promptwise/ + learning DB) on first run")
 
+    sc = sub.add_parser("scaffold", help="Classify a request, propose options, emit an interactive spec page + diagram")
+    sc.add_argument("text", help="What you want to build / re-engineer / re-architect / diagram")
+    sc.add_argument("--out", "-o", help="Output HTML path", default="promptwise_scaffold.html")
+    sc.add_argument("--repo", help="Repo root to scan for stack context", default=".")
+
     args = parser.parse_args()
 
     if args.command == "stats":
@@ -145,6 +162,8 @@ def main() -> None:
         _run_doctor(getattr(args, "json", False))
     elif args.command == "bootstrap":
         _run_bootstrap()
+    elif args.command == "scaffold":
+        _run_scaffold(args.text, args.out, args.repo)
 
 
 if __name__ == "__main__":
