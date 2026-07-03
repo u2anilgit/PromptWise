@@ -1,0 +1,165 @@
+"""Compliance evidence export — self-verifying, signed bundle from the audit chain.
+
+TDD for Phase 7 WP7.2. Stdlib only, air-gap safe: no network, no new dependency.
+"""
+import builtins
+import json
+import os
+
+import pytest
+
+from promptwise.core.audit_log import AuditLog
+from promptwise.core import compliance_export as ce
+
+KEY = "s3cr3t-local-audit-key"
+WRONG = "not-the-key"
+
+
+def _records():
+    """A short, valid hash chain exported to plain dicts (as the JSONL holds them)."""
+    log = AuditLog()
+    log.append("draft story S1", agent="claude-code", model="sonnet",
+               cost_usd=0.01, gate_decision="PASS", rules_applied=["security"])
+    log.append("implement S1", agent="cursor", model="sonnet", cost_usd=0.02,
+               gate_decision="CONCERNS", files_touched=["a.py"])
+    log.append("review S1", agent="codex", gate_decision="PASS")
+    return json.loads(log.export_json())
+
+
+# ---------- chain verification ----------
+def test_verify_chain_ok_on_untouched_data():
+    res = ce.verify_chain(_records())
+    assert res.ok, res.message
+    assert res.first_broken_index is None
+
+
+def test_verify_chain_accepts_auditlog_object():
+    log = AuditLog()
+    log.append("t0", agent="claude-code")
+    res = ce.verify_chain(log)
+    assert res.ok
+
+
+@pytest.mark.parametrize("idx", [0, 1, 2])
+def test_mutation_points_to_first_broken_record(idx):
+    recs = _records()
+    recs[idx]["task"] = "TAMPERED"
+    res = ce.verify_chain(recs)
+    assert not res.ok
+    assert res.first_broken_index == idx
+    assert res.first_broken_id == recs[idx]["hash"]
+
+
+def test_first_broken_is_earliest_when_multiple_mutations():
+    recs = _records()
+    recs[2]["cost_usd"] = 9.99
+    recs[1]["cost_usd"] = 5.55
+    res = ce.verify_chain(recs)
+    assert not res.ok
+    assert res.first_broken_index == 1
+
+
+# ---------- bundle build ----------
+def test_build_bundle_manifest():
+    recs = _records()
+    bundle = ce.build_bundle(recs)
+    m = bundle["manifest"]
+    assert m["record_count"] == 3
+    assert m["chain_verified"] is True
+    assert m["chain_head"] == recs[-1]["hash"]
+    assert m["time_range"]["start"] == recs[0]["timestamp"]
+    assert m["time_range"]["end"] == recs[-1]["timestamp"]
+    assert bundle["records"] == recs
+
+
+def test_build_bundle_empty_chain():
+    bundle = ce.build_bundle([])
+    assert bundle["manifest"]["record_count"] == 0
+    assert bundle["manifest"]["chain_verified"] is True
+
+
+def test_control_family_tagging_is_generic():
+    bundle = ce.build_bundle(_records(), control_families=["audit-and-accountability"])
+    fams = bundle["manifest"]["control_families"]
+    assert "audit-and-accountability" in fams
+    # no branded / competitor framework names leak through
+    blob = json.dumps(bundle).lower()
+    for banned in ("soc2", "soc 2", "hipaa", "iso 27001", "nist", "pci"):
+        assert banned not in blob
+
+
+# ---------- signing ----------
+def test_sign_and_verify_roundtrip_with_explicit_key():
+    signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
+    assert signed["signature"]["alg"] == "HMAC-SHA256"
+    res = ce.verify_bundle(signed, key=KEY)
+    assert res.ok
+    assert res.signature_ok
+    assert res.chain.ok
+
+
+def test_verify_fails_with_wrong_key():
+    signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
+    res = ce.verify_bundle(signed, key=WRONG)
+    assert not res.ok
+    assert not res.signature_ok
+    # chain itself is still intact even though signature is wrong
+    assert res.chain.ok
+
+
+def test_verify_fails_with_missing_key(monkeypatch):
+    monkeypatch.delenv("PROMPTWISE_AUDIT_KEY", raising=False)
+    monkeypatch.delenv("PROMPTWISE_AUDIT_KEY_FILE", raising=False)
+    signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
+    res = ce.verify_bundle(signed)  # no key available anywhere
+    assert not res.ok
+    assert not res.signature_ok
+
+
+def test_key_from_env_var(monkeypatch):
+    monkeypatch.setenv("PROMPTWISE_AUDIT_KEY", KEY)
+    signed = ce.sign_bundle(ce.build_bundle(_records()))  # picks up env
+    res = ce.verify_bundle(signed)  # also from env
+    assert res.ok
+
+
+def test_key_from_key_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("PROMPTWISE_AUDIT_KEY", raising=False)
+    kf = tmp_path / "audit.key"
+    kf.write_text(KEY, encoding="utf-8")
+    monkeypatch.setenv("PROMPTWISE_AUDIT_KEY_FILE", str(kf))
+    signed = ce.sign_bundle(ce.build_bundle(_records()))
+    assert ce.verify_bundle(signed).ok
+
+
+def test_tamper_inside_signed_bundle_fails_and_locates():
+    signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
+    signed["bundle"]["records"][1]["task"] = "HACKED"
+    res = ce.verify_bundle(signed, key=KEY)
+    assert not res.ok
+    assert res.chain.first_broken_index == 1
+    assert not res.signature_ok  # signature also breaks under mutation
+
+
+# ---------- zip packaging (stdlib zipfile) ----------
+def test_zip_roundtrip(tmp_path):
+    signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
+    out = tmp_path / "evidence.zip"
+    ce.write_zip(signed, out)
+    assert out.exists()
+    loaded = ce.read_zip(out)
+    res = ce.verify_bundle(loaded, key=KEY)
+    assert res.ok
+
+
+# ---------- offline / air-gap ----------
+def test_no_network_used(monkeypatch):
+    import socket
+
+    def _boom(*a, **k):
+        raise AssertionError("network access attempted")
+
+    monkeypatch.setattr(socket, "socket", _boom)
+    monkeypatch.setattr(socket, "create_connection", _boom)
+    signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
+    assert ce.verify_bundle(signed, key=KEY).ok
