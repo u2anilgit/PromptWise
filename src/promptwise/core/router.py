@@ -1,9 +1,14 @@
+import os
 import re
 from dataclasses import dataclass, field
 
 from promptwise.config import AppConfig
+from promptwise.core.adaptive_router import AdaptiveRouter
 from promptwise.core.model_registry import ModelRegistry
 from promptwise.types import RouteResult
+
+# Adaptive routing is on by default; these values disable it (fail-open to static).
+_ADAPTIVE_OFF = ("0", "off", "false", "no")
 
 
 @dataclass
@@ -27,9 +32,14 @@ _PLUGIN_RULES: list[tuple[str, list[str]]] = [
 
 
 class Router:
-    def __init__(self, config: AppConfig | None = None, registry: ModelRegistry | None = None):
+    def __init__(self, config: AppConfig | None = None, registry: ModelRegistry | None = None,
+                 adaptive: "AdaptiveRouter | None" = None):
         self.config = config or AppConfig()
         self.registry = registry or ModelRegistry()
+        # Lazily built on first adaptive route so a Router that never routes
+        # (or runs with the flag off) never touches the outcome store.
+        self._adaptive = adaptive
+        self._adaptive_built = adaptive is not None
 
     # ── tier resolution (registry first, then config, never a code literal) ──
     def _provider_key(self, provider: str) -> str | None:
@@ -81,15 +91,21 @@ class Router:
         stakes = stakes.lower() if stakes != "auto" else self._detect_stakes(text)
         provider = provider.lower()
 
-        recommended = self._pick_model(intent, stakes, provider, monthly_budget_usd, days_elapsed_in_month)
+        static_tier = self._static_tier(intent, stakes)
+        tier, adaptive_note = self._maybe_adapt(intent, stakes, static_tier)
+        recommended = self._resolve_current(tier, provider)
         input_tokens = max(1, len(text) // 4)
         in_rate, ctx_window = self._input_rate(recommended)
         cost = input_tokens * in_rate / 1_000_000
         alt = [m for m in self._current_models() if m != recommended]
 
+        reason = f"Routed to {recommended} based on intent={intent}, stakes={stakes}"
+        if adaptive_note:
+            reason += f" | adaptive: {adaptive_note}"
+
         return RouteResult(
             recommended_model=recommended,
-            reason=f"Routed to {recommended} based on intent={intent}, stakes={stakes}",
+            reason=reason,
             intent_detected=intent,
             stakes_detected=stakes,
             estimated_input_cost_usd=round(cost, 8),
@@ -168,10 +184,43 @@ class Router:
             return "low"
         return "medium"
 
+    # ── static tier heuristic (the always-available default) ─────────────────
+    def _static_tier(self, intent: str, stakes: str) -> str:
+        if stakes == "high" and intent in ("analysis", "code", "research", "agent_loop"):
+            return "powerful"
+        if intent in ("extract", "classify", "summarize", "question"):
+            return "fast"
+        return "balanced"
+
     def _pick_model(self, intent: str, stakes: str, provider: str,
                     monthly_budget_usd: float | None, days_elapsed: int | None) -> str:
-        if stakes == "high" and intent in ("analysis", "code", "research", "agent_loop"):
-            return self._tier_model("powerful", provider)
-        if intent in ("extract", "classify", "summarize", "question"):
-            return self._tier_model("fast", provider)
-        return self._tier_model("balanced", provider)
+        # Retained for backward compatibility: pure static pick, no history.
+        return self._tier_model(self._static_tier(intent, stakes), provider)
+
+    def _resolve_current(self, tier: str, provider: str) -> str:
+        """Resolve a tier to a concrete alias, never a deprecated one. The
+        registry already returns current-only; this also guards the config
+        fallback path (which could name a retired alias)."""
+        alias = self._tier_model(tier, provider)
+        if self.registry.loaded and self.registry.is_deprecated(alias):
+            cur = self.registry.resolve(tier, provider)
+            if cur:
+                alias = cur
+        return alias
+
+    # ── adaptive blend (env-gated, fail-open to static on ANY error) ─────────
+    def _maybe_adapt(self, intent: str, stakes: str, static_tier: str) -> tuple[str, str]:
+        if os.environ.get("PROMPTWISE_ADAPTIVE_ROUTING", "on").strip().lower() in _ADAPTIVE_OFF:
+            return static_tier, ""
+        try:
+            if not self._adaptive_built:
+                self._adaptive = AdaptiveRouter()
+                self._adaptive_built = True
+            scorer = self._adaptive
+            if scorer is None:
+                return static_tier, ""
+            task_class = f"{intent}/{stakes}"
+            tier, note = scorer.adapt(task_class, static_tier)
+            return (tier or static_tier), (note or "")
+        except Exception:
+            return static_tier, ""
