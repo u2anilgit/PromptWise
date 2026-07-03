@@ -331,6 +331,19 @@ _TOOL_DEFS = [
              "sign": {"type": "boolean", "default": True, "description": "HMAC-sign the bundle with the local key (env PROMPTWISE_AUDIT_KEY or PROMPTWISE_AUDIT_KEY_FILE)"},
              "control_families": {"type": "array", "items": {"type": "string"}, "description": "generic control-family tags; inferred from the trace when omitted"},
              "out_path": {"type": "string", "description": "optional path to write a .zip evidence archive"}}}),
+
+    # ── Autonomous governor (Phase 9, additive · policy-gated, reversible, default advise-only) ──
+    Tool(name="run_governor", description="Turn local insights recommendations into typed, policy-gated, REVERSIBLE governance actions. Default advise-only: proposes actions + policy verdicts and reports what would/did apply for the current mode (env PROMPTWISE_AUTONOMY in {advise,dry_run,apply}). Only allowlisted 'safe' actions (AdjustBudgetGuard, WriteRoutingPreferenceNote) can ever move state, and only in apply; each writes a local undo-ledger entry. Everything else is advisory-only. Offline; fully audited.",
+         inputSchema={"type": "object", "properties": {
+             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365},
+             "mode": {"type": "string", "enum": ["advise", "dry_run", "apply"], "description": "override PROMPTWISE_AUTONOMY for this call; omit to use the env (default advise)"},
+             "root": {"type": "string", "default": ".", "description": "project root holding the gitignored .promptwise overlay + ledger"},
+             "policy_path": {"type": "string", "default": "config/policy.yaml"}}}),
+    Tool(name="governor_undo", description="Reverse a previously-applied governor action by id, restoring the exact prior state from the undo ledger (audited). No-op if the id is unknown or non-reversible.",
+         inputSchema={"type": "object", "properties": {
+             "action_id": {"type": "string"},
+             "root": {"type": "string", "default": "."}},
+         "required": ["action_id"]}),
 ]
 
 
@@ -1023,6 +1036,22 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
                 records, sign=arguments.get("sign", True),
                 control_families=arguments.get("control_families"),
                 out_path=arguments.get("out_path")))
+
+        # ── Autonomous governor (Phase 9) ────────────────────────────────────
+        elif name == "run_governor":
+            from promptwise.core.governor import Governor
+            from promptwise.core.insights import compute_recommendations
+            root = arguments.get("root", ".")
+            policy_path = arguments.get("policy_path", "config/policy.yaml")
+            gov = Governor(root=root, mode=arguments.get("mode"),
+                           policy_path=policy_path, audit_log=_get_audit_log())
+            recs = compute_recommendations(window_days=arguments.get("window_days", 30))
+            return json.dumps(gov.run(recs))
+
+        elif name == "governor_undo":
+            from promptwise.core.governor import Governor
+            gov = Governor(root=arguments.get("root", "."), audit_log=_get_audit_log())
+            return json.dumps(gov.undo(arguments.get("action_id", "")))
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})
