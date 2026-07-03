@@ -112,6 +112,42 @@ class RouteOutcomeModel(Base):
     quality_signal = Column(String(20), default="neutral")
 
 
+class EvalResultModel(Base):
+    """Phase 7 WP7.3 — one scored eval-case result for the regression harness.
+
+    Additive, append-only. Mirrors the sync ``core.eval_harness.EvalResultStore``
+    which reads/writes the same ``eval_results`` table on the local DB. ``verdict``
+    is the normalized ``met`` / ``not_met`` bar decision; ``mode`` is ``local``
+    (ran on an on-device runtime) or ``record`` (offline dry-run).
+    """
+    __tablename__ = "eval_results"
+    result_id = Column(String(50), primary_key=True)
+    ts = Column(String(50), nullable=False)
+    suite = Column(String(100), nullable=False, default="default", index=True)
+    case_id = Column(String(100), nullable=False, default="")
+    task_class = Column(String(100), nullable=False, default="")
+    tier = Column(String(20), nullable=False, default="")
+    score = Column(Float, default=0.0)
+    verdict = Column(String(20), default="not_met")
+    mode = Column(String(20), default="record")
+    signals = Column(Text, default="[]")
+
+
+class EvalBaselineModel(Base):
+    """Phase 7 WP7.3 — the blessed baseline a run is diffed against to flag drift.
+
+    Keyed by (suite, case_id, tier) so a baseline is per-tier. Upserted by the
+    sync ``EvalResultStore`` on the same ``eval_baselines`` table.
+    """
+    __tablename__ = "eval_baselines"
+    suite = Column(String(100), primary_key=True, default="default")
+    case_id = Column(String(100), primary_key=True, default="")
+    tier = Column(String(20), primary_key=True, default="")
+    score = Column(Float, default=0.0)
+    verdict = Column(String(20), default="not_met")
+    ts = Column(String(50), nullable=False)
+
+
 def get_db_path() -> Path:
     db_dir = Path.home() / ".promptwise"
     db_dir.mkdir(parents=True, exist_ok=True)
@@ -326,6 +362,31 @@ class MemoryManager:
             rows = result.scalars().all()
         return [{"task_class": r.task_class, "tier": r.tier, "model_family": r.model_family,
                  "cost": r.cost, "quality_signal": r.quality_signal, "ts": r.ts} for r in rows]
+
+    async def record_eval_result(self, *, suite: str, case_id: str, task_class: str, tier: str,
+                                 score: float, verdict: str, mode: str = "record",
+                                 signals: list[str] | None = None) -> None:
+        """Persist one scored eval result (async path). Mirrors the sync
+        ``core.eval_harness.EvalResultStore.record_result`` on the same table."""
+        async with self.async_session() as session:
+            async with session.begin():
+                session.add(EvalResultModel(
+                    result_id=str(uuid.uuid4()), ts=datetime.now(timezone.utc).isoformat(),
+                    suite=suite, case_id=case_id, task_class=task_class, tier=tier,
+                    score=score, verdict=verdict, mode=mode,
+                    signals=json.dumps(signals or [])))
+
+    async def get_eval_results(self, suite: str | None = None) -> list[dict]:
+        async with self.async_session() as session:
+            stmt = select(EvalResultModel)
+            if suite:
+                stmt = stmt.where(EvalResultModel.suite == suite)
+            stmt = stmt.order_by(EvalResultModel.ts)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        return [{"suite": r.suite, "case_id": r.case_id, "task_class": r.task_class,
+                 "tier": r.tier, "score": r.score, "verdict": r.verdict, "mode": r.mode,
+                 "signals": json.loads(r.signals), "ts": r.ts} for r in rows]
 
     async def record_cost(self, *, session_id: str, tool: str, model: str, input_tokens: float = 0, output_tokens: float = 0, cost_usd: float = 0, saving_pct: float = 0, lines: float = 0) -> None:
         async with self.async_session() as session:

@@ -1,0 +1,33 @@
+{
+  "suite": "default",
+  "cases": [
+    {
+      "id": "summarize-grounded",
+      "prompt": "Summarize the following in one sentence: PromptWise routes prompts to the cheapest model tier that meets the quality bar and keeps a hash-chained audit trail.",
+      "task_class": "summarize/low",
+      "tier": "fast",
+      "expect_contains": ["route"],
+      "expect_absent": ["I cannot", "TODO"],
+      "min_score": 0.6
+    },
+    {
+      "id": "route-explain",
+      "prompt": "Explain when to escalate from the balanced tier to the powerful tier for a high-stakes analysis task.",
+      "task_class": "analysis/high",
+      "tier": "balanced",
+      "expect_contains": ["tier"],
+      "expect_absent": ["I don't know"],
+      "min_score": 0.6
+    },
+    {
+      "id": "code-complete",
+      "prompt": "Write a Python function is_even(n) that returns True for even integers.",
+      "task_class": "code/medium",
+      "tier": "balanced",
+      "expect_contains": ["def"],
+      "expect_absent": ["FIXME", "..."],
+      "min_score": 0.6,
+      "skill": "validate_output"
+    }
+  ]
+}

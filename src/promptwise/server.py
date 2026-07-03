@@ -240,6 +240,8 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
     Tool(name="run_eval", description="A/B test a prompt across multiple models",
          inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}, "default": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]}}, "required": ["prompt"]}),
+    Tool(name="run_eval_harness", description="Run a durable eval + regression suite (prompt+rubric cases) offline; score with the quality gate, diff against a stored baseline to flag regressions, expose a pass/fail gate, and feed outcomes back into adaptive routing. Offline default is a record/dry-run mode (no cloud). Set save_baseline=true to bless this run as the new baseline.",
+         inputSchema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "tiers": {"type": "array", "items": {"type": "string"}}, "bar": {"type": "number", "default": 0.6}, "save_baseline": {"type": "boolean", "default": False}}}),
     Tool(name="get_sbom", description="Generate SBOM in CycloneDX format",
          inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"}, "paths": {"type": "array", "items": {"type": "string"}}}}),
     Tool(name="run_security_suite", description="Run all security checks as a suite",
@@ -774,6 +776,25 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
                 elif "sonnet" in m: scores[m] = {"quality_score": 85, "latency_ms": 1200, "cost_usd": 0.015}
                 else: scores[m] = {"quality_score": 74, "latency_ms": 350, "cost_usd": 0.003}
             return json.dumps({"prompt": arguments.get("prompt"), "eval": scores})
+
+        elif name == "run_eval_harness":
+            from promptwise.core.adaptive_router import OutcomeStore
+            from promptwise.core.eval_harness import (
+                EvalCase, EvalHarness, EvalResultStore, load_cases)
+            cases = [EvalCase.from_dict(c) for c in arguments.get("cases", []) if isinstance(c, dict)]
+            cases_path = arguments.get("cases_path", "")
+            if cases_path:
+                cases.extend(load_cases(cases_path))
+            suite = arguments.get("suite", "default")
+            harness = EvalHarness(
+                runner=None,  # offline default: record/dry-run, never cloud
+                outcome_store=OutcomeStore(), result_store=EvalResultStore(),
+                bar=float(arguments.get("bar", 0.6)), suite=suite)
+            run = harness.run(cases, tiers=arguments.get("tiers"))
+            out = run.to_dict()
+            if arguments.get("save_baseline"):
+                out["baseline_saved"] = harness.save_baseline(run)
+            return json.dumps(out)
 
         elif name == "get_sbom":
             from promptwise.core.sbom import SBOMGenerator
