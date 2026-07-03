@@ -77,18 +77,34 @@ def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def _default_root() -> Path:
+    """Root whose ``.promptwise`` state dir matches the DB / BudgetGuardian location.
+
+    ``get_db_path()`` is ``~/.promptwise/promptwise.db``; its grandparent is the home
+    dir, so ``<home>/.promptwise`` == the ``~/.promptwise`` that ``BudgetGuardian`` reads
+    for the budget overlay. Using this as the default keeps the governor's writes and the
+    guardian's reads on the same file. Fail-soft to cwd if the DB path can't be resolved.
+    """
+    try:
+        from promptwise.db.models import get_db_path
+        return get_db_path().parent.parent
+    except Exception:
+        return Path(".")
+
+
 # ── budget overlay helpers (module-level so BudgetGuardian / surfaces can reuse) ─
 def _budget_overlay_path(root: str | Path) -> Path:
     return Path(root) / _STATE_DIR / _BUDGET_OVERLAY
 
 
-def read_budget_overlay(root: str | Path = ".") -> float | None:
+def read_budget_overlay(root: str | Path | None = None) -> float | None:
     """Return the overlaid budget limit (USD) or ``None`` if no overlay exists.
 
-    Fail-open: a missing/unparseable overlay yields ``None`` (the caller falls back to
-    its tracked default), never an exception.
+    ``root=None`` resolves to the shared home state dir (see ``_default_root``) so this
+    reads the same overlay ``BudgetGuardian`` does. Fail-open: a missing/unparseable
+    overlay yields ``None`` (the caller falls back to its tracked default), never raises.
     """
-    p = _budget_overlay_path(root)
+    p = _budget_overlay_path(_default_root() if root is None else root)
     if not p.exists():
         return None
     try:
@@ -198,11 +214,13 @@ def propose(recommendations: list[dict]) -> list[Action]:
 class Governor:
     """Propose -> policy-gate -> (advise / dry_run / apply) with undo + audit."""
 
-    def __init__(self, *, root: str | Path = ".", mode: str | None = None,
+    def __init__(self, *, root: str | Path | None = None, mode: str | None = None,
                  policy: Policy | None = None, policy_path: str | Path | None = None,
                  audit_log: AuditLog | None = None,
                  audit_path: str | Path | None = None) -> None:
-        self.root = Path(root)
+        # root=None -> shared home state dir, so applied budget overlays land where
+        # BudgetGuardian reads them. Tests pass an explicit temp root for isolation.
+        self.root = _default_root() if root is None else Path(root)
         self.mode = self._resolve_mode(mode)
         self.policy = self._resolve_policy(policy, policy_path)
         if audit_log is not None:
