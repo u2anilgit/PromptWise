@@ -292,6 +292,11 @@ _TOOL_DEFS = [
          "required": ["task"]}),
     Tool(name="learning_insights", description="Correction trends from the local learning store: counts by category, project, month, and the most-repeated mistakes.",
          inputSchema={"type": "object", "properties": {}}),
+    Tool(name="insights_report", description="Ranked, actionable recommendations over local telemetry: routing downgrades/escalations, top cost drivers & spend anomalies, quality/eval regressions, and budget projections. Deterministic, offline, min-sample gated.",
+         inputSchema={"type": "object", "properties": {
+             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365,
+                             "description": "analysis window for cost/quality/budget families"},
+             "top_n": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}}}),
 
     # ── Policy intelligence & searchable trace (Phase 4, additive · offline) ──
     Tool(name="tune_permissions", description="Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
@@ -941,6 +946,12 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
         elif name == "learning_insights":
             from promptwise.core.insights import compute_insights
             return json.dumps(compute_insights())
+
+        elif name == "insights_report":
+            from promptwise.core.insights import compute_recommendations
+            recs = compute_recommendations(window_days=arguments.get("window_days", 30))
+            top_n = int(arguments.get("top_n", 10))
+            return json.dumps({"count": len(recs), "recommendations": recs[:top_n]})
 
         # ── Policy intelligence & searchable trace (Phase 4) ─────────────────
         elif name == "tune_permissions":
