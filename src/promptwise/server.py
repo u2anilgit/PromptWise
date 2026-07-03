@@ -315,6 +315,13 @@ _TOOL_DEFS = [
              "max_rules": {"type": "integer", "default": 8, "minimum": 1, "maximum": 25},
              "dry_run": {"type": "boolean", "default": False, "description": "score and preview without writing"}},
          "required": ["skill_path"]}),
+
+    # ── Compliance evidence export (Phase 7, additive · offline, stdlib only) ──
+    Tool(name="export_compliance_bundle", description="Build a self-verifying, HMAC-signed compliance evidence bundle from the hash-chained audit trail: verifies the chain, wraps records in a manifest (time range, count, chain-head digest), signs with a local key, and can write a .zip. Offline; no network.",
+         inputSchema={"type": "object", "properties": {
+             "sign": {"type": "boolean", "default": True, "description": "HMAC-sign the bundle with the local key (env PROMPTWISE_AUDIT_KEY or PROMPTWISE_AUDIT_KEY_FILE)"},
+             "control_families": {"type": "array", "items": {"type": "string"}, "description": "generic control-family tags; inferred from the trace when omitted"},
+             "out_path": {"type": "string", "description": "optional path to write a .zip evidence archive"}}}),
 ]
 
 
@@ -932,6 +939,16 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
             return json.dumps(optimize_skill_pack(
                 arguments.get("skill_path", ""), project=arguments.get("project"),
                 max_rules=arguments.get("max_rules", 8), dry_run=arguments.get("dry_run", False)))
+
+        # ── Compliance evidence export (Phase 7) ─────────────────────────────
+        elif name == "export_compliance_bundle":
+            from promptwise.core.compliance_export import export_bundle
+            audit = _get_audit_log()
+            records = json.loads(audit.export_json())
+            return json.dumps(export_bundle(
+                records, sign=arguments.get("sign", True),
+                control_families=arguments.get("control_families"),
+                out_path=arguments.get("out_path")))
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})
