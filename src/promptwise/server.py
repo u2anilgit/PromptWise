@@ -271,6 +271,8 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "path_rules": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]}),
     Tool(name="lint_agent_config", description="Lint an agent rules file (or content) for token tax, byte caps, missing .mdc frontmatter, and inferable bloat",
          inputSchema={"type": "object", "properties": {"content": {"type": "string"}, "path": {"type": "string"}, "fmt": {"type": "string", "enum": ["md", "mdc"], "default": "md"}, "max_bytes": {"type": "integer"}, "always_apply": {"type": "boolean", "default": False}, "token_budget": {"type": "integer", "default": 0}}}),
+    Tool(name="check_portability", description="Cross-host portability check (Phase 7 §7.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
+         inputSchema={"type": "object", "properties": {"repo_root": {"type": "string", "default": "."}, "hosts": {"type": "array", "items": {"type": "string"}, "description": "subset of supported hosts to check; default all"}, "emit_ci": {"type": "boolean", "default": False, "description": "also return a host-neutral CI-snippet"}}}),
 
     # ── Continuous learning loop (Phase 2, additive · local SQLite + FTS5) ────
     Tool(name="capture_learning", description="Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline.",
@@ -885,6 +887,14 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
                 res = linter.lint(arguments.get("content", ""), **kw)
             return json.dumps({"valid": res.valid,
                                "issues": [{"severity": i.severity, "message": i.message, "line": i.line} for i in res.issues]})
+
+        elif name == "check_portability":
+            from promptwise.core.portability_check import check_portability, emit_ci_snippet
+            rep = check_portability(arguments.get("repo_root", "."), hosts=arguments.get("hosts"))
+            out = rep.to_dict()
+            if arguments.get("emit_ci", False):
+                out["ci_snippet"] = emit_ci_snippet()
+            return json.dumps(out)
 
         # ── Continuous learning loop (Phase 2) ───────────────────────────────
         elif name == "capture_learning":
