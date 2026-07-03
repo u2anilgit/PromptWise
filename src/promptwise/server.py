@@ -380,682 +380,857 @@ def _get_audit_log():
     return _AUDIT_LOG
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Tool handlers — one coroutine per tool. Bodies moved verbatim from the former
+# call_tool if/elif dispatch (Phase 10 WP10.1). Behavior-preserving: same inputs,
+# same awaits, same return strings, same side effects.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.router.route(
+        text=arguments.get("text", ""), intent=arguments.get("intent", "auto"),
+        stakes=arguments.get("stakes", "auto"), provider=arguments.get("provider", "claude"),
+        monthly_budget_usd=arguments.get("monthly_budget_usd"), days_elapsed_in_month=arguments.get("days_elapsed_in_month"))
+    await ctx.memory.record_cost(tool="route_request", session_id="default", model=r.recommended_model, cost_usd=r.estimated_input_cost_usd)
+    # Close the learning loop: record the decision as a neutral outcome row
+    # (WP8.1). Fail-open — recording never changes or breaks the route.
+    route_id = None
+    try:
+        from promptwise.core.route_recorder import record_route_decision
+        reg = ctx.router.registry
+        route_id = record_route_decision(
+            task_class=f"{r.intent_detected}/{r.stakes_detected}",
+            tier=reg.tier_of(r.recommended_model),
+            model_family=reg.family_of(r.recommended_model) or "",
+            cost=r.estimated_input_cost_usd)
+    except Exception:
+        route_id = None
+    return json.dumps({"recommended_model": r.recommended_model, "reason": r.reason, "intent_detected": r.intent_detected,
+                       "stakes_detected": r.stakes_detected, "estimated_input_cost_usd": r.estimated_input_cost_usd,
+                       "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
+                       "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
+                       "route_id": route_id})
+
+
+async def _handle_rewrite_prompt(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.rewriter.rewrite(arguments.get("text", ""), role=arguments.get("role", "general"), model=arguments.get("model", "claude-sonnet-4-6"))
+    await ctx.memory.record_cost(tool="rewrite_prompt", session_id="default", model=arguments.get("model", "claude-sonnet-4-6"), input_tokens=r.raw_tokens, saving_pct=r.saving_pct)
+    return json.dumps({"rewritten": r.rewritten, "saving_pct": r.saving_pct, "warning": r.warning})
+
+
+async def _handle_optimize_context(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.optimizer.optimize(arguments.get("context", ""), token_budget=arguments.get("token_budget", 2000), model=arguments.get("model", "claude-sonnet-4-6"))
+    return json.dumps({"optimized": r.optimized, "saving_pct": r.saving_pct, "chunks_dropped": r.chunks_dropped})
+
+
+async def _handle_compress_prompt(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.compression.compress(arguments.get("text", ""))
+    return json.dumps({"compressed": r.compressed, "saving_pct": r.saving_pct, "tokens_saved": r.tokens_saved, "rules_applied": r.rules_applied})
+
+
+async def _handle_plan_cache(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.cache_planner.plan(arguments.get("messages", []), expected_reuse_count=arguments.get("expected_reuse_count", 2), model=arguments.get("model", "claude-sonnet-4-6"))
+    return json.dumps({"breakpoints": r.breakpoints, "savings_pct": r.savings_pct})
+
+
+async def _handle_batch_prompts(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.batcher.batch(arguments.get("tasks", []), role=arguments.get("role", "general"), model=arguments.get("model", "claude-sonnet-4-6"))
+    return json.dumps({"batched_prompt": r.batched_prompt, "saving_pct": r.saving_pct})
+
+
+async def _handle_summarize_thread(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.summarizer.summarize(arguments.get("conversation", ""), max_tokens=arguments.get("max_tokens", 500), model=arguments.get("model", "claude-sonnet-4-6"))
+    return json.dumps({"summary": r.summary, "reset_prompt": r.reset_prompt, "saving_pct": r.saving_pct})
+
+
+async def _handle_compare_providers(ctx: ServerContext, arguments: dict) -> str:
+    return json.dumps({"comparisons": ctx.router.compare_providers(arguments.get("text", ""), model=arguments.get("model", "claude-sonnet-4-6"))})
+
+
+# ── Security ─────────────────────────────────────────────────────────
+async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.security.check(arguments.get("text", ""))
+    return json.dumps({"passed": r.passed, "risk_score": r.risk_score, "violations": r.violations, "blocked": r.blocked, "details": r.details})
+
+
+async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
+    text = arguments.get("text", "")
+    threshold = float(arguments.get("threshold", 0.7))
+    keywords = ["ignore previous", "dan mode", "act as", "developer mode", "jailbreak", "override", "disregard", "forget instructions"]
+    found = [kw for kw in keywords if kw in text.lower()]
+    confidence = min(1.0, len(found) * 0.25)
+    action = "block" if confidence > threshold else ("warn" if confidence > 0 else "allow")
+    return json.dumps({"injection_detected": len(found) > 0, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
+
+
+async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
+    code = arguments.get("code", "")
+    vulns = []
+    if _re.search(r'f["\'].*?(SELECT|INSERT|UPDATE|DELETE).*?\{', code, _re.I):
+        vulns.append({"category": "A03:2021-SQL Injection", "severity": "critical", "description": "f-string in SQL query"})
+    if _re.search(r'(?i)(password|api_key|secret)\s*=\s*["\'][^"\']{4,}["\']', code):
+        vulns.append({"category": "A07:2021-Hardcoded Secrets", "severity": "critical", "description": "Hardcoded credential"})
+    if _re.search(r'(innerHTML|document\.write)\s*[=\(]', code):
+        vulns.append({"category": "A03:2021-XSS", "severity": "high", "description": "Unsafe DOM write"})
+    if _re.search(r'os\.system\s*\(|subprocess\.(Popen|run|call)\s*\(.*shell\s*=\s*True|eval\s*\(', code):
+        vulns.append({"category": "A03:2021-Command Injection", "severity": "high", "description": "Shell execution on untrusted input"})
+    weights = {"critical": 3, "high": 2, "medium": 1}
+    risk = sum(weights.get(v["severity"], 1) for v in vulns)
+    return json.dumps({"vulnerabilities": vulns, "risk_score": risk, "passed": risk < 4})
+
+
+async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
+    response = arguments.get("response", "")
+    original = arguments.get("original_prompt", "")
+    pii_patterns = [("email", _re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')),
+                    ("ssn", _re.compile(r'\b\d{3}-\d{2}-\d{4}\b')),
+                    ("credit_card", _re.compile(r'\b(?:\d[ -]*?){16}\b')),
+                    ("phone", _re.compile(r'\b(?:\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}\b'))]
+    pii_items = []
+    redacted = response
+    for label, pat in pii_patterns:
+        matches = pat.findall(response)
+        if matches:
+            pii_items.append({"type": label, "count": len(matches)})
+            redacted = pat.sub("[REDACTED]", redacted)
+    inj_kw = ["ignore previous", "dan mode", "developer mode", "jailbreak", "override"]
+    echo = any(kw in original.lower() for kw in inj_kw) and any(kw in response.lower() for kw in inj_kw)
+    leak = any(p in response.lower() for p in ["system prompt", "instructions say", "i was told to"])
+    # Responsible-AI advisory: grounding / bias / ethics (heuristic, never blocks).
+    try:
+        from promptwise.core.responsible_ai import scan as _rai_scan
+        rai = _rai_scan(response, sources=arguments.get("sources", ""))
+    except Exception:
+        rai = {"overall": "clean", "findings": []}
+    return json.dumps({"pii_found": len(pii_items) > 0, "pii_items": pii_items, "injection_echo": echo,
+                       "system_leak": leak, "safe": not pii_items and not echo and not leak,
+                       "redacted_response": redacted, "responsible_ai": rai})
+
+
+# ── Role Detection ───────────────────────────────────────────────────
+async def _handle_plan_workflow(ctx: ServerContext, arguments: dict) -> str:
+    plan = ctx.workflow_planner.plan(
+        text=arguments.get("text", ""),
+        regulated=arguments.get("regulated"),
+        brownfield=arguments.get("brownfield"))
+    return json.dumps({"workflow": plan.workflow, "reason": plan.reason,
+                       "steps": [{"phase": s.phase, "skill": s.skill, "kind": s.kind} for s in plan.steps],
+                       "compliance_gate": plan.compliance_gate, "signals": plan.signals})
+
+
+async def _handle_add_task(ctx: ServerContext, arguments: dict) -> str:
+    res = await ctx.task_tracker.add(
+        title=arguments.get("title", ""), estimate_hours=arguments.get("estimate_hours", 0),
+        status=arguments.get("status", "todo"), tags=arguments.get("tags"))
+    return json.dumps(res)
+
+
+async def _handle_update_task(ctx: ServerContext, arguments: dict) -> str:
+    res = await ctx.task_tracker.update(
+        task_id=arguments.get("task_id", ""), status=arguments.get("status"),
+        actual_hours=arguments.get("actual_hours"), tokens=arguments.get("tokens"),
+        cost_usd=arguments.get("cost_usd"), add_tokens=arguments.get("add_tokens"),
+        add_cost=arguments.get("add_cost"))
+    return json.dumps(res)
+
+
+async def _handle_list_tasks(ctx: ServerContext, arguments: dict) -> str:
+    res = await ctx.task_tracker.list(status=arguments.get("status"))
+    return json.dumps({"tasks": res, "count": len(res)})
+
+
+async def _handle_task_report(ctx: ServerContext, arguments: dict) -> str:
+    return json.dumps(await ctx.task_tracker.report())
+
+
+async def _handle_validate_mermaid(ctx: ServerContext, arguments: dict) -> str:
+    r = validate_mermaid(arguments.get("source", ""))
+    return json.dumps({"valid": r.valid, "diagram_type": r.diagram_type,
+                       "errors": r.errors, "warnings": r.warnings, "node_count": r.node_count})
+
+
+async def _handle_detect_role(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.role_detector.detect(arguments.get("text", ""), context={"file_type": arguments.get("file_type", "")})
+    return json.dumps({"role": r.primary_role, "confidence": r.confidence, "keywords_matched": r.keywords_matched,
+                       "secondary_roles": [{"role": s, "confidence": c} for s, c in r.secondary_roles], "rationale": r.rationale})
+
+
+# ── Orchestration ────────────────────────────────────────────────────
+async def _handle_orchestrate_tasks(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.task_graph import plan_waves, summarize_plan
+    fan_out = int(arguments.get("fan_out_cap", 8))
+    tasks_arg = arguments.get("tasks")
+    if isinstance(tasks_arg, list) and tasks_arg:
+        # emit-not-execute: which tasks are safe to run in parallel
+        plan = plan_waves(tasks_arg, fan_out_cap=fan_out)
+        plan["summary"] = summarize_plan(plan)
+        return json.dumps({"mode": "plan", **plan})
+    r = ctx.orchestrator.execute(arguments.get("text", ""), strategy=arguments.get("strategy", "fallback"))
+    # additive: emit a wave plan from the parsed steps (narrative order = sequential)
+    parsed = ctx.orchestrator.parse_tasks(arguments.get("text", ""))
+    seq = [{"id": t["id"], "depends_on": ([parsed[i - 1]["id"]] if i > 0 else [])}
+           for i, t in enumerate(parsed)]
+    wave_plan = plan_waves(seq, fan_out_cap=fan_out)
+    wave_plan["summary"] = summarize_plan(wave_plan)
+    return json.dumps({"task_id": r.task_id, "status": r.status, "steps_total": r.steps_total, "steps_done": r.steps_done,
+                       "strategy_used": r.strategy_used, "output": r.output, "duration_ms": r.duration_ms,
+                       "error": r.error, "wave_plan": wave_plan})
+
+
+async def _handle_run_autonomous(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.orchestrator.execute_autonomous(arguments.get("task", ""), max_iterations=arguments.get("max_iterations", 5))
+    return json.dumps(r)
+
+
+# ── Budget & Cost ────────────────────────────────────────────────────
+async def _handle_monitor_budget(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.budget.check(used_usd=float(arguments.get("used_usd", 0)), days_elapsed=int(arguments.get("days_elapsed", 1)), project_id=arguments.get("project_id"))
+    return json.dumps({"used_usd": r.used_usd, "limit_usd": r.limit_usd, "pct_used": r.pct_used,
+                       "daily_burn_usd": r.daily_burn_usd, "projected_monthly_usd": r.projected_monthly_usd,
+                       "alert_level": r.alert_level, "project_id": r.project_id})
+
+
+async def _handle_predict_cost(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.budget.predict_cost(arguments.get("prompt", ""), model=arguments.get("model", "claude-sonnet-4-6"))
+    return json.dumps(r)
+
+
+async def _handle_set_budget_limit(ctx: ServerContext, arguments: dict) -> str:
+    ctx.budget.set_limit(float(arguments.get("limit_usd", 0)), period=arguments.get("period", "monthly"))
+    return json.dumps({"status": "ok", "limit_usd": arguments.get("limit_usd"), "period": arguments.get("period", "monthly")})
+
+
+async def _handle_get_budget_status(ctx: ServerContext, arguments: dict) -> str:
+    return json.dumps(ctx.budget.get_budget_status())
+
+
+async def _handle_budget_report(ctx: ServerContext, arguments: dict) -> str:
+    costs = [0.01, 0.02, 0.015, 0.03, 0.025, 0.01, 0.04, 0.02, 0.015, 0.035]
+    anomaly = ctx.budget.cost_anomaly_detect(costs)
+    return json.dumps({"period": arguments.get("period", "weekly"), "project_id": arguments.get("project_id"),
+                       "total_cost_usd": round(sum(costs), 4), "anomaly": anomaly})
+
+
+# ── Code Validation ──────────────────────────────────────────────────
+async def _handle_validate_output(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.code_validator.validate(arguments.get("code", ""), language=arguments.get("language", "python"))
+    _record_route_verdict(arguments.get("route_id"), r.valid)  # WP8.1 loop close (fail-open)
+    return json.dumps({"valid": r.valid, "issues": r.issues, "confidence": r.confidence, "checks_run": r.checks_run, "suggested_fix": r.suggested_fix})
+
+
+# ── ROI ──────────────────────────────────────────────────────────────
+async def _handle_track_roi(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.roi.calculate(session_id=arguments.get("session_id", ""), total_cost_usd=float(arguments.get("total_cost_usd", 0)),
+                          tokens_saved=int(arguments.get("tokens_saved", 0)), calls=int(arguments.get("calls", 1)))
+    return json.dumps({"roi_ratio": r.roi_ratio, "estimated_time_saved_min": r.estimated_time_saved_min,
+                       "productivity_score": r.productivity_score, "total_cost_usd": r.total_cost_usd})
+
+
+async def _handle_get_roi_report(ctx: ServerContext, arguments: dict) -> str:
+    stats = await ctx.memory.get_roi_stats()
+    total_hours = sum(s["hours_saved"] for s in stats)
+    total_cost = sum(s["cost_usd"] for s in stats)
+    total_tokens = sum(s["tokens_saved"] for s in stats)
+    return json.dumps({"period": arguments.get("period", "weekly"), "total_hours_saved": round(total_hours, 2),
+                       "total_cost_usd": round(total_cost, 6), "total_tokens_saved": total_tokens, "records": stats})
+
+
+async def _handle_cost_report(ctx: ServerContext, arguments: dict) -> str:
+    stats = await ctx.memory.get_roi_stats()
+    pid = arguments.get("project_id")
+    if pid:
+        stats = [s for s in stats if s.get("project_id") == pid]
+    by_skill = {}
+    for s in stats:
+        sk = s.get("skill", "unknown")
+        by_skill.setdefault(sk, {"cost_usd": 0.0, "calls": 0})
+        by_skill[sk]["cost_usd"] += s.get("cost_usd", 0.0)
+        by_skill[sk]["calls"] += 1
+    return json.dumps({"period": arguments.get("period", "weekly"), "project_id": pid,
+                       "total_cost_usd": round(sum(v["cost_usd"] for v in by_skill.values()), 6), "by_skill": by_skill})
+
+
+# ── Memory & Session ─────────────────────────────────────────────────
+async def _handle_get_memory_context(ctx: ServerContext, arguments: dict) -> str:
+    entries = await ctx.memory.get_context(session_id=arguments.get("session_id", ""), limit=int(arguments.get("limit", 20)))
+    return json.dumps([{"entry_id": e.entry_id, "tool": e.tool, "summary": e.summary, "ts": e.ts} for e in entries])
+
+
+async def _handle_query_memory(ctx: ServerContext, arguments: dict) -> str:
+    facts = await ctx.memory.query_facts(arguments.get("query", ""))
+    return json.dumps({"facts": facts})
+
+
+async def _handle_ping_session(ctx: ServerContext, arguments: dict) -> str:
+    r = await ctx.session_manager.ping(session_id=arguments.get("session_id"))
+    return json.dumps(r)
+
+
+async def _handle_check_session_timeout(ctx: ServerContext, arguments: dict) -> str:
+    r = await ctx.session_manager.check_timeout(
+        session_id=arguments.get("session_id", ""),
+        idle_threshold_minutes=int(arguments.get("idle_threshold_minutes", 30)),
+        warn_threshold_minutes=int(arguments.get("warn_threshold_minutes", 20)))
+    return json.dumps(r)
+
+
+# ── Skills ───────────────────────────────────────────────────────────
+async def _handle_invoke_skill(ctx: ServerContext, arguments: dict) -> str:
+    sk = ctx.skill_loader.get_skill(arguments.get("skill_name", ""))
+    if not sk:
+        return json.dumps({"error": "Skill not found", "skill_name": arguments.get("skill_name")})
+    res = await ctx.orchestrator.execute_skill(sk, arguments.get("context", {}), router=ctx.router)
+    return json.dumps(res)
+
+
+async def _handle_list_skills(ctx: ServerContext, arguments: dict) -> str:
+    skills_list = []
+    for sk in ctx.skill_loader.skills.values():
+        role_filter = arguments.get("role")
+        if role_filter and sk.roles and role_filter not in sk.roles:
+            continue
+        skills_list.append({"name": sk.name, "description": sk.description, "triggers": sk.triggers,
+                            "depends_on": sk.depends_on, "roles": sk.roles, "model_tier": sk.model_tier})
+    return json.dumps({"skills": skills_list})
+
+
+async def _handle_skill_chain(ctx: ServerContext, arguments: dict) -> str:
+    res = await ctx.orchestrator.execute_skill_chain(ctx.skill_loader, arguments.get("skills", []),
+                                                      arguments.get("mode", "sequential"), arguments.get("context", {}), router=ctx.router)
+    return json.dumps(res)
+
+
+async def _handle_suggest_skill(ctx: ServerContext, arguments: dict) -> str:
+    text = arguments.get("text", "")
+    match = ctx.skill_loader.match_skill(text)
+    if match:
+        return json.dumps({"skill": match.name, "description": match.description})
+    scored = sorted([{"name": sk.name, "score": sum(1 for t in sk.triggers if t.lower() in text.lower()) / max(len(sk.triggers), 1),
+                      "description": sk.description} for sk in ctx.skill_loader.skills.values()], key=lambda x: x["score"], reverse=True)[:3]
+    return json.dumps({"top_matches": scored, "note": "No high-confidence match"})
+
+
+# ── Prompt Engineering ───────────────────────────────────────────────
+async def _handle_suggest_technique(ctx: ServerContext, arguments: dict) -> str:
+    prompt = arguments.get("prompt", "")
+    pl = prompt.lower()
+    if "example" in pl:
+        tech, conf, reason = "Few-Shot", 0.85, "Prompt contains 'example'"
+    elif any(kw in pl for kw in ("step", "reason", "explain why")):
+        tech, conf, reason = "Chain-of-Thought", 0.85, "Prompt requests step-wise reasoning"
+    elif len(prompt) > 200 and len(prompt.split(".")) > 3:
+        tech, conf, reason = "Chaining", 0.75, "Complex multi-sentence task"
+    else:
+        tech, conf, reason = "CRAFT", 0.80, "Short prompt; add Context/Role/Action/Format/Tone"
+    return json.dumps({"technique": tech, "confidence": conf, "rationale": reason})
+
+
+async def _handle_apply_craft(ctx: ServerContext, arguments: dict) -> str:
+    prompt = arguments.get("prompt", "")
+    pl = prompt.lower()
+    axes = {"context": any(kw in pl for kw in ["context", "background", "given"]),
+            "role": any(kw in pl for kw in ["you are", "act as", "as a"]),
+            "action": any(kw in pl for kw in ["write", "generate", "analyze", "summarize", "create", "explain"]),
+            "format": any(kw in pl for kw in ["format", "bullet", "markdown", "json", "table"]),
+            "tone": any(kw in pl for kw in ["tone", "formal", "casual", "professional"])}
+    score = sum(20 for v in axes.values() if v)
+    missing = [ax for ax, v in axes.items() if not v]
+    adds = []
+    if not axes["context"]: adds.append("Context: [Describe background]")
+    if not axes["role"]: adds.append("Role: You are a helpful expert assistant.")
+    if not axes["format"]: adds.append("Format: Respond in clear, structured paragraphs.")
+    if not axes["tone"]: adds.append("Tone: Professional and concise.")
+    improved = "\n".join(adds) + ("\n\n" if adds else "") + prompt
+    return json.dumps({"axes": axes, "score": score, "missing_axes": missing, "improved_prompt": improved})
+
+
+async def _handle_inject_few_shot(ctx: ServerContext, arguments: dict) -> str:
+    prompt = arguments.get("prompt", "")
+    examples = arguments.get("examples", [])
+    if examples:
+        formatted = "\n".join(f"Example {i+1}:\nInput: {ex.get('input', '')}\nOutput: {ex.get('output', '')}" for i, ex in enumerate(examples))
+        enhanced = formatted + "\n\n" + prompt
+        return json.dumps({"enhanced_prompt": enhanced, "example_count": len(examples)})
+    return json.dumps({"enhanced_prompt": "[INSERT EXAMPLES HERE]\n\n" + prompt, "example_count": 0})
+
+
+async def _handle_add_chain_of_thought(ctx: ServerContext, arguments: dict) -> str:
+    prompt = arguments.get("prompt", "")
+    style = arguments.get("style", "step-by-step")
+    cot = {"standard": "Think step by step.", "tree-of-thought": "Consider multiple approaches before answering.",
+           "step-by-step": "Let's approach this step by step:\n1. First, understand the problem.\n2. Then, work through each part.\n3. Finally, synthesize the answer."}.get(style, "Think step by step.")
+    return json.dumps({"wrapped_prompt": prompt + "\n\n" + cot, "technique_applied": style})
+
+
+async def _handle_chain_prompts(ctx: ServerContext, arguments: dict) -> str:
+    task = arguments.get("task", "")
+    steps = int(arguments.get("steps", 3))
+    sents = [s.strip() for s in task.split(".") if s.strip()]
+    chain = [{"step": i+1, "prompt": f"Step {i+1}: {(sents[i] if i < len(sents) else f'Continue step {i+1}')}.",
+              "input_from": f"step_{i}" if i > 0 else "user", "output_to": f"step_{i+2}" if i < steps-1 else "final_output"} for i in range(steps)]
+    return json.dumps({"chain": chain, "handoff_instructions": "Pass output of each step as input to the next."})
+
+
+async def _handle_eval_prompt_across_models(ctx: ServerContext, arguments: dict) -> str:
+    prompt = arguments.get("prompt", "")
+    inp = max(1, len(prompt) // 4)
+    out = inp * 2
+    tiers = {"haiku": {"cost_usd": round(inp*0.0000008+out*0.000004, 8), "quality": "good for simple tasks"},
+             "sonnet": {"cost_usd": round(inp*0.000003+out*0.000015, 8), "quality": "best balance"},
+             "opus": {"cost_usd": round(inp*0.000015+out*0.000075, 8), "quality": "highest quality"}}
+    rec, reason = ("haiku", "Short prompt") if inp < 200 else ("sonnet", "Medium complexity") if inp < 1000 else ("opus", "Long/complex")
+    return json.dumps({"recommendation": rec, "tiers": tiers, "rationale": reason, "estimated_input_tokens": inp})
+
+
+async def _handle_audit_system_prompt(ctx: ServerContext, arguments: dict) -> str:
+    sp = arguments.get("system_prompt", "")
+    spl = sp.lower()
+    issues = []
+    score = 0
+    if any(kw in spl for kw in ("you are", "act as", "your role")):
+        score += 20
+    else:
+        issues.append("Missing role definition")
+    if any(kw in spl for kw in ("do not", "never", "must not", "avoid")):
+        score += 20
+    else:
+        issues.append("Missing constraints")
+    if any(kw in spl for kw in ("format", "output", "respond in")):
+        score += 20
+    else:
+        issues.append("Missing output format")
+    if not any(p in spl for p in ["ignore previous", "disregard", "override"]):
+        score += 20
+    else:
+        issues.append("Injection pattern detected")
+    if len(sp) > 50:
+        score += 20
+    else:
+        issues.append("Too short, unclear task")
+    adds = []
+    if "Missing role" in " ".join(issues):
+        adds.append("You are a helpful, knowledgeable assistant.")
+    if "Missing constraints" in " ".join(issues):
+        adds.append("Do not discuss topics outside your defined scope.")
+    if "Missing output format" in " ".join(issues):
+        adds.append("Respond in clear, structured paragraphs.")
+    return json.dumps({"score": score, "issues": issues, "improved_prompt": "\n".join(adds) + ("\n\n" if adds else "") + sp})
+
+
+# ── Prompt Registry ──────────────────────────────────────────────────
+async def _handle_save_prompt(ctx: ServerContext, arguments: dict) -> str:
+    await ctx.memory.save_prompt(arguments.get("name"), arguments.get("content"), arguments.get("version", "1.0.0"),
+                                  arguments.get("description", ""), arguments.get("tags", []))
+    return json.dumps({"status": "saved", "name": arguments.get("name"), "version": arguments.get("version", "1.0.0")})
+
+
+async def _handle_search_prompts(ctx: ServerContext, arguments: dict) -> str:
+    prompts = await ctx.memory.search_prompts(arguments.get("query", ""))
+    return json.dumps({"prompts": prompts})
+
+
+async def _handle_compare_prompts(ctx: ServerContext, arguments: dict) -> str:
+    name_val = arguments.get("name")
+    va, vb = arguments.get("version_a"), arguments.get("version_b")
+    all_p = await ctx.memory.search_prompts(name_val)
+    exact = [p for p in all_p if p["name"] == name_val]
+    pa = next((p for p in exact if p["version"] == va), None)
+    pb = next((p for p in exact if p["version"] == vb), None)
+    if not pa: return json.dumps({"error": f"Version {va} not found"})
+    if not pb: return json.dumps({"error": f"Version {vb} not found"})
+    diff = "".join(difflib.unified_diff(pa["content"].splitlines(keepends=True), pb["content"].splitlines(keepends=True),
+                                         fromfile=f"{name_val}@{va}", tofile=f"{name_val}@{vb}")) or "(no difference)"
+    return json.dumps({"version_a": va, "version_b": vb, "token_delta": len(pb["content"])//4 - len(pa["content"])//4, "diff": diff})
+
+
+# ── Session Data ─────────────────────────────────────────────────────
+async def _handle_get_session_stats(ctx: ServerContext, arguments: dict) -> str:
+    snap = await ctx.memory.snapshot(since=arguments.get("since"))
+    pricing_age = getattr(ctx.config, "last_verified", None)
+    return json.dumps({**snap, "pricing_last_verified": pricing_age})
+
+
+async def _handle_clear_history(ctx: ServerContext, arguments: dict) -> str:
+    deleted = await ctx.memory.clear_old(older_than_days=int(arguments.get("older_than_days", 90)))
+    return json.dumps({"deleted_count": deleted, "older_than_days": arguments.get("older_than_days", 90)})
+
+
+async def _handle_export_stats(ctx: ServerContext, arguments: dict) -> str:
+    return await ctx.memory.export_json()
+
+
+async def _handle_reload_config(ctx: ServerContext, arguments: dict) -> str:
+    ctx.config = load_config()
+    return json.dumps({"reloaded": True})
+
+
+# ── Energy & Plugin Routing ──────────────────────────────────────────
+async def _handle_check_energy(ctx: ServerContext, arguments: dict) -> str:
+    score = ctx.cost_monitor.energy_efficiency_score(arguments.get("model", ""), int(arguments.get("tokens", 1000)))
+    return json.dumps({"energy_efficiency_score": score, "model": arguments.get("model")})
+
+
+async def _handle_route_for_plugin(ctx: ServerContext, arguments: dict) -> str:
+    plugin = ctx.router.route_for_plugin(arguments.get("text", ""))
+    return json.dumps({"plugin": plugin})
+
+
+async def _handle_run_eval(ctx: ServerContext, arguments: dict) -> str:
+    scores = {}
+    for m in arguments.get("models", []):
+        if "opus" in m: scores[m] = {"quality_score": 92, "latency_ms": 2500, "cost_usd": 0.075}
+        elif "sonnet" in m: scores[m] = {"quality_score": 85, "latency_ms": 1200, "cost_usd": 0.015}
+        else: scores[m] = {"quality_score": 74, "latency_ms": 350, "cost_usd": 0.003}
+    return json.dumps({"prompt": arguments.get("prompt"), "eval": scores})
+
+
+async def _handle_run_eval_harness(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.adaptive_router import OutcomeStore
+    from promptwise.core.eval_harness import (
+        EvalCase, EvalHarness, EvalResultStore, load_cases)
+    cases = [EvalCase.from_dict(c) for c in arguments.get("cases", []) if isinstance(c, dict)]
+    cases_path = arguments.get("cases_path", "")
+    if cases_path:
+        cases.extend(load_cases(cases_path))
+    suite = arguments.get("suite", "default")
+    harness = EvalHarness(
+        runner=None,  # offline default: record/dry-run, never cloud
+        outcome_store=OutcomeStore(), result_store=EvalResultStore(),
+        bar=float(arguments.get("bar", 0.6)), suite=suite)
+    run = harness.run(cases, tiers=arguments.get("tiers"))
+    out = run.to_dict()
+    if arguments.get("save_baseline"):
+        out["baseline_saved"] = harness.save_baseline(run)
+    return json.dumps(out)
+
+
+async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.sbom import SBOMGenerator
+    gen = SBOMGenerator()
+    sbom = gen.generate(arguments.get("paths", [Path.cwd()])[0] if arguments.get("paths") else Path.cwd())
+    return json.dumps(sbom)
+
+
+async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str:
+    text = " ".join(arguments.get("targets", []))
+    sec = ctx.security.check(text)
+    owasp = ctx.security.check_owasp(text)
+    return json.dumps({"security": {"passed": sec.passed, "violations": sec.violations, "risk_score": sec.risk_score},
+                       "owasp": owasp, "status": "completed"})
+
+
+# ── Agile method + governance (additive) ─────────────────────────────
+async def _handle_agile_plan(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.agile_planner import AgilePlanner
+    cfg_path = Path(__file__).resolve().parents[2] / "config" / "agile.yaml"
+    plan = AgilePlanner(config_path=cfg_path).plan(
+        arguments.get("task", ""), arguments.get("regulated"), arguments.get("brownfield"))
+    return json.dumps(plan.to_dict())
+
+
+async def _handle_shard_doc(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.doc_sharder import DocSharder
+    shards = DocSharder().shard(arguments.get("markdown", ""), int(arguments.get("by_level", 2)))
+    return json.dumps([s.__dict__ for s in shards])
+
+
+async def _handle_draft_story(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.story_context import StoryContextBuilder
+    story = StoryContextBuilder().build(
+        story_id=arguments.get("story_id", ""), title=arguments.get("title", ""),
+        epic_id=arguments.get("epic_id", ""),
+        acceptance_criteria=arguments.get("acceptance_criteria", []),
+        arch_shards=arguments.get("arch_shards", []),
+        files_to_touch=arguments.get("files_to_touch", []),
+        constraints=arguments.get("constraints", []),
+        compliance_rules=arguments.get("compliance_rules", []),
+        tasks=arguments.get("tasks", []))
+    return json.dumps({"story": story.to_dict(), "markdown": story.to_markdown()})
+
+
+async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.quality_gate import QualityGate
+    res = QualityGate().evaluate(
+        arguments.get("story_id", ""), arguments.get("findings", []),
+        int(arguments.get("risk_score", 0)), arguments.get("nfr_assessment", {}),
+        arguments.get("waiver_reason", ""))
+    _record_route_verdict(arguments.get("route_id"), res.decision)  # WP8.1 loop close (fail-open)
+    return json.dumps(res.to_dict())
+
+
+async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.policy import Policy
+    policy_path = arguments.get("policy_path", "config/policy.yaml")
+    try:
+        pol = Policy.from_yaml(policy_path)
+    except FileNotFoundError:
+        return json.dumps({"error": f"policy file not found: {policy_path} (copy config/policy.example.yaml -> config/policy.yaml)", "type": "PolicyNotConfigured"})
+    dec = pol.evaluate_action(
+        model_tier=arguments.get("model_tier"), estimated_cost=arguments.get("estimated_cost"),
+        spent_so_far=arguments.get("spent_so_far"), operation=arguments.get("operation"),
+        gates_passed=arguments.get("gates_passed", []))
+    return json.dumps(dec.to_dict())
+
+
+async def _handle_record_audit(ctx: ServerContext, arguments: dict) -> str:
+    audit = _get_audit_log()
+    rec = audit.append(
+        arguments.get("task", ""), agent=arguments.get("agent", ""), model=arguments.get("model", ""),
+        cost_usd=float(arguments.get("cost_usd", 0.0)), rules_applied=arguments.get("rules_applied", []),
+        gate_decision=arguments.get("gate_decision", ""), compliance_decision=arguments.get("compliance_decision", ""),
+        files_touched=arguments.get("files_touched", []))
+    ok, msg = audit.verify()
+    return json.dumps({"record": rec.__dict__, "chain_ok": ok, "chain_msg": msg})
+
+
+async def _handle_export_audit(ctx: ServerContext, arguments: dict) -> str:
+    audit = _get_audit_log()
+    ok, msg = audit.verify()
+    fmt = arguments.get("format", "both")
+    out = {"chain_ok": ok, "chain_msg": msg, "record_count": len(audit.records)}
+    if fmt in ("json", "both"):
+        out["json"] = json.loads(audit.export_json())
+    if fmt in ("text", "both"):
+        out["text"] = audit.export_text()
+    return json.dumps(out)
+
+
+async def _handle_sync_agent_config(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
+    bundle = GovernanceBundle.from_context(arguments)
+    res = ConfigEmitter().sync(
+        bundle, arguments.get("repo_root", "."), arguments.get("targets"),
+        mode=arguments.get("mode", "apply"), adopt=arguments.get("adopt", False))
+    return json.dumps({"written": res})
+
+
+async def _handle_detect_agents(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.agent_detector import detect_agents
+    d = detect_agents(arguments.get("repo_root", "."))
+    return json.dumps({"targets": d.targets, "confidence": d.confidence, "fingerprints": d.fingerprints})
+
+
+async def _handle_build_context_model(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.context_model import build_context_model
+    cm = build_context_model(arguments["text"], arguments.get("repo_root", "."))
+    return json.dumps({"intent": cm.intent, "role": cm.role, "stack": cm.stack,
+                       "domain": cm.domain, "regulated": cm.regulated})
+
+
+async def _handle_propose_agent_config(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
+    from promptwise.core.agent_detector import detect_agents
+    root = arguments.get("repo_root", ".")
+    targets = arguments.get("targets") or detect_agents(root).targets
+    bundle = GovernanceBundle.from_context(arguments)
+    return json.dumps(ConfigEmitter().diff(bundle, root, targets, adopt=arguments.get("adopt", False)))
+
+
+async def _handle_lint_agent_config(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.config_linter import ConfigLinter
+    linter = ConfigLinter()
+    kw = {"fmt": arguments.get("fmt", "md"), "max_bytes": arguments.get("max_bytes"),
+          "always_apply": arguments.get("always_apply", False), "token_budget": arguments.get("token_budget", 0)}
+    if arguments.get("path"):
+        res = linter.lint_file(arguments["path"], **kw)
+    else:
+        res = linter.lint(arguments.get("content", ""), **kw)
+    return json.dumps({"valid": res.valid,
+                       "issues": [{"severity": i.severity, "message": i.message, "line": i.line} for i in res.issues]})
+
+
+async def _handle_check_portability(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.portability_check import check_portability, emit_ci_snippet
+    rep = check_portability(arguments.get("repo_root", "."), hosts=arguments.get("hosts"))
+    out = rep.to_dict()
+    if arguments.get("emit_ci", False):
+        out["ci_snippet"] = emit_ci_snippet()
+    return json.dumps(out)
+
+
+# ── Continuous learning loop (Phase 2) ───────────────────────────────
+async def _handle_capture_learning(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.learning_store import LearningStore
+    learning = LearningStore().capture(
+        category=arguments.get("category", ""), mistake=arguments.get("mistake", ""),
+        correction=arguments.get("correction", ""), project=arguments.get("project", ""),
+        tags=arguments.get("tags", []))
+    return json.dumps({"captured": learning.to_dict()})
+
+
+async def _handle_replay_learnings(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.learning_replay import replay
+    return json.dumps(replay(arguments.get("task", ""), k=arguments.get("k", 5),
+                             project=arguments.get("project")))
+
+
+async def _handle_learning_insights(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.insights import compute_insights
+    return json.dumps(compute_insights())
+
+
+async def _handle_insights_report(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.insights import compute_recommendations
+    recs = compute_recommendations(window_days=arguments.get("window_days", 30))
+    top_n = int(arguments.get("top_n", 10))
+    return json.dumps({"count": len(recs), "recommendations": recs[:top_n]})
+
+
+# ── Policy intelligence & searchable trace (Phase 4) ─────────────────
+async def _handle_tune_permissions(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.permission_tuner import tune_permissions
+    return json.dumps(tune_permissions(
+        state_dir=arguments.get("state_dir", "."),
+        min_count=arguments.get("min_count", 2),
+        mcp_json=arguments.get("mcp_json")))
+
+
+async def _handle_audit_mcp_servers(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.mcp_auditor import audit_mcp_servers
+    return json.dumps(audit_mcp_servers(
+        repo_root=arguments.get("repo_root", "."),
+        extra_configs=arguments.get("extra_configs")))
+
+
+async def _handle_search_trace(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.semantic_index import search_trace
+    return json.dumps(search_trace(
+        arguments.get("query", ""), k=arguments.get("k", 5),
+        repo_root=arguments.get("repo_root", "."),
+        audit_path=arguments.get("audit_path"),
+        use_embeddings=arguments.get("use_embeddings", False)))
+
+
+# ── Skill auto-optimization (Phase 3) ────────────────────────────────
+async def _handle_optimize_skill_pack(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.skill_optimizer import optimize_skill_pack
+    return json.dumps(optimize_skill_pack(
+        arguments.get("skill_path", ""), project=arguments.get("project"),
+        max_rules=arguments.get("max_rules", 8), dry_run=arguments.get("dry_run", False)))
+
+
+# ── Compliance evidence export (Phase 7) ─────────────────────────────
+async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.compliance_export import export_bundle
+    audit = _get_audit_log()
+    records = json.loads(audit.export_json())
+    return json.dumps(export_bundle(
+        records, sign=arguments.get("sign", True),
+        control_families=arguments.get("control_families"),
+        out_path=arguments.get("out_path")))
+
+
+# ── Autonomous governor (Phase 9) ────────────────────────────────────
+async def _handle_run_governor(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.governor import Governor
+    from promptwise.core.insights import compute_recommendations
+    root = arguments.get("root", ".")
+    policy_path = arguments.get("policy_path", "config/policy.yaml")
+    gov = Governor(root=root, mode=arguments.get("mode"),
+                   policy_path=policy_path, audit_log=_get_audit_log())
+    recs = compute_recommendations(window_days=arguments.get("window_days", 30))
+    return json.dumps(gov.run(recs))
+
+
+async def _handle_governor_undo(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.governor import Governor
+    gov = Governor(root=arguments.get("root", "."), audit_log=_get_audit_log())
+    return json.dumps(gov.undo(arguments.get("action_id", "")))
+
+
+_HANDLERS = {
+    "route_request": _handle_route_request,
+    "rewrite_prompt": _handle_rewrite_prompt,
+    "optimize_context": _handle_optimize_context,
+    "compress_prompt": _handle_compress_prompt,
+    "plan_cache": _handle_plan_cache,
+    "batch_prompts": _handle_batch_prompts,
+    "summarize_thread": _handle_summarize_thread,
+    "compare_providers": _handle_compare_providers,
+    "security_check": _handle_security_check,
+    "prompt_injection": _handle_prompt_injection,
+    "owasp_scan": _handle_owasp_scan,
+    "scan_response": _handle_scan_response,
+    "plan_workflow": _handle_plan_workflow,
+    "add_task": _handle_add_task,
+    "update_task": _handle_update_task,
+    "list_tasks": _handle_list_tasks,
+    "task_report": _handle_task_report,
+    "validate_mermaid": _handle_validate_mermaid,
+    "detect_role": _handle_detect_role,
+    "orchestrate_tasks": _handle_orchestrate_tasks,
+    "run_autonomous": _handle_run_autonomous,
+    "monitor_budget": _handle_monitor_budget,
+    "predict_cost": _handle_predict_cost,
+    "set_budget_limit": _handle_set_budget_limit,
+    "get_budget_status": _handle_get_budget_status,
+    "budget_report": _handle_budget_report,
+    "validate_output": _handle_validate_output,
+    "track_roi": _handle_track_roi,
+    "get_roi_report": _handle_get_roi_report,
+    "cost_report": _handle_cost_report,
+    "get_memory_context": _handle_get_memory_context,
+    "query_memory": _handle_query_memory,
+    "ping_session": _handle_ping_session,
+    "check_session_timeout": _handle_check_session_timeout,
+    "invoke_skill": _handle_invoke_skill,
+    "list_skills": _handle_list_skills,
+    "skill_chain": _handle_skill_chain,
+    "suggest_skill": _handle_suggest_skill,
+    "suggest_technique": _handle_suggest_technique,
+    "apply_craft": _handle_apply_craft,
+    "inject_few_shot": _handle_inject_few_shot,
+    "add_chain_of_thought": _handle_add_chain_of_thought,
+    "chain_prompts": _handle_chain_prompts,
+    "eval_prompt_across_models": _handle_eval_prompt_across_models,
+    "audit_system_prompt": _handle_audit_system_prompt,
+    "save_prompt": _handle_save_prompt,
+    "search_prompts": _handle_search_prompts,
+    "compare_prompts": _handle_compare_prompts,
+    "get_session_stats": _handle_get_session_stats,
+    "clear_history": _handle_clear_history,
+    "export_stats": _handle_export_stats,
+    "reload_config": _handle_reload_config,
+    "check_energy": _handle_check_energy,
+    "route_for_plugin": _handle_route_for_plugin,
+    "run_eval": _handle_run_eval,
+    "run_eval_harness": _handle_run_eval_harness,
+    "get_sbom": _handle_get_sbom,
+    "run_security_suite": _handle_run_security_suite,
+    "agile_plan": _handle_agile_plan,
+    "shard_doc": _handle_shard_doc,
+    "draft_story": _handle_draft_story,
+    "run_quality_gate": _handle_run_quality_gate,
+    "check_policy": _handle_check_policy,
+    "record_audit": _handle_record_audit,
+    "export_audit": _handle_export_audit,
+    "sync_agent_config": _handle_sync_agent_config,
+    "detect_agents": _handle_detect_agents,
+    "build_context_model": _handle_build_context_model,
+    "propose_agent_config": _handle_propose_agent_config,
+    "lint_agent_config": _handle_lint_agent_config,
+    "check_portability": _handle_check_portability,
+    "capture_learning": _handle_capture_learning,
+    "replay_learnings": _handle_replay_learnings,
+    "learning_insights": _handle_learning_insights,
+    "insights_report": _handle_insights_report,
+    "tune_permissions": _handle_tune_permissions,
+    "audit_mcp_servers": _handle_audit_mcp_servers,
+    "search_trace": _handle_search_trace,
+    "optimize_skill_pack": _handle_optimize_skill_pack,
+    "export_compliance_bundle": _handle_export_compliance_bundle,
+    "run_governor": _handle_run_governor,
+    "governor_undo": _handle_governor_undo,
+}
+
+
 async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
     try:
-        # ── Core Routing & Optimization ──────────────────────────────────────
-        if name == "route_request":
-            r = ctx.router.route(
-                text=arguments.get("text", ""), intent=arguments.get("intent", "auto"),
-                stakes=arguments.get("stakes", "auto"), provider=arguments.get("provider", "claude"),
-                monthly_budget_usd=arguments.get("monthly_budget_usd"), days_elapsed_in_month=arguments.get("days_elapsed_in_month"))
-            await ctx.memory.record_cost(tool="route_request", session_id="default", model=r.recommended_model, cost_usd=r.estimated_input_cost_usd)
-            # Close the learning loop: record the decision as a neutral outcome row
-            # (WP8.1). Fail-open — recording never changes or breaks the route.
-            route_id = None
-            try:
-                from promptwise.core.route_recorder import record_route_decision
-                reg = ctx.router.registry
-                route_id = record_route_decision(
-                    task_class=f"{r.intent_detected}/{r.stakes_detected}",
-                    tier=reg.tier_of(r.recommended_model),
-                    model_family=reg.family_of(r.recommended_model) or "",
-                    cost=r.estimated_input_cost_usd)
-            except Exception:
-                route_id = None
-            return json.dumps({"recommended_model": r.recommended_model, "reason": r.reason, "intent_detected": r.intent_detected,
-                               "stakes_detected": r.stakes_detected, "estimated_input_cost_usd": r.estimated_input_cost_usd,
-                               "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
-                               "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
-                               "route_id": route_id})
-
-        elif name == "rewrite_prompt":
-            r = ctx.rewriter.rewrite(arguments.get("text", ""), role=arguments.get("role", "general"), model=arguments.get("model", "claude-sonnet-4-6"))
-            await ctx.memory.record_cost(tool="rewrite_prompt", session_id="default", model=arguments.get("model", "claude-sonnet-4-6"), input_tokens=r.raw_tokens, saving_pct=r.saving_pct)
-            return json.dumps({"rewritten": r.rewritten, "saving_pct": r.saving_pct, "warning": r.warning})
-
-        elif name == "optimize_context":
-            r = ctx.optimizer.optimize(arguments.get("context", ""), token_budget=arguments.get("token_budget", 2000), model=arguments.get("model", "claude-sonnet-4-6"))
-            return json.dumps({"optimized": r.optimized, "saving_pct": r.saving_pct, "chunks_dropped": r.chunks_dropped})
-
-        elif name == "compress_prompt":
-            r = ctx.compression.compress(arguments.get("text", ""))
-            return json.dumps({"compressed": r.compressed, "saving_pct": r.saving_pct, "tokens_saved": r.tokens_saved, "rules_applied": r.rules_applied})
-
-        elif name == "plan_cache":
-            r = ctx.cache_planner.plan(arguments.get("messages", []), expected_reuse_count=arguments.get("expected_reuse_count", 2), model=arguments.get("model", "claude-sonnet-4-6"))
-            return json.dumps({"breakpoints": r.breakpoints, "savings_pct": r.savings_pct})
-
-        elif name == "batch_prompts":
-            r = ctx.batcher.batch(arguments.get("tasks", []), role=arguments.get("role", "general"), model=arguments.get("model", "claude-sonnet-4-6"))
-            return json.dumps({"batched_prompt": r.batched_prompt, "saving_pct": r.saving_pct})
-
-        elif name == "summarize_thread":
-            r = ctx.summarizer.summarize(arguments.get("conversation", ""), max_tokens=arguments.get("max_tokens", 500), model=arguments.get("model", "claude-sonnet-4-6"))
-            return json.dumps({"summary": r.summary, "reset_prompt": r.reset_prompt, "saving_pct": r.saving_pct})
-
-        elif name == "compare_providers":
-            return json.dumps({"comparisons": ctx.router.compare_providers(arguments.get("text", ""), model=arguments.get("model", "claude-sonnet-4-6"))})
-
-        # ── Security ─────────────────────────────────────────────────────────
-        elif name == "security_check":
-            r = ctx.security.check(arguments.get("text", ""))
-            return json.dumps({"passed": r.passed, "risk_score": r.risk_score, "violations": r.violations, "blocked": r.blocked, "details": r.details})
-
-        elif name == "prompt_injection":
-            text = arguments.get("text", "")
-            threshold = float(arguments.get("threshold", 0.7))
-            keywords = ["ignore previous", "dan mode", "act as", "developer mode", "jailbreak", "override", "disregard", "forget instructions"]
-            found = [kw for kw in keywords if kw in text.lower()]
-            confidence = min(1.0, len(found) * 0.25)
-            action = "block" if confidence > threshold else ("warn" if confidence > 0 else "allow")
-            return json.dumps({"injection_detected": len(found) > 0, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
-
-        elif name == "owasp_scan":
-            code = arguments.get("code", "")
-            vulns = []
-            if _re.search(r'f["\'].*?(SELECT|INSERT|UPDATE|DELETE).*?\{', code, _re.I):
-                vulns.append({"category": "A03:2021-SQL Injection", "severity": "critical", "description": "f-string in SQL query"})
-            if _re.search(r'(?i)(password|api_key|secret)\s*=\s*["\'][^"\']{4,}["\']', code):
-                vulns.append({"category": "A07:2021-Hardcoded Secrets", "severity": "critical", "description": "Hardcoded credential"})
-            if _re.search(r'(innerHTML|document\.write)\s*[=\(]', code):
-                vulns.append({"category": "A03:2021-XSS", "severity": "high", "description": "Unsafe DOM write"})
-            if _re.search(r'os\.system\s*\(|subprocess\.(Popen|run|call)\s*\(.*shell\s*=\s*True|eval\s*\(', code):
-                vulns.append({"category": "A03:2021-Command Injection", "severity": "high", "description": "Shell execution on untrusted input"})
-            weights = {"critical": 3, "high": 2, "medium": 1}
-            risk = sum(weights.get(v["severity"], 1) for v in vulns)
-            return json.dumps({"vulnerabilities": vulns, "risk_score": risk, "passed": risk < 4})
-
-        elif name == "scan_response":
-            response = arguments.get("response", "")
-            original = arguments.get("original_prompt", "")
-            pii_patterns = [("email", _re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')),
-                            ("ssn", _re.compile(r'\b\d{3}-\d{2}-\d{4}\b')),
-                            ("credit_card", _re.compile(r'\b(?:\d[ -]*?){16}\b')),
-                            ("phone", _re.compile(r'\b(?:\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}\b'))]
-            pii_items = []
-            redacted = response
-            for label, pat in pii_patterns:
-                matches = pat.findall(response)
-                if matches:
-                    pii_items.append({"type": label, "count": len(matches)})
-                    redacted = pat.sub("[REDACTED]", redacted)
-            inj_kw = ["ignore previous", "dan mode", "developer mode", "jailbreak", "override"]
-            echo = any(kw in original.lower() for kw in inj_kw) and any(kw in response.lower() for kw in inj_kw)
-            leak = any(p in response.lower() for p in ["system prompt", "instructions say", "i was told to"])
-            # Responsible-AI advisory: grounding / bias / ethics (heuristic, never blocks).
-            try:
-                from promptwise.core.responsible_ai import scan as _rai_scan
-                rai = _rai_scan(response, sources=arguments.get("sources", ""))
-            except Exception:
-                rai = {"overall": "clean", "findings": []}
-            return json.dumps({"pii_found": len(pii_items) > 0, "pii_items": pii_items, "injection_echo": echo,
-                               "system_leak": leak, "safe": not pii_items and not echo and not leak,
-                               "redacted_response": redacted, "responsible_ai": rai})
-
-        # ── Role Detection ───────────────────────────────────────────────────
-        elif name == "plan_workflow":
-            plan = ctx.workflow_planner.plan(
-                text=arguments.get("text", ""),
-                regulated=arguments.get("regulated"),
-                brownfield=arguments.get("brownfield"))
-            return json.dumps({"workflow": plan.workflow, "reason": plan.reason,
-                               "steps": [{"phase": s.phase, "skill": s.skill, "kind": s.kind} for s in plan.steps],
-                               "compliance_gate": plan.compliance_gate, "signals": plan.signals})
-
-        elif name == "add_task":
-            res = await ctx.task_tracker.add(
-                title=arguments.get("title", ""), estimate_hours=arguments.get("estimate_hours", 0),
-                status=arguments.get("status", "todo"), tags=arguments.get("tags"))
-            return json.dumps(res)
-
-        elif name == "update_task":
-            res = await ctx.task_tracker.update(
-                task_id=arguments.get("task_id", ""), status=arguments.get("status"),
-                actual_hours=arguments.get("actual_hours"), tokens=arguments.get("tokens"),
-                cost_usd=arguments.get("cost_usd"), add_tokens=arguments.get("add_tokens"),
-                add_cost=arguments.get("add_cost"))
-            return json.dumps(res)
-
-        elif name == "list_tasks":
-            res = await ctx.task_tracker.list(status=arguments.get("status"))
-            return json.dumps({"tasks": res, "count": len(res)})
-
-        elif name == "task_report":
-            return json.dumps(await ctx.task_tracker.report())
-
-        elif name == "validate_mermaid":
-            r = validate_mermaid(arguments.get("source", ""))
-            return json.dumps({"valid": r.valid, "diagram_type": r.diagram_type,
-                               "errors": r.errors, "warnings": r.warnings, "node_count": r.node_count})
-
-        elif name == "detect_role":
-            r = ctx.role_detector.detect(arguments.get("text", ""), context={"file_type": arguments.get("file_type", "")})
-            return json.dumps({"role": r.primary_role, "confidence": r.confidence, "keywords_matched": r.keywords_matched,
-                               "secondary_roles": [{"role": s, "confidence": c} for s, c in r.secondary_roles], "rationale": r.rationale})
-
-        # ── Orchestration ────────────────────────────────────────────────────
-        elif name == "orchestrate_tasks":
-            from promptwise.core.task_graph import plan_waves, summarize_plan
-            fan_out = int(arguments.get("fan_out_cap", 8))
-            tasks_arg = arguments.get("tasks")
-            if isinstance(tasks_arg, list) and tasks_arg:
-                # emit-not-execute: which tasks are safe to run in parallel
-                plan = plan_waves(tasks_arg, fan_out_cap=fan_out)
-                plan["summary"] = summarize_plan(plan)
-                return json.dumps({"mode": "plan", **plan})
-            r = ctx.orchestrator.execute(arguments.get("text", ""), strategy=arguments.get("strategy", "fallback"))
-            # additive: emit a wave plan from the parsed steps (narrative order = sequential)
-            parsed = ctx.orchestrator.parse_tasks(arguments.get("text", ""))
-            seq = [{"id": t["id"], "depends_on": ([parsed[i - 1]["id"]] if i > 0 else [])}
-                   for i, t in enumerate(parsed)]
-            wave_plan = plan_waves(seq, fan_out_cap=fan_out)
-            wave_plan["summary"] = summarize_plan(wave_plan)
-            return json.dumps({"task_id": r.task_id, "status": r.status, "steps_total": r.steps_total, "steps_done": r.steps_done,
-                               "strategy_used": r.strategy_used, "output": r.output, "duration_ms": r.duration_ms,
-                               "error": r.error, "wave_plan": wave_plan})
-
-        elif name == "run_autonomous":
-            r = ctx.orchestrator.execute_autonomous(arguments.get("task", ""), max_iterations=arguments.get("max_iterations", 5))
-            return json.dumps(r)
-
-        # ── Budget & Cost ────────────────────────────────────────────────────
-        elif name == "monitor_budget":
-            r = ctx.budget.check(used_usd=float(arguments.get("used_usd", 0)), days_elapsed=int(arguments.get("days_elapsed", 1)), project_id=arguments.get("project_id"))
-            return json.dumps({"used_usd": r.used_usd, "limit_usd": r.limit_usd, "pct_used": r.pct_used,
-                               "daily_burn_usd": r.daily_burn_usd, "projected_monthly_usd": r.projected_monthly_usd,
-                               "alert_level": r.alert_level, "project_id": r.project_id})
-
-        elif name == "predict_cost":
-            r = ctx.budget.predict_cost(arguments.get("prompt", ""), model=arguments.get("model", "claude-sonnet-4-6"))
-            return json.dumps(r)
-
-        elif name == "set_budget_limit":
-            ctx.budget.set_limit(float(arguments.get("limit_usd", 0)), period=arguments.get("period", "monthly"))
-            return json.dumps({"status": "ok", "limit_usd": arguments.get("limit_usd"), "period": arguments.get("period", "monthly")})
-
-        elif name == "get_budget_status":
-            return json.dumps(ctx.budget.get_budget_status())
-
-        elif name == "budget_report":
-            costs = [0.01, 0.02, 0.015, 0.03, 0.025, 0.01, 0.04, 0.02, 0.015, 0.035]
-            anomaly = ctx.budget.cost_anomaly_detect(costs)
-            return json.dumps({"period": arguments.get("period", "weekly"), "project_id": arguments.get("project_id"),
-                               "total_cost_usd": round(sum(costs), 4), "anomaly": anomaly})
-
-        # ── Code Validation ──────────────────────────────────────────────────
-        elif name == "validate_output":
-            r = ctx.code_validator.validate(arguments.get("code", ""), language=arguments.get("language", "python"))
-            _record_route_verdict(arguments.get("route_id"), r.valid)  # WP8.1 loop close (fail-open)
-            return json.dumps({"valid": r.valid, "issues": r.issues, "confidence": r.confidence, "checks_run": r.checks_run, "suggested_fix": r.suggested_fix})
-
-        # ── ROI ──────────────────────────────────────────────────────────────
-        elif name == "track_roi":
-            r = ctx.roi.calculate(session_id=arguments.get("session_id", ""), total_cost_usd=float(arguments.get("total_cost_usd", 0)),
-                                  tokens_saved=int(arguments.get("tokens_saved", 0)), calls=int(arguments.get("calls", 1)))
-            return json.dumps({"roi_ratio": r.roi_ratio, "estimated_time_saved_min": r.estimated_time_saved_min,
-                               "productivity_score": r.productivity_score, "total_cost_usd": r.total_cost_usd})
-
-        elif name == "get_roi_report":
-            stats = await ctx.memory.get_roi_stats()
-            total_hours = sum(s["hours_saved"] for s in stats)
-            total_cost = sum(s["cost_usd"] for s in stats)
-            total_tokens = sum(s["tokens_saved"] for s in stats)
-            return json.dumps({"period": arguments.get("period", "weekly"), "total_hours_saved": round(total_hours, 2),
-                               "total_cost_usd": round(total_cost, 6), "total_tokens_saved": total_tokens, "records": stats})
-
-        elif name == "cost_report":
-            stats = await ctx.memory.get_roi_stats()
-            pid = arguments.get("project_id")
-            if pid:
-                stats = [s for s in stats if s.get("project_id") == pid]
-            by_skill = {}
-            for s in stats:
-                sk = s.get("skill", "unknown")
-                by_skill.setdefault(sk, {"cost_usd": 0.0, "calls": 0})
-                by_skill[sk]["cost_usd"] += s.get("cost_usd", 0.0)
-                by_skill[sk]["calls"] += 1
-            return json.dumps({"period": arguments.get("period", "weekly"), "project_id": pid,
-                               "total_cost_usd": round(sum(v["cost_usd"] for v in by_skill.values()), 6), "by_skill": by_skill})
-
-        # ── Memory & Session ─────────────────────────────────────────────────
-        elif name == "get_memory_context":
-            entries = await ctx.memory.get_context(session_id=arguments.get("session_id", ""), limit=int(arguments.get("limit", 20)))
-            return json.dumps([{"entry_id": e.entry_id, "tool": e.tool, "summary": e.summary, "ts": e.ts} for e in entries])
-
-        elif name == "query_memory":
-            facts = await ctx.memory.query_facts(arguments.get("query", ""))
-            return json.dumps({"facts": facts})
-
-        elif name == "ping_session":
-            r = await ctx.session_manager.ping(session_id=arguments.get("session_id"))
-            return json.dumps(r)
-
-        elif name == "check_session_timeout":
-            r = await ctx.session_manager.check_timeout(
-                session_id=arguments.get("session_id", ""),
-                idle_threshold_minutes=int(arguments.get("idle_threshold_minutes", 30)),
-                warn_threshold_minutes=int(arguments.get("warn_threshold_minutes", 20)))
-            return json.dumps(r)
-
-        # ── Skills ───────────────────────────────────────────────────────────
-        elif name == "invoke_skill":
-            sk = ctx.skill_loader.get_skill(arguments.get("skill_name", ""))
-            if not sk:
-                return json.dumps({"error": "Skill not found", "skill_name": arguments.get("skill_name")})
-            res = await ctx.orchestrator.execute_skill(sk, arguments.get("context", {}), router=ctx.router)
-            return json.dumps(res)
-
-        elif name == "list_skills":
-            skills_list = []
-            for sk in ctx.skill_loader.skills.values():
-                role_filter = arguments.get("role")
-                if role_filter and sk.roles and role_filter not in sk.roles:
-                    continue
-                skills_list.append({"name": sk.name, "description": sk.description, "triggers": sk.triggers,
-                                    "depends_on": sk.depends_on, "roles": sk.roles, "model_tier": sk.model_tier})
-            return json.dumps({"skills": skills_list})
-
-        elif name == "skill_chain":
-            res = await ctx.orchestrator.execute_skill_chain(ctx.skill_loader, arguments.get("skills", []),
-                                                              arguments.get("mode", "sequential"), arguments.get("context", {}), router=ctx.router)
-            return json.dumps(res)
-
-        elif name == "suggest_skill":
-            text = arguments.get("text", "")
-            match = ctx.skill_loader.match_skill(text)
-            if match:
-                return json.dumps({"skill": match.name, "description": match.description})
-            scored = sorted([{"name": sk.name, "score": sum(1 for t in sk.triggers if t.lower() in text.lower()) / max(len(sk.triggers), 1),
-                              "description": sk.description} for sk in ctx.skill_loader.skills.values()], key=lambda x: x["score"], reverse=True)[:3]
-            return json.dumps({"top_matches": scored, "note": "No high-confidence match"})
-
-        # ── Prompt Engineering ───────────────────────────────────────────────
-        elif name == "suggest_technique":
-            prompt = arguments.get("prompt", "")
-            pl = prompt.lower()
-            if "example" in pl:
-                tech, conf, reason = "Few-Shot", 0.85, "Prompt contains 'example'"
-            elif any(kw in pl for kw in ("step", "reason", "explain why")):
-                tech, conf, reason = "Chain-of-Thought", 0.85, "Prompt requests step-wise reasoning"
-            elif len(prompt) > 200 and len(prompt.split(".")) > 3:
-                tech, conf, reason = "Chaining", 0.75, "Complex multi-sentence task"
-            else:
-                tech, conf, reason = "CRAFT", 0.80, "Short prompt; add Context/Role/Action/Format/Tone"
-            return json.dumps({"technique": tech, "confidence": conf, "rationale": reason})
-
-        elif name == "apply_craft":
-            prompt = arguments.get("prompt", "")
-            pl = prompt.lower()
-            axes = {"context": any(kw in pl for kw in ["context", "background", "given"]),
-                    "role": any(kw in pl for kw in ["you are", "act as", "as a"]),
-                    "action": any(kw in pl for kw in ["write", "generate", "analyze", "summarize", "create", "explain"]),
-                    "format": any(kw in pl for kw in ["format", "bullet", "markdown", "json", "table"]),
-                    "tone": any(kw in pl for kw in ["tone", "formal", "casual", "professional"])}
-            score = sum(20 for v in axes.values() if v)
-            missing = [ax for ax, v in axes.items() if not v]
-            adds = []
-            if not axes["context"]: adds.append("Context: [Describe background]")
-            if not axes["role"]: adds.append("Role: You are a helpful expert assistant.")
-            if not axes["format"]: adds.append("Format: Respond in clear, structured paragraphs.")
-            if not axes["tone"]: adds.append("Tone: Professional and concise.")
-            improved = "\n".join(adds) + ("\n\n" if adds else "") + prompt
-            return json.dumps({"axes": axes, "score": score, "missing_axes": missing, "improved_prompt": improved})
-
-        elif name == "inject_few_shot":
-            prompt = arguments.get("prompt", "")
-            examples = arguments.get("examples", [])
-            if examples:
-                formatted = "\n".join(f"Example {i+1}:\nInput: {ex.get('input', '')}\nOutput: {ex.get('output', '')}" for i, ex in enumerate(examples))
-                enhanced = formatted + "\n\n" + prompt
-                return json.dumps({"enhanced_prompt": enhanced, "example_count": len(examples)})
-            return json.dumps({"enhanced_prompt": "[INSERT EXAMPLES HERE]\n\n" + prompt, "example_count": 0})
-
-        elif name == "add_chain_of_thought":
-            prompt = arguments.get("prompt", "")
-            style = arguments.get("style", "step-by-step")
-            cot = {"standard": "Think step by step.", "tree-of-thought": "Consider multiple approaches before answering.",
-                   "step-by-step": "Let's approach this step by step:\n1. First, understand the problem.\n2. Then, work through each part.\n3. Finally, synthesize the answer."}.get(style, "Think step by step.")
-            return json.dumps({"wrapped_prompt": prompt + "\n\n" + cot, "technique_applied": style})
-
-        elif name == "chain_prompts":
-            task = arguments.get("task", "")
-            steps = int(arguments.get("steps", 3))
-            sents = [s.strip() for s in task.split(".") if s.strip()]
-            chain = [{"step": i+1, "prompt": f"Step {i+1}: {(sents[i] if i < len(sents) else f'Continue step {i+1}')}.",
-                      "input_from": f"step_{i}" if i > 0 else "user", "output_to": f"step_{i+2}" if i < steps-1 else "final_output"} for i in range(steps)]
-            return json.dumps({"chain": chain, "handoff_instructions": "Pass output of each step as input to the next."})
-
-        elif name == "eval_prompt_across_models":
-            prompt = arguments.get("prompt", "")
-            inp = max(1, len(prompt) // 4)
-            out = inp * 2
-            tiers = {"haiku": {"cost_usd": round(inp*0.0000008+out*0.000004, 8), "quality": "good for simple tasks"},
-                     "sonnet": {"cost_usd": round(inp*0.000003+out*0.000015, 8), "quality": "best balance"},
-                     "opus": {"cost_usd": round(inp*0.000015+out*0.000075, 8), "quality": "highest quality"}}
-            rec, reason = ("haiku", "Short prompt") if inp < 200 else ("sonnet", "Medium complexity") if inp < 1000 else ("opus", "Long/complex")
-            return json.dumps({"recommendation": rec, "tiers": tiers, "rationale": reason, "estimated_input_tokens": inp})
-
-        elif name == "audit_system_prompt":
-            sp = arguments.get("system_prompt", "")
-            spl = sp.lower()
-            issues = []
-            score = 0
-            if any(kw in spl for kw in ("you are", "act as", "your role")):
-                score += 20
-            else:
-                issues.append("Missing role definition")
-            if any(kw in spl for kw in ("do not", "never", "must not", "avoid")):
-                score += 20
-            else:
-                issues.append("Missing constraints")
-            if any(kw in spl for kw in ("format", "output", "respond in")):
-                score += 20
-            else:
-                issues.append("Missing output format")
-            if not any(p in spl for p in ["ignore previous", "disregard", "override"]):
-                score += 20
-            else:
-                issues.append("Injection pattern detected")
-            if len(sp) > 50:
-                score += 20
-            else:
-                issues.append("Too short, unclear task")
-            adds = []
-            if "Missing role" in " ".join(issues):
-                adds.append("You are a helpful, knowledgeable assistant.")
-            if "Missing constraints" in " ".join(issues):
-                adds.append("Do not discuss topics outside your defined scope.")
-            if "Missing output format" in " ".join(issues):
-                adds.append("Respond in clear, structured paragraphs.")
-            return json.dumps({"score": score, "issues": issues, "improved_prompt": "\n".join(adds) + ("\n\n" if adds else "") + sp})
-
-        # ── Prompt Registry ──────────────────────────────────────────────────
-        elif name == "save_prompt":
-            await ctx.memory.save_prompt(arguments.get("name"), arguments.get("content"), arguments.get("version", "1.0.0"),
-                                          arguments.get("description", ""), arguments.get("tags", []))
-            return json.dumps({"status": "saved", "name": arguments.get("name"), "version": arguments.get("version", "1.0.0")})
-
-        elif name == "search_prompts":
-            prompts = await ctx.memory.search_prompts(arguments.get("query", ""))
-            return json.dumps({"prompts": prompts})
-
-        elif name == "compare_prompts":
-            name_val = arguments.get("name")
-            va, vb = arguments.get("version_a"), arguments.get("version_b")
-            all_p = await ctx.memory.search_prompts(name_val)
-            exact = [p for p in all_p if p["name"] == name_val]
-            pa = next((p for p in exact if p["version"] == va), None)
-            pb = next((p for p in exact if p["version"] == vb), None)
-            if not pa: return json.dumps({"error": f"Version {va} not found"})
-            if not pb: return json.dumps({"error": f"Version {vb} not found"})
-            diff = "".join(difflib.unified_diff(pa["content"].splitlines(keepends=True), pb["content"].splitlines(keepends=True),
-                                                 fromfile=f"{name_val}@{va}", tofile=f"{name_val}@{vb}")) or "(no difference)"
-            return json.dumps({"version_a": va, "version_b": vb, "token_delta": len(pb["content"])//4 - len(pa["content"])//4, "diff": diff})
-
-        # ── Session Data ─────────────────────────────────────────────────────
-        elif name == "get_session_stats":
-            snap = await ctx.memory.snapshot(since=arguments.get("since"))
-            pricing_age = getattr(ctx.config, "last_verified", None)
-            return json.dumps({**snap, "pricing_last_verified": pricing_age})
-
-        elif name == "clear_history":
-            deleted = await ctx.memory.clear_old(older_than_days=int(arguments.get("older_than_days", 90)))
-            return json.dumps({"deleted_count": deleted, "older_than_days": arguments.get("older_than_days", 90)})
-
-        elif name == "export_stats":
-            return await ctx.memory.export_json()
-
-        elif name == "reload_config":
-            ctx.config = load_config()
-            return json.dumps({"reloaded": True})
-
-        # ── Energy & Plugin Routing ──────────────────────────────────────────
-        elif name == "check_energy":
-            score = ctx.cost_monitor.energy_efficiency_score(arguments.get("model", ""), int(arguments.get("tokens", 1000)))
-            return json.dumps({"energy_efficiency_score": score, "model": arguments.get("model")})
-
-        elif name == "route_for_plugin":
-            plugin = ctx.router.route_for_plugin(arguments.get("text", ""))
-            return json.dumps({"plugin": plugin})
-
-        elif name == "run_eval":
-            scores = {}
-            for m in arguments.get("models", []):
-                if "opus" in m: scores[m] = {"quality_score": 92, "latency_ms": 2500, "cost_usd": 0.075}
-                elif "sonnet" in m: scores[m] = {"quality_score": 85, "latency_ms": 1200, "cost_usd": 0.015}
-                else: scores[m] = {"quality_score": 74, "latency_ms": 350, "cost_usd": 0.003}
-            return json.dumps({"prompt": arguments.get("prompt"), "eval": scores})
-
-        elif name == "run_eval_harness":
-            from promptwise.core.adaptive_router import OutcomeStore
-            from promptwise.core.eval_harness import (
-                EvalCase, EvalHarness, EvalResultStore, load_cases)
-            cases = [EvalCase.from_dict(c) for c in arguments.get("cases", []) if isinstance(c, dict)]
-            cases_path = arguments.get("cases_path", "")
-            if cases_path:
-                cases.extend(load_cases(cases_path))
-            suite = arguments.get("suite", "default")
-            harness = EvalHarness(
-                runner=None,  # offline default: record/dry-run, never cloud
-                outcome_store=OutcomeStore(), result_store=EvalResultStore(),
-                bar=float(arguments.get("bar", 0.6)), suite=suite)
-            run = harness.run(cases, tiers=arguments.get("tiers"))
-            out = run.to_dict()
-            if arguments.get("save_baseline"):
-                out["baseline_saved"] = harness.save_baseline(run)
-            return json.dumps(out)
-
-        elif name == "get_sbom":
-            from promptwise.core.sbom import SBOMGenerator
-            gen = SBOMGenerator()
-            sbom = gen.generate(arguments.get("paths", [Path.cwd()])[0] if arguments.get("paths") else Path.cwd())
-            return json.dumps(sbom)
-
-        elif name == "run_security_suite":
-            text = " ".join(arguments.get("targets", []))
-            sec = ctx.security.check(text)
-            owasp = ctx.security.check_owasp(text)
-            return json.dumps({"security": {"passed": sec.passed, "violations": sec.violations, "risk_score": sec.risk_score},
-                               "owasp": owasp, "status": "completed"})
-
-        # ── Agile method + governance (additive) ─────────────────────────────
-        elif name == "agile_plan":
-            from promptwise.core.agile_planner import AgilePlanner
-            cfg_path = Path(__file__).resolve().parents[2] / "config" / "agile.yaml"
-            plan = AgilePlanner(config_path=cfg_path).plan(
-                arguments.get("task", ""), arguments.get("regulated"), arguments.get("brownfield"))
-            return json.dumps(plan.to_dict())
-
-        elif name == "shard_doc":
-            from promptwise.core.doc_sharder import DocSharder
-            shards = DocSharder().shard(arguments.get("markdown", ""), int(arguments.get("by_level", 2)))
-            return json.dumps([s.__dict__ for s in shards])
-
-        elif name == "draft_story":
-            from promptwise.core.story_context import StoryContextBuilder
-            story = StoryContextBuilder().build(
-                story_id=arguments.get("story_id", ""), title=arguments.get("title", ""),
-                epic_id=arguments.get("epic_id", ""),
-                acceptance_criteria=arguments.get("acceptance_criteria", []),
-                arch_shards=arguments.get("arch_shards", []),
-                files_to_touch=arguments.get("files_to_touch", []),
-                constraints=arguments.get("constraints", []),
-                compliance_rules=arguments.get("compliance_rules", []),
-                tasks=arguments.get("tasks", []))
-            return json.dumps({"story": story.to_dict(), "markdown": story.to_markdown()})
-
-        elif name == "run_quality_gate":
-            from promptwise.core.quality_gate import QualityGate
-            res = QualityGate().evaluate(
-                arguments.get("story_id", ""), arguments.get("findings", []),
-                int(arguments.get("risk_score", 0)), arguments.get("nfr_assessment", {}),
-                arguments.get("waiver_reason", ""))
-            _record_route_verdict(arguments.get("route_id"), res.decision)  # WP8.1 loop close (fail-open)
-            return json.dumps(res.to_dict())
-
-        elif name == "check_policy":
-            from promptwise.core.policy import Policy
-            policy_path = arguments.get("policy_path", "config/policy.yaml")
-            try:
-                pol = Policy.from_yaml(policy_path)
-            except FileNotFoundError:
-                return json.dumps({"error": f"policy file not found: {policy_path} (copy config/policy.example.yaml -> config/policy.yaml)", "type": "PolicyNotConfigured"})
-            dec = pol.evaluate_action(
-                model_tier=arguments.get("model_tier"), estimated_cost=arguments.get("estimated_cost"),
-                spent_so_far=arguments.get("spent_so_far"), operation=arguments.get("operation"),
-                gates_passed=arguments.get("gates_passed", []))
-            return json.dumps(dec.to_dict())
-
-        elif name == "record_audit":
-            audit = _get_audit_log()
-            rec = audit.append(
-                arguments.get("task", ""), agent=arguments.get("agent", ""), model=arguments.get("model", ""),
-                cost_usd=float(arguments.get("cost_usd", 0.0)), rules_applied=arguments.get("rules_applied", []),
-                gate_decision=arguments.get("gate_decision", ""), compliance_decision=arguments.get("compliance_decision", ""),
-                files_touched=arguments.get("files_touched", []))
-            ok, msg = audit.verify()
-            return json.dumps({"record": rec.__dict__, "chain_ok": ok, "chain_msg": msg})
-
-        elif name == "export_audit":
-            audit = _get_audit_log()
-            ok, msg = audit.verify()
-            fmt = arguments.get("format", "both")
-            out = {"chain_ok": ok, "chain_msg": msg, "record_count": len(audit.records)}
-            if fmt in ("json", "both"):
-                out["json"] = json.loads(audit.export_json())
-            if fmt in ("text", "both"):
-                out["text"] = audit.export_text()
-            return json.dumps(out)
-
-        elif name == "sync_agent_config":
-            from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
-            bundle = GovernanceBundle.from_context(arguments)
-            res = ConfigEmitter().sync(
-                bundle, arguments.get("repo_root", "."), arguments.get("targets"),
-                mode=arguments.get("mode", "apply"), adopt=arguments.get("adopt", False))
-            return json.dumps({"written": res})
-
-        elif name == "detect_agents":
-            from promptwise.core.agent_detector import detect_agents
-            d = detect_agents(arguments.get("repo_root", "."))
-            return json.dumps({"targets": d.targets, "confidence": d.confidence, "fingerprints": d.fingerprints})
-
-        elif name == "build_context_model":
-            from promptwise.core.context_model import build_context_model
-            cm = build_context_model(arguments["text"], arguments.get("repo_root", "."))
-            return json.dumps({"intent": cm.intent, "role": cm.role, "stack": cm.stack,
-                               "domain": cm.domain, "regulated": cm.regulated})
-
-        elif name == "propose_agent_config":
-            from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
-            from promptwise.core.agent_detector import detect_agents
-            root = arguments.get("repo_root", ".")
-            targets = arguments.get("targets") or detect_agents(root).targets
-            bundle = GovernanceBundle.from_context(arguments)
-            return json.dumps(ConfigEmitter().diff(bundle, root, targets, adopt=arguments.get("adopt", False)))
-
-        elif name == "lint_agent_config":
-            from promptwise.core.config_linter import ConfigLinter
-            linter = ConfigLinter()
-            kw = {"fmt": arguments.get("fmt", "md"), "max_bytes": arguments.get("max_bytes"),
-                  "always_apply": arguments.get("always_apply", False), "token_budget": arguments.get("token_budget", 0)}
-            if arguments.get("path"):
-                res = linter.lint_file(arguments["path"], **kw)
-            else:
-                res = linter.lint(arguments.get("content", ""), **kw)
-            return json.dumps({"valid": res.valid,
-                               "issues": [{"severity": i.severity, "message": i.message, "line": i.line} for i in res.issues]})
-
-        elif name == "check_portability":
-            from promptwise.core.portability_check import check_portability, emit_ci_snippet
-            rep = check_portability(arguments.get("repo_root", "."), hosts=arguments.get("hosts"))
-            out = rep.to_dict()
-            if arguments.get("emit_ci", False):
-                out["ci_snippet"] = emit_ci_snippet()
-            return json.dumps(out)
-
-        # ── Continuous learning loop (Phase 2) ───────────────────────────────
-        elif name == "capture_learning":
-            from promptwise.core.learning_store import LearningStore
-            learning = LearningStore().capture(
-                category=arguments.get("category", ""), mistake=arguments.get("mistake", ""),
-                correction=arguments.get("correction", ""), project=arguments.get("project", ""),
-                tags=arguments.get("tags", []))
-            return json.dumps({"captured": learning.to_dict()})
-
-        elif name == "replay_learnings":
-            from promptwise.core.learning_replay import replay
-            return json.dumps(replay(arguments.get("task", ""), k=arguments.get("k", 5),
-                                     project=arguments.get("project")))
-
-        elif name == "learning_insights":
-            from promptwise.core.insights import compute_insights
-            return json.dumps(compute_insights())
-
-        elif name == "insights_report":
-            from promptwise.core.insights import compute_recommendations
-            recs = compute_recommendations(window_days=arguments.get("window_days", 30))
-            top_n = int(arguments.get("top_n", 10))
-            return json.dumps({"count": len(recs), "recommendations": recs[:top_n]})
-
-        # ── Policy intelligence & searchable trace (Phase 4) ─────────────────
-        elif name == "tune_permissions":
-            from promptwise.core.permission_tuner import tune_permissions
-            return json.dumps(tune_permissions(
-                state_dir=arguments.get("state_dir", "."),
-                min_count=arguments.get("min_count", 2),
-                mcp_json=arguments.get("mcp_json")))
-
-        elif name == "audit_mcp_servers":
-            from promptwise.core.mcp_auditor import audit_mcp_servers
-            return json.dumps(audit_mcp_servers(
-                repo_root=arguments.get("repo_root", "."),
-                extra_configs=arguments.get("extra_configs")))
-
-        elif name == "search_trace":
-            from promptwise.core.semantic_index import search_trace
-            return json.dumps(search_trace(
-                arguments.get("query", ""), k=arguments.get("k", 5),
-                repo_root=arguments.get("repo_root", "."),
-                audit_path=arguments.get("audit_path"),
-                use_embeddings=arguments.get("use_embeddings", False)))
-
-        # ── Skill auto-optimization (Phase 3) ────────────────────────────────
-        elif name == "optimize_skill_pack":
-            from promptwise.core.skill_optimizer import optimize_skill_pack
-            return json.dumps(optimize_skill_pack(
-                arguments.get("skill_path", ""), project=arguments.get("project"),
-                max_rules=arguments.get("max_rules", 8), dry_run=arguments.get("dry_run", False)))
-
-        # ── Compliance evidence export (Phase 7) ─────────────────────────────
-        elif name == "export_compliance_bundle":
-            from promptwise.core.compliance_export import export_bundle
-            audit = _get_audit_log()
-            records = json.loads(audit.export_json())
-            return json.dumps(export_bundle(
-                records, sign=arguments.get("sign", True),
-                control_families=arguments.get("control_families"),
-                out_path=arguments.get("out_path")))
-
-        # ── Autonomous governor (Phase 9) ────────────────────────────────────
-        elif name == "run_governor":
-            from promptwise.core.governor import Governor
-            from promptwise.core.insights import compute_recommendations
-            root = arguments.get("root", ".")
-            policy_path = arguments.get("policy_path", "config/policy.yaml")
-            gov = Governor(root=root, mode=arguments.get("mode"),
-                           policy_path=policy_path, audit_log=_get_audit_log())
-            recs = compute_recommendations(window_days=arguments.get("window_days", 30))
-            return json.dumps(gov.run(recs))
-
-        elif name == "governor_undo":
-            from promptwise.core.governor import Governor
-            gov = Governor(root=arguments.get("root", "."), audit_log=_get_audit_log())
-            return json.dumps(gov.undo(arguments.get("action_id", "")))
-
-        else:
+        handler = _HANDLERS.get(name)
+        if handler is None:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})
-
+        return await handler(ctx, arguments)
     except Exception as e:
         return json.dumps({"error": str(e), "type": type(e).__name__, "tool": name})
 
