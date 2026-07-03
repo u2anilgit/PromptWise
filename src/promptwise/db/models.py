@@ -94,6 +94,24 @@ class TaskModel(Base):
     updated_ts = Column(String(50), nullable=False)
 
 
+class RouteOutcomeModel(Base):
+    """Phase 7 WP7.1 — per-route-decision outcome for the adaptive learning loop.
+
+    Additive, append-only feedback store. ``quality_signal`` is a normalized
+    ``met`` / ``not_met`` / ``neutral`` verdict (absence is neutral, never
+    negative). The sync ``core.adaptive_router.OutcomeStore`` reads/writes the
+    same ``route_outcomes`` table for the routing hot path.
+    """
+    __tablename__ = "route_outcomes"
+    outcome_id = Column(String(50), primary_key=True)
+    ts = Column(String(50), nullable=False)
+    task_class = Column(String(100), nullable=False, index=True)
+    tier = Column(String(20), nullable=False, default="")
+    model_family = Column(String(100), default="")
+    cost = Column(Float, default=0.0)
+    quality_signal = Column(String(20), default="neutral")
+
+
 def get_db_path() -> Path:
     db_dir = Path.home() / ".promptwise"
     db_dir.mkdir(parents=True, exist_ok=True)
@@ -283,6 +301,31 @@ class MemoryManager:
                 for entry in entries:
                     await session.delete(entry)
         return count
+
+    async def record_route_outcome(self, *, task_class: str, tier: str, quality_signal: object = "neutral",
+                                   model_family: str = "", cost: float = 0.0) -> str:
+        """Persist a route-decision outcome for the adaptive loop (async path,
+        e.g. the eval harness). Returns the normalized signal stored."""
+        from promptwise.core.adaptive_router import normalize_quality_signal
+        signal = normalize_quality_signal(quality_signal)
+        async with self.async_session() as session:
+            async with session.begin():
+                session.add(RouteOutcomeModel(
+                    outcome_id=str(uuid.uuid4()), ts=datetime.now(timezone.utc).isoformat(),
+                    task_class=task_class, tier=tier, model_family=model_family,
+                    cost=cost, quality_signal=signal))
+        return signal
+
+    async def get_route_outcomes(self, task_class: str | None = None) -> list[dict]:
+        async with self.async_session() as session:
+            stmt = select(RouteOutcomeModel)
+            if task_class:
+                stmt = stmt.where(RouteOutcomeModel.task_class == task_class)
+            stmt = stmt.order_by(RouteOutcomeModel.ts)
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        return [{"task_class": r.task_class, "tier": r.tier, "model_family": r.model_family,
+                 "cost": r.cost, "quality_signal": r.quality_signal, "ts": r.ts} for r in rows]
 
     async def record_cost(self, *, session_id: str, tool: str, model: str, input_tokens: float = 0, output_tokens: float = 0, cost_usd: float = 0, saving_pct: float = 0, lines: float = 0) -> None:
         async with self.async_session() as session:
