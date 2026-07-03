@@ -13,7 +13,8 @@ build/
 # ── Runtime / local governance artifacts ────────────────────────────────
 # hash-chained audit trail (runtime, per-machine)
 promptwise_audit.jsonl
-# project-local runtime state (audit, denials, counters, model overlay)
+# project-local runtime state (audit, denials, counters, model overlay,
+# governor budget overlay + undo ledger + proposals — Phase 9)
 .promptwise/
 # local governance policy (copy from policy.example.yaml)
 config/policy.yaml

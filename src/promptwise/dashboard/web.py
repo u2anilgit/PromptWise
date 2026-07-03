@@ -75,6 +75,10 @@ _INDEX_HTML = """<!DOCTYPE html>
   <div class="sect">Governance &mdash; is it working?</div>
   <div class="gov" id="gov"></div>
 
+  <div class="sect">Governor actions <span class="muted">(Phase 9 &middot; policy-gated &middot; reversible &middot; default advise-only)</span></div>
+  <div class="muted" id="gov-mode"></div>
+  <table><thead><tr><th>Type</th><th>Blast radius</th><th>Action</th><th>Policy</th><th>Status</th></tr></thead><tbody id="gov-actions"></tbody></table>
+
   <script>
     function money(x){ return '$' + (Number(x)||0).toFixed(Math.abs(x)<1?4:2); }
     async function load(){
@@ -120,6 +124,26 @@ _INDEX_HTML = """<!DOCTYPE html>
         ['Denials logged', g.denials||0, ''],
         ['Failures captured', g.failures||0, ''],
       ].map(p=>`<div class="pill"><div class="t muted">${p[0]}</div><div class="v ${p[2]}">${p[1]}</div></div>`).join('');
+      try {
+        const gv = await (await fetch('/api/governor')).json();
+        const props = (gv.proposals||[]);
+        document.getElementById('gov-mode').textContent = props.length
+          ? ('mode: ' + (gv.mode||'advise') + ' · ' + props.length + ' proposal(s)')
+          : 'No governor run recorded yet (advise-only by default).';
+        const scol = {applied:'#34d399', would_apply:'#818cf8', advisory:'#7a869e',
+                      blocked:'#fb7185', noop:'#7a869e', failed:'#fb7185'};
+        document.getElementById('gov-actions').innerHTML = props.map(p=>{
+          const v = p.verdict||{}; const pol = (v.allowed===false)?'BLOCK':'OK';
+          const pc = (v.allowed===false)?'#fb7185':'#34d399';
+          const sc = scol[p.status]||'#7a869e';
+          const br = (p.blast_radius==='safe')?'#34d399':'#fbbf24';
+          return `<tr><td>${p.type||''}</td>`+
+                 `<td><span style="color:${br}">${p.blast_radius||''}</span></td>`+
+                 `<td>${p.description||''}</td>`+
+                 `<td><span style="color:${pc}">${pol}</span></td>`+
+                 `<td><span style="color:${sc}">${p.status||''}</span></td></tr>`;
+        }).join('') || '<tr><td colspan=5 class="muted">no governor proposals yet</td></tr>';
+      } catch(e){ document.getElementById('gov-actions').innerHTML = '<tr><td colspan=5 class="muted">no data</td></tr>'; }
     }
     load();
   </script>
@@ -194,6 +218,22 @@ def create_web_app(stats_service=None, memory_manager=None) -> Flask:
         except Exception:
             recs = []
         return jsonify({"recommendations": recs[:8], "count": len(recs)})
+
+    @app.route("/api/governor")
+    def api_governor():
+        """Most recent governor proposals + verdicts + apply state, read from the
+        local advisory artifact the governor writes (`.promptwise/governor_proposals.json`).
+        Read-only, offline, fail-open — never triggers an autonomy run."""
+        import json as _json
+        from pathlib import Path
+        p = Path.cwd() / ".promptwise" / "governor_proposals.json"
+        try:
+            data = _json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        except Exception:
+            data = {}
+        return jsonify({"mode": data.get("mode", "advise"),
+                        "proposals": data.get("proposals", []),
+                        "summary": data.get("summary", {})})
 
     @app.route("/api/stats")
     def api_stats():
