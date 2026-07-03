@@ -240,6 +240,8 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
     Tool(name="run_eval", description="A/B test a prompt across multiple models",
          inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}, "default": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]}}, "required": ["prompt"]}),
+    Tool(name="run_eval_harness", description="Run a durable eval + regression suite (prompt+rubric cases) offline; score with the quality gate, diff against a stored baseline to flag regressions, expose a pass/fail gate, and feed outcomes back into adaptive routing. Offline default is a record/dry-run mode (no cloud). Set save_baseline=true to bless this run as the new baseline.",
+         inputSchema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "tiers": {"type": "array", "items": {"type": "string"}}, "bar": {"type": "number", "default": 0.6}, "save_baseline": {"type": "boolean", "default": False}}}),
     Tool(name="get_sbom", description="Generate SBOM in CycloneDX format",
          inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"}, "paths": {"type": "array", "items": {"type": "string"}}}}),
     Tool(name="run_security_suite", description="Run all security checks as a suite",
@@ -271,6 +273,8 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "path_rules": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]}),
     Tool(name="lint_agent_config", description="Lint an agent rules file (or content) for token tax, byte caps, missing .mdc frontmatter, and inferable bloat",
          inputSchema={"type": "object", "properties": {"content": {"type": "string"}, "path": {"type": "string"}, "fmt": {"type": "string", "enum": ["md", "mdc"], "default": "md"}, "max_bytes": {"type": "integer"}, "always_apply": {"type": "boolean", "default": False}, "token_budget": {"type": "integer", "default": 0}}}),
+    Tool(name="check_portability", description="Cross-host portability check (Phase 7 §7.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
+         inputSchema={"type": "object", "properties": {"repo_root": {"type": "string", "default": "."}, "hosts": {"type": "array", "items": {"type": "string"}, "description": "subset of supported hosts to check; default all"}, "emit_ci": {"type": "boolean", "default": False, "description": "also return a host-neutral CI-snippet"}}}),
 
     # ── Continuous learning loop (Phase 2, additive · local SQLite + FTS5) ────
     Tool(name="capture_learning", description="Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline.",
@@ -315,6 +319,13 @@ _TOOL_DEFS = [
              "max_rules": {"type": "integer", "default": 8, "minimum": 1, "maximum": 25},
              "dry_run": {"type": "boolean", "default": False, "description": "score and preview without writing"}},
          "required": ["skill_path"]}),
+
+    # ── Compliance evidence export (Phase 7, additive · offline, stdlib only) ──
+    Tool(name="export_compliance_bundle", description="Build a self-verifying, HMAC-signed compliance evidence bundle from the hash-chained audit trail: verifies the chain, wraps records in a manifest (time range, count, chain-head digest), signs with a local key, and can write a .zip. Offline; no network.",
+         inputSchema={"type": "object", "properties": {
+             "sign": {"type": "boolean", "default": True, "description": "HMAC-sign the bundle with the local key (env PROMPTWISE_AUDIT_KEY or PROMPTWISE_AUDIT_KEY_FILE)"},
+             "control_families": {"type": "array", "items": {"type": "string"}, "description": "generic control-family tags; inferred from the trace when omitted"},
+             "out_path": {"type": "string", "description": "optional path to write a .zip evidence archive"}}}),
 ]
 
 
@@ -766,6 +777,25 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
                 else: scores[m] = {"quality_score": 74, "latency_ms": 350, "cost_usd": 0.003}
             return json.dumps({"prompt": arguments.get("prompt"), "eval": scores})
 
+        elif name == "run_eval_harness":
+            from promptwise.core.adaptive_router import OutcomeStore
+            from promptwise.core.eval_harness import (
+                EvalCase, EvalHarness, EvalResultStore, load_cases)
+            cases = [EvalCase.from_dict(c) for c in arguments.get("cases", []) if isinstance(c, dict)]
+            cases_path = arguments.get("cases_path", "")
+            if cases_path:
+                cases.extend(load_cases(cases_path))
+            suite = arguments.get("suite", "default")
+            harness = EvalHarness(
+                runner=None,  # offline default: record/dry-run, never cloud
+                outcome_store=OutcomeStore(), result_store=EvalResultStore(),
+                bar=float(arguments.get("bar", 0.6)), suite=suite)
+            run = harness.run(cases, tiers=arguments.get("tiers"))
+            out = run.to_dict()
+            if arguments.get("save_baseline"):
+                out["baseline_saved"] = harness.save_baseline(run)
+            return json.dumps(out)
+
         elif name == "get_sbom":
             from promptwise.core.sbom import SBOMGenerator
             gen = SBOMGenerator()
@@ -886,6 +916,14 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
             return json.dumps({"valid": res.valid,
                                "issues": [{"severity": i.severity, "message": i.message, "line": i.line} for i in res.issues]})
 
+        elif name == "check_portability":
+            from promptwise.core.portability_check import check_portability, emit_ci_snippet
+            rep = check_portability(arguments.get("repo_root", "."), hosts=arguments.get("hosts"))
+            out = rep.to_dict()
+            if arguments.get("emit_ci", False):
+                out["ci_snippet"] = emit_ci_snippet()
+            return json.dumps(out)
+
         # ── Continuous learning loop (Phase 2) ───────────────────────────────
         elif name == "capture_learning":
             from promptwise.core.learning_store import LearningStore
@@ -932,6 +970,16 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
             return json.dumps(optimize_skill_pack(
                 arguments.get("skill_path", ""), project=arguments.get("project"),
                 max_rules=arguments.get("max_rules", 8), dry_run=arguments.get("dry_run", False)))
+
+        # ── Compliance evidence export (Phase 7) ─────────────────────────────
+        elif name == "export_compliance_bundle":
+            from promptwise.core.compliance_export import export_bundle
+            audit = _get_audit_log()
+            records = json.loads(audit.export_json())
+            return json.dumps(export_bundle(
+                records, sign=arguments.get("sign", True),
+                control_families=arguments.get("control_families"),
+                out_path=arguments.get("out_path")))
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})
