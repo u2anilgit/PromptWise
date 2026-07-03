@@ -1125,7 +1125,7 @@ async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) 
 async def _handle_run_governor(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.governor import Governor
     from promptwise.core.insights import compute_recommendations
-    root = arguments.get("root", ".")
+    root = arguments.get("root")  # None -> governor's shared home state dir (BudgetGuardian reads there)
     policy_path = arguments.get("policy_path", "config/policy.yaml")
     gov = Governor(root=root, mode=arguments.get("mode"),
                    policy_path=policy_path, audit_log=_get_audit_log())
@@ -1135,7 +1135,7 @@ async def _handle_run_governor(ctx: ServerContext, arguments: dict) -> str:
 
 async def _handle_governor_undo(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.governor import Governor
-    gov = Governor(root=arguments.get("root", "."), audit_log=_get_audit_log())
+    gov = Governor(root=arguments.get("root"), audit_log=_get_audit_log())
     return json.dumps(gov.undo(arguments.get("action_id", "")))
 
 
