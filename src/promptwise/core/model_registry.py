@@ -145,6 +145,13 @@ class ModelRegistry:
         m = self._by_alias.get(alias)
         return m.get("family") if m else None
 
+    def tier_of(self, alias: str) -> str:
+        """Public: the routing tier (fast/balanced/powerful) of a concrete alias,
+        resolving the family default when the model row omits its own. ``""`` when
+        the alias is unknown (registry unloaded / stale), so callers stay fail-open."""
+        m = self._by_alias.get(alias)
+        return self._tier_of(m) if m else ""
+
     def price(self, alias: str) -> dict | None:
         """Point-in-time unit price for a specific model (snapshot source)."""
         m = self._by_alias.get(alias)

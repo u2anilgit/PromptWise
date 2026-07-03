@@ -140,6 +140,48 @@ class OutcomeStore:
             conn.close()
         return signal
 
+    def record_decision(self, task_class: str, tier: str, model_family: str = "",
+                        cost: float = 0.0, ts: str | None = None) -> str:
+        """Insert a fresh decision row with a ``neutral`` signal and return its
+        ``outcome_id``.
+
+        The live-route writer (Phase 8 WP8.1) records the decision immediately —
+        before any quality verdict exists — and keeps the returned id so a later
+        verdict can be correlated back via :meth:`update_signal`. A row that never
+        receives a verdict simply stays ``neutral`` (never counts as a failure).
+        """
+        outcome_id = uuid.uuid4().hex
+        ts = ts or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        conn = self._connect()
+        try:
+            conn.execute(
+                "INSERT INTO route_outcomes "
+                "(outcome_id, ts, task_class, tier, model_family, cost, quality_signal) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'neutral')",
+                (outcome_id, ts, task_class or "", tier or "",
+                 model_family or "", float(cost or 0.0)),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return outcome_id
+
+    def update_signal(self, outcome_id: str, quality_signal: object) -> str:
+        """Fold ``quality_signal`` onto met/not_met/neutral and store it on an
+        existing decision row (no-op if the id is unknown). Returns the normalized
+        signal. Used to correlate a later verdict onto a recorded live route."""
+        signal = normalize_quality_signal(quality_signal)
+        conn = self._connect()
+        try:
+            conn.execute(
+                "UPDATE route_outcomes SET quality_signal = ? WHERE outcome_id = ?",
+                (signal, outcome_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return signal
+
     def stats(self, task_class: str) -> dict[str, dict[str, int]]:
         """Per-tier counts for a class: ``{tier: {met, not_met, neutral}}``."""
         conn = self._connect()
