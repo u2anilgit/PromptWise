@@ -1,11 +1,70 @@
+import json
+from pathlib import Path
+
 from promptwise.types import BudgetStatus
+
+try:  # PyYAML is already a PromptWise dependency (policy/model registry/governor use it)
+    import yaml
+except Exception:  # pragma: no cover - yaml always present in practice
+    yaml = None  # type: ignore
+
+# Gitignored overlay the Phase-9 governor writes on an ``AdjustBudgetGuard`` apply
+# (see core/governor: ``_BUDGET_OVERLAY``/``write_budget_overlay``). We mirror its
+# location + YAML shape here WITHOUT importing the governor (avoids a plugin->core
+# import cycle): a ``.promptwise/budget.local.yaml`` holding a ``limit_usd`` key.
+_BUDGET_OVERLAY = "budget.local.yaml"
+_DEFAULT_LIMIT_USD = 10.0
+
+
+def _state_dir() -> Path:
+    """Resolve the local ``.promptwise/`` state dir the SAME way the DB layer does,
+    so we read the overlay from the exact place the governor writes it. Resolver is
+    a seam tests monkeypatch to avoid touching the real ``~/.promptwise``."""
+    from promptwise.db.models import get_db_path
+    return get_db_path().parent
+
+
+def _overlay_path() -> Path:
+    return _state_dir() / _BUDGET_OVERLAY
+
+
+def read_budget_overlay() -> float | None:
+    """Return the overlaid budget limit (USD) or ``None`` when no usable overlay
+    exists. Fail-soft: a missing/malformed/unparseable overlay yields ``None`` —
+    never raises."""
+    try:
+        p = _overlay_path()
+        if not p.exists():
+            return None
+        text = p.read_text(encoding="utf-8")
+        if yaml is not None:
+            data = yaml.safe_load(text) or {}
+        else:  # pragma: no cover - yaml always present in practice
+            data = json.loads(text)
+        val = data.get("limit_usd") if isinstance(data, dict) else None
+        return float(val) if val is not None else None
+    except Exception:
+        return None
+
+
+def effective_limit(explicit: float | None) -> float:
+    """The limit to enforce: an explicit caller-supplied value always wins; when
+    none was passed, fall back to the governor overlay, else the built-in default."""
+    if explicit is not None:
+        return explicit
+    overlay = read_budget_overlay()
+    return overlay if overlay is not None else _DEFAULT_LIMIT_USD
 
 
 class BudgetGuardian:
-    def __init__(self, limit_usd: float = 10.0, team_budget_usd: float = 100.0):
-        self.limit_usd = limit_usd
+    def __init__(self, limit_usd: float | None = None, team_budget_usd: float = 100.0):
+        # ``limit_usd is None`` marks "caller relied on the default" -> read the
+        # governor overlay (closing the loop) and fall back to _DEFAULT_LIMIT_USD.
+        # An explicit ``limit_usd=X`` still wins, preserving existing callers.
+        limit = effective_limit(limit_usd)
+        self.limit_usd = limit
         self.team_budget_usd = team_budget_usd
-        self._limits: dict[str, float] = {"monthly": limit_usd}
+        self._limits: dict[str, float] = {"monthly": limit}
         self._current_spend = 0.0
         self._daily_burn = 0.0
 
