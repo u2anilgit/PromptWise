@@ -167,7 +167,7 @@ _TOOL_DEFS = [
 
     # --- Code Validation ---
     Tool(name="validate_output", description="Validate generated code for syntax errors and hallucinated imports",
-         inputSchema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}}, "required": ["code"]}),
+         inputSchema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"}}, "required": ["code"]}),
 
     # --- ROI ---
     Tool(name="track_roi", description="Calculate ROI ratio: value of time saved vs cost incurred",
@@ -255,7 +255,7 @@ _TOOL_DEFS = [
     Tool(name="draft_story", description="Assemble a self-contained, context-engineered story: embeds architecture shards, constraints, and compliance rules inline so the dev executor needs no external lookup",
          inputSchema={"type": "object", "properties": {"story_id": {"type": "string"}, "title": {"type": "string"}, "epic_id": {"type": "string", "default": ""}, "acceptance_criteria": {"type": "array", "items": {"type": "string"}, "default": []}, "arch_shards": {"type": "array", "items": {"type": "object"}, "default": []}, "files_to_touch": {"type": "array", "items": {"type": "string"}, "default": []}, "constraints": {"type": "array", "items": {"type": "string"}, "default": []}, "compliance_rules": {"type": "array", "items": {"type": "string"}, "default": []}, "tasks": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["story_id", "title"]}),
     Tool(name="run_quality_gate", description="Issue an advisory, auditable quality-gate decision (PASS/CONCERNS/FAIL/WAIVED) from findings, risk score, and NFR assessment",
-         inputSchema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}}, "required": ["story_id"]}),
+         inputSchema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"}}, "required": ["story_id"]}),
     Tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons",
          inputSchema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}}}),
     Tool(name="record_audit", description="Append a tamper-evident, hash-chained audit record of an AI-assisted change ('the trace'); returns the record and chain verification status",
@@ -292,6 +292,11 @@ _TOOL_DEFS = [
          "required": ["task"]}),
     Tool(name="learning_insights", description="Correction trends from the local learning store: counts by category, project, month, and the most-repeated mistakes.",
          inputSchema={"type": "object", "properties": {}}),
+    Tool(name="insights_report", description="Ranked, actionable recommendations over local telemetry: routing downgrades/escalations, top cost drivers & spend anomalies, quality/eval regressions, and budget projections. Deterministic, offline, min-sample gated.",
+         inputSchema={"type": "object", "properties": {
+             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365,
+                             "description": "analysis window for cost/quality/budget families"},
+             "top_n": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}}}),
 
     # ── Policy intelligence & searchable trace (Phase 4, additive · offline) ──
     Tool(name="tune_permissions", description="Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
@@ -333,6 +338,22 @@ async def list_tools() -> list[Tool]:
     return _TOOL_DEFS
 
 
+def _record_route_verdict(route_id, signal) -> None:
+    """Correlate a later quality verdict onto a prior live route (WP8.1).
+
+    The seam for closing the learning loop: any tool that produces a verdict for a
+    route it was passed (``validate_output`` validity, ``run_quality_gate``
+    decision) calls this with the ``route_id`` returned by ``route_request``.
+    Fully fail-open — never raises, never affects the tool's own result."""
+    if not route_id:
+        return
+    try:
+        from promptwise.core.route_recorder import record_route_verdict
+        record_route_verdict(route_id, signal)
+    except Exception:
+        pass
+
+
 _AUDIT_LOG = None
 
 
@@ -355,10 +376,24 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
                 stakes=arguments.get("stakes", "auto"), provider=arguments.get("provider", "claude"),
                 monthly_budget_usd=arguments.get("monthly_budget_usd"), days_elapsed_in_month=arguments.get("days_elapsed_in_month"))
             await ctx.memory.record_cost(tool="route_request", session_id="default", model=r.recommended_model, cost_usd=r.estimated_input_cost_usd)
+            # Close the learning loop: record the decision as a neutral outcome row
+            # (WP8.1). Fail-open — recording never changes or breaks the route.
+            route_id = None
+            try:
+                from promptwise.core.route_recorder import record_route_decision
+                reg = ctx.router.registry
+                route_id = record_route_decision(
+                    task_class=f"{r.intent_detected}/{r.stakes_detected}",
+                    tier=reg.tier_of(r.recommended_model),
+                    model_family=reg.family_of(r.recommended_model) or "",
+                    cost=r.estimated_input_cost_usd)
+            except Exception:
+                route_id = None
             return json.dumps({"recommended_model": r.recommended_model, "reason": r.reason, "intent_detected": r.intent_detected,
                                "stakes_detected": r.stakes_detected, "estimated_input_cost_usd": r.estimated_input_cost_usd,
                                "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
-                               "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note})
+                               "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
+                               "route_id": route_id})
 
         elif name == "rewrite_prompt":
             r = ctx.rewriter.rewrite(arguments.get("text", ""), role=arguments.get("role", "general"), model=arguments.get("model", "claude-sonnet-4-6"))
@@ -537,6 +572,7 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
         # ── Code Validation ──────────────────────────────────────────────────
         elif name == "validate_output":
             r = ctx.code_validator.validate(arguments.get("code", ""), language=arguments.get("language", "python"))
+            _record_route_verdict(arguments.get("route_id"), r.valid)  # WP8.1 loop close (fail-open)
             return json.dumps({"valid": r.valid, "issues": r.issues, "confidence": r.confidence, "checks_run": r.checks_run, "suggested_fix": r.suggested_fix})
 
         # ── ROI ──────────────────────────────────────────────────────────────
@@ -841,6 +877,7 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
                 arguments.get("story_id", ""), arguments.get("findings", []),
                 int(arguments.get("risk_score", 0)), arguments.get("nfr_assessment", {}),
                 arguments.get("waiver_reason", ""))
+            _record_route_verdict(arguments.get("route_id"), res.decision)  # WP8.1 loop close (fail-open)
             return json.dumps(res.to_dict())
 
         elif name == "check_policy":
@@ -941,6 +978,12 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
         elif name == "learning_insights":
             from promptwise.core.insights import compute_insights
             return json.dumps(compute_insights())
+
+        elif name == "insights_report":
+            from promptwise.core.insights import compute_recommendations
+            recs = compute_recommendations(window_days=arguments.get("window_days", 30))
+            top_n = int(arguments.get("top_n", 10))
+            return json.dumps({"count": len(recs), "recommendations": recs[:top_n]})
 
         # ── Policy intelligence & searchable trace (Phase 4) ─────────────────
         elif name == "tune_permissions":

@@ -69,6 +69,9 @@ _INDEX_HTML = """<!DOCTYPE html>
   <div class="sect">By skill</div>
   <table><thead><tr><th>Skill / tool</th><th>Calls</th><th>Cost</th></tr></thead><tbody id="by-skill"></tbody></table>
 
+  <div class="sect">Recommendations <span class="muted">(ranked · offline · min-sample gated)</span></div>
+  <table><thead><tr><th>Category</th><th>Recommendation</th><th>Impact</th><th>Confidence</th></tr></thead><tbody id="recs"></tbody></table>
+
   <div class="sect">Governance &mdash; is it working?</div>
   <div class="gov" id="gov"></div>
 
@@ -98,6 +101,18 @@ _INDEX_HTML = """<!DOCTYPE html>
       document.getElementById('by-model').innerHTML = bm.map(r=>`<tr><td>${r.key}</td><td>${r.calls}</td><td>${money(r.cost_usd)}</td></tr>`).join('') || '<tr><td colspan=3 class="muted">no data</td></tr>';
       const bs = (d.breakdowns&&d.breakdowns.by_skill)||[];
       document.getElementById('by-skill').innerHTML = bs.map(r=>`<tr><td>${r.key}</td><td>${r.calls}</td><td>${money(r.cost_usd)}</td></tr>`).join('') || '<tr><td colspan=3 class="muted">no data</td></tr>';
+      try {
+        const ir = await (await fetch('/api/insights?days=' + days)).json();
+        const recs = (ir.recommendations||[]);
+        const cat = {routing:'#818cf8', cost:'#fbbf24', quality:'#fb7185', budget:'#34d399'};
+        document.getElementById('recs').innerHTML = recs.map(r=>{
+          const usd = (r.category!=='quality');
+          const imp = usd ? money(r.estimated_impact) : (Number(r.estimated_impact)||0).toFixed(2);
+          const c = cat[r.category]||'#7a869e';
+          return `<tr><td><span style="color:${c};text-transform:capitalize">${r.category}</span></td>`+
+                 `<td>${r.message}</td><td>${imp}</td><td>${Math.round((r.confidence||0)*100)}%</td></tr>`;
+        }).join('') || '<tr><td colspan=4 class="muted">no recommendations yet</td></tr>';
+      } catch(e){ document.getElementById('recs').innerHTML = '<tr><td colspan=4 class="muted">no data</td></tr>'; }
       const g = d.governance || {};
       document.getElementById('gov').innerHTML = [
         ['Audit records', g.audit_records||0, ''],
@@ -166,6 +181,19 @@ def create_web_app(stats_service=None, memory_manager=None) -> Flask:
                                         top_tier_price=top_price, governance=gov)
         model["archive"] = is_archive
         return jsonify(model)
+
+    @app.route("/api/insights")
+    def api_insights():
+        """Ranked recommendations (routing/cost/quality/budget) over the local
+        telemetry. Deterministic, offline, fail-open — any error yields []."""
+        from promptwise.core.insights import compute_recommendations
+        raw = str(request.args.get("days", 30))
+        days = int(raw) if raw.isdigit() else 30
+        try:
+            recs = compute_recommendations(window_days=days)
+        except Exception:
+            recs = []
+        return jsonify({"recommendations": recs[:8], "count": len(recs)})
 
     @app.route("/api/stats")
     def api_stats():
