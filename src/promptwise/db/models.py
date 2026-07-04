@@ -5,8 +5,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from sqlalchemy import Column, String, Float, Text, create_engine
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.future import select
 
 from promptwise.types import MemoryEntry
@@ -170,7 +170,7 @@ class SessionManager:
     def __init__(self, db_path: Path | str):
         db_url = f"sqlite+aiosqlite:///{db_path}"
         self.engine = create_async_engine(db_url, echo=False)
-        self.async_session = sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
+        self.async_session = async_sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
 
     async def ping(self, session_id: str | None = None) -> dict:
         now = datetime.now(timezone.utc).isoformat()
@@ -227,7 +227,7 @@ class MemoryManager:
         if not db_url.startswith("sqlite") and not db_url.startswith("postgresql"):
             db_url = f"sqlite+aiosqlite:///{db_url}"
         self.engine = create_async_engine(db_url, echo=False)
-        self.async_session = sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
+        self.async_session = async_sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
 
     async def init(self) -> None:
         async with self.engine.begin() as conn:

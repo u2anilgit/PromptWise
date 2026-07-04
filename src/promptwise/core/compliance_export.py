@@ -125,9 +125,9 @@ def verify_chain(source) -> ChainResult:
     bundle / JSONL) and surfaces the offending index and record id.
     """
     records = _coerce_records(source)
-    prev = GENESIS
+    prev: str = GENESIS
     for i, rec in enumerate(records):
-        rid = rec.get("hash")
+        rid: str = str(rec.get("hash") or "")
         if rec.get("index") != i:
             return ChainResult(False, f"index mismatch at record {i}", i, rid, prev)
         if rec.get("prev_hash") != prev:

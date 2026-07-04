@@ -230,18 +230,20 @@ def _cost_recs(conn: sqlite3.Connection, window_days: int, cutoff: str) -> list[
         return []
 
     recs: list[dict] = []
-    dims = {
-        "model": Counter(),
-        "skill": Counter(),
+    dims: dict[str, dict[str, float]] = {
+        "model": {},
+        "skill": {},
     }
     for r in rows:
-        dims["model"][r["model"] or "unknown"] += float(r["cost_usd"] or 0.0)
-        dims["skill"][r["tool"] or "unknown"] += float(r["cost_usd"] or 0.0)
+        model_key = r["model"] or "unknown"
+        skill_key = r["tool"] or "unknown"
+        dims["model"][model_key] = dims["model"].get(model_key, 0.0) + float(r["cost_usd"] or 0.0)
+        dims["skill"][skill_key] = dims["skill"].get(skill_key, 0.0) + float(r["cost_usd"] or 0.0)
 
-    for dim, counter in dims.items():
-        if not counter:
+    for dim, spend_by_key in dims.items():
+        if not spend_by_key:
             continue
-        key, spend = counter.most_common(1)[0]
+        key, spend = max(spend_by_key.items(), key=lambda kv: kv[1])
         share = spend / total if total else 0.0
         if share < COST_DRIVER_SHARE:
             continue
