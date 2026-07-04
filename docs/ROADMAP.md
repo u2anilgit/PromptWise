@@ -4,9 +4,10 @@ Single index over the phased roadmaps. Each phase has its own detailed doc
 (`docs/PHASE<N>_ROADMAP.md`). This file is the resume point: what is done, what is
 open, and where to pick up next.
 
-**Status as of the last session:** Phases 6–10 complete and merged to `main`
-(PRs #5–#10). Working tree clean. **390 tests pass.** No planned finale — the series is
-open-ended and continues when new work is scoped.
+**Status as of the last session:** Phases 6–12 complete and merged to `main`
+(PRs #5–#12). Working tree clean. **439 tests pass.** No planned finale — the series is
+open-ended and continues when new work is scoped. No feature candidates currently
+queued — see "Open items" below.
 
 Standing guardrails (all phases): local-first, air-gap-safe, no new infrastructure, no
 new pip dependencies, no branded/competitor model ids (tiers/families only), hooks &
@@ -52,21 +53,43 @@ Detail: `PHASE9_ROADMAP.md`.
   `AdjustBudgetGuard` reaches the guardian (the budget loop is now genuinely closed).
 Detail: `PHASE10_ROADMAP.md`.
 
+### Phase 11 — pyright debt + red-team harness (merged, PR #11) — 390 → 428 tests
+- 11.1 cleared all 3 pyright nits: `Counter[str]`/float in `insights.py`, `chain_head`
+  narrowing in `compliance_export.py`, async-Session annotations in `db/models.py`
+  (`async_sessionmaker`).
+- 11.2 consolidated the three duplicated security-handler regex copies in `server.py`
+  onto `SecurityScanner` (`detect_injection`/`detect_pii`, merged `check_owasp`);
+  `run_security_suite` now aggregates all four checks and persists verdicts
+  (`core/security_log.SecurityScanStore`); found + fixed an air-gap violation — the
+  scanner's OSV.dev supply-chain lookup was an unconditional live network call, now
+  gated behind `allow_network` (default `False`).
+- 11.3 `core/redteam_harness.py` — the security analogue of `eval_harness.py`: built-in
+  offline attack/benign corpus (14 cases), baseline store, regression gate. Wired as
+  `run_red_team_harness`.
+Detail: `PHASE11_ROADMAP.md`.
+
+### Phase 12 — retrieval-augmented context manager (merged, PR #12) — 428 → 439 tests
+- `core/context_ranker.py`: `rank_context` composes `semantic_index.search_trace`
+  (audit + learnings) and `doc_sharder.DocSharder` (optional caller-supplied doc) into
+  one ranked, budget-pruned candidate list — reuses existing scoring and
+  `Optimizer.optimize()`'s word-count-budget convention, no new ranking algorithm, no
+  new persistence, no new dependency. Wired as `rank_context` (84th tool).
+Detail: `PHASE12_ROADMAP.md`.
+
 ---
 
 ## Open items (resume here)
 
 ### Debt (cosmetic — pyright only, suite green)
-- `Counter[str]` assigned float impacts in `insights.py`.
-- `chain_head` should be `Optional[str]` in `compliance_export.py`.
-- async-Session annotations in `db/models.py` (existing `async_sessionmaker` pattern).
+- `Column[str]` vs `str` pyright noise in `db/models.py` (~19 errors) — a declarative
+  SQLAlchemy typing limitation, unrelated to the Phase 11 async-Session fix. Flagged
+  and deliberately left alone in both Phase 11 and Phase 12.
 
-### Feature candidates (not yet scoped)
-- **Continuous red-team harness** — security analogue of the eval harness: turn the
-  one-shot security tools (owasp/injection/secrets) into a continuous adversarial suite
-  over prompts + agent configs, with regression gating.
-- **Context / RAG intelligence** — make `semantic_index` + `context_model` + `doc_sharder`
-  a first-class retrieval-augmented context manager (rank/prune what enters the window).
+### Feature candidates
+None currently queued. Both candidates named in the previous revision of this file
+(continuous red-team harness, context/RAG intelligence) are done — Phase 11 and
+Phase 12 respectively. The next phase has no pre-set direction; brainstorm fresh when
+new work is scoped.
 
 Each future phase: brainstorm → its own `PHASE<N>_ROADMAP.md` → implement (parallel wave
 of isolated worktrees where files are disjoint; safety-critical/core work lands alone) →
