@@ -93,8 +93,8 @@ _TOOL_DEFS = [
          "required": ["text"]}),
 
     # --- Security ---
-    Tool(name="security_check", description="Run security check (secrets, injection, PII, destructive, permissions)",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
+    Tool(name="security_check", description="Run security check (secrets, injection, PII, destructive, permissions). Supply-chain OSV.dev lookups are off by default (air-gap safe); set allow_network=true to opt in.",
+         inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "allow_network": {"type": "boolean", "default": False}}, "required": ["text"]}),
     Tool(name="prompt_injection", description="Scan user input for prompt injection or jailbreak attempts",
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]}),
     Tool(name="owasp_scan", description="Scan code for OWASP Top-10 vulnerabilities",
@@ -246,6 +246,8 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"}, "paths": {"type": "array", "items": {"type": "string"}}}}),
     Tool(name="run_security_suite", description="Run all security checks as a suite",
          inputSchema={"type": "object", "properties": {"targets": {"type": "array", "items": {"type": "string"}}, "context": {"type": "object"}}}),
+    Tool(name="run_red_team_harness", description="Run a durable, offline red-team suite against the security scanners: known attack patterns (must be caught) and benign counterexamples (must NOT be flagged) across injection/owasp/secrets/destructive/permissions/pii/supply_chain checks. Diffs against a stored baseline to flag regressions (an attack that used to be caught now escapes, or a benign input starts false-positiving) and exposes a pass/fail gate. Defaults to a built-in corpus when no cases/cases_path given. Set save_baseline=true to bless this run as the new baseline.",
+         inputSchema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "save_baseline": {"type": "boolean", "default": False}}}),
 
     # ── Agile method + governance (additive) ─────────────────────────────────
     Tool(name="agile_plan", description="Two-phase, persona-aware agile plan (analyst->pm->[ux]->architect->po, then per-story sm->dev->qa loop) layered on the workflow classifier; carries the compliance gate and model-tier routing",
@@ -450,31 +452,20 @@ async def _handle_compare_providers(ctx: ServerContext, arguments: dict) -> str:
 
 # ── Security ─────────────────────────────────────────────────────────
 async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
-    r = ctx.security.check(arguments.get("text", ""))
+    r = ctx.security.check(arguments.get("text", ""), allow_network=bool(arguments.get("allow_network", False)))
     return json.dumps({"passed": r.passed, "risk_score": r.risk_score, "violations": r.violations, "blocked": r.blocked, "details": r.details})
 
 
 async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
     text = arguments.get("text", "")
     threshold = float(arguments.get("threshold", 0.7))
-    keywords = ["ignore previous", "dan mode", "act as", "developer mode", "jailbreak", "override", "disregard", "forget instructions"]
-    found = [kw for kw in keywords if kw in text.lower()]
-    confidence = min(1.0, len(found) * 0.25)
+    detected, confidence, found = ctx.security.detect_injection(text)
     action = "block" if confidence > threshold else ("warn" if confidence > 0 else "allow")
-    return json.dumps({"injection_detected": len(found) > 0, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
+    return json.dumps({"injection_detected": detected, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
 
 
 async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
-    code = arguments.get("code", "")
-    vulns = []
-    if _re.search(r'f["\'].*?(SELECT|INSERT|UPDATE|DELETE).*?\{', code, _re.I):
-        vulns.append({"category": "A03:2021-SQL Injection", "severity": "critical", "description": "f-string in SQL query"})
-    if _re.search(r'(?i)(password|api_key|secret)\s*=\s*["\'][^"\']{4,}["\']', code):
-        vulns.append({"category": "A07:2021-Hardcoded Secrets", "severity": "critical", "description": "Hardcoded credential"})
-    if _re.search(r'(innerHTML|document\.write)\s*[=\(]', code):
-        vulns.append({"category": "A03:2021-XSS", "severity": "high", "description": "Unsafe DOM write"})
-    if _re.search(r'os\.system\s*\(|subprocess\.(Popen|run|call)\s*\(.*shell\s*=\s*True|eval\s*\(', code):
-        vulns.append({"category": "A03:2021-Command Injection", "severity": "high", "description": "Shell execution on untrusted input"})
+    vulns = ctx.security.check_owasp(arguments.get("code", ""))
     weights = {"critical": 3, "high": 2, "medium": 1}
     risk = sum(weights.get(v["severity"], 1) for v in vulns)
     return json.dumps({"vulnerabilities": vulns, "risk_score": risk, "passed": risk < 4})
@@ -483,19 +474,10 @@ async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
     response = arguments.get("response", "")
     original = arguments.get("original_prompt", "")
-    pii_patterns = [("email", _re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')),
-                    ("ssn", _re.compile(r'\b\d{3}-\d{2}-\d{4}\b')),
-                    ("credit_card", _re.compile(r'\b(?:\d[ -]*?){16}\b')),
-                    ("phone", _re.compile(r'\b(?:\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}\b'))]
-    pii_items = []
-    redacted = response
-    for label, pat in pii_patterns:
-        matches = pat.findall(response)
-        if matches:
-            pii_items.append({"type": label, "count": len(matches)})
-            redacted = pat.sub("[REDACTED]", redacted)
-    inj_kw = ["ignore previous", "dan mode", "developer mode", "jailbreak", "override"]
-    echo = any(kw in original.lower() for kw in inj_kw) and any(kw in response.lower() for kw in inj_kw)
+    pii_items, redacted = ctx.security.detect_pii(response, redact=True)
+    inj_detected_orig, _, _ = ctx.security.detect_injection(original)
+    inj_detected_resp, _, _ = ctx.security.detect_injection(response)
+    echo = inj_detected_orig and inj_detected_resp
     leak = any(p in response.lower() for p in ["system prompt", "instructions say", "i was told to"])
     # Responsible-AI advisory: grounding / bias / ethics (heuristic, never blocks).
     try:
@@ -913,11 +895,47 @@ async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
 
 
 async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.security_log import SecurityScanStore
     text = " ".join(arguments.get("targets", []))
     sec = ctx.security.check(text)
     owasp = ctx.security.check_owasp(text)
+    inj_detected, inj_confidence, inj_patterns = ctx.security.detect_injection(text)
+    pii_items, _ = ctx.security.detect_pii(text)
+    findings_count = len(sec.violations) + len(owasp) + (1 if inj_detected else 0) + len(pii_items)
+    severity_breakdown = {
+        "critical": sum(1 for v in owasp if v["severity"] == "critical"),
+        "high": sum(1 for v in owasp if v["severity"] == "high"),
+        "medium": sum(1 for v in owasp if v["severity"] == "medium"),
+    }
+    try:
+        SecurityScanStore().record(
+            checks_run=list(sec.checks_run), findings_count=findings_count,
+            severity_breakdown=severity_breakdown, passed=sec.passed and not owasp)
+    except Exception:
+        pass  # storage is best-effort; a full disk must not sink the suite
     return json.dumps({"security": {"passed": sec.passed, "violations": sec.violations, "risk_score": sec.risk_score},
-                       "owasp": owasp, "status": "completed"})
+                       "owasp": owasp,
+                       "injection": {"detected": inj_detected, "confidence": round(inj_confidence, 2), "patterns_found": inj_patterns},
+                       "pii": {"found": len(pii_items) > 0, "items": pii_items},
+                       "status": "completed"})
+
+
+async def _handle_run_red_team_harness(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.redteam_harness import (
+        RedTeamCase, RedTeamHarness, RedTeamResultStore, builtin_cases, load_cases)
+    cases = [RedTeamCase.from_dict(c) for c in arguments.get("cases", []) if isinstance(c, dict)]
+    cases_path = arguments.get("cases_path", "")
+    if cases_path:
+        cases.extend(load_cases(cases_path))
+    if not cases and not cases_path:
+        cases = builtin_cases()
+    suite = arguments.get("suite", "default")
+    harness = RedTeamHarness(result_store=RedTeamResultStore(), suite=suite)
+    run = harness.run(cases)
+    out = run.to_dict()
+    if arguments.get("save_baseline"):
+        out["baseline_saved"] = harness.save_baseline(run)
+    return json.dumps(out)
 
 
 # ── Agile method + governance (additive) ─────────────────────────────
@@ -1198,6 +1216,7 @@ _HANDLERS = {
     "run_eval_harness": _handle_run_eval_harness,
     "get_sbom": _handle_get_sbom,
     "run_security_suite": _handle_run_security_suite,
+    "run_red_team_harness": _handle_run_red_team_harness,
     "agile_plan": _handle_agile_plan,
     "shard_doc": _handle_shard_doc,
     "draft_story": _handle_draft_story,

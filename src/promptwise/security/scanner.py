@@ -42,14 +42,43 @@ class SecurityScanner:
     def __init__(self, config: SecurityConfig | None = None):
         self.config = config or SecurityConfig()
 
-    def check(self, text: str) -> SecurityResult:
+    def detect_injection(self, text: str) -> tuple[bool, float, list[str]]:
+        """Match text against known prompt-injection / instruction-override patterns.
+
+        Returns ``(detected, confidence in [0,1], matched pattern strings)``.
+        Shared by ``check()`` and the standalone ``prompt_injection`` tool so
+        there is exactly one place that knows what an injection looks like.
+        """
+        found = [p.pattern for p in _INJECTION_PATTERNS if p.search(text)]
+        confidence = min(1.0, len(found) * 0.25)
+        return bool(found), confidence, found
+
+    def detect_pii(self, text: str, *, redact: bool = False) -> tuple[list[dict], str]:
+        """Scan text for PII patterns.
+
+        Returns ``(items, possibly-redacted text)`` where each item is
+        ``{"type": label, "count": n}``. Shared by ``check()`` and the
+        standalone ``scan_response`` tool.
+        """
+        items: list[dict] = []
+        redacted = text
+        for label, pattern in _PII_PATTERNS:
+            matches = pattern.findall(text)
+            if matches:
+                items.append({"type": label, "count": len(matches)})
+                if redact:
+                    redacted = pattern.sub(f"[REDACTED_{label.upper()}]", redacted)
+        return items, redacted
+
+    def check(self, text: str, *, allow_network: bool = False) -> SecurityResult:
         violations = []
         risk_score = 0.0
         redacted = text
 
-        for pattern in _INJECTION_PATTERNS:
-            if pattern.search(redacted):
-                violations.append({"check": "syntax", "detail": pattern.pattern})
+        detected, _, inj_patterns = self.detect_injection(redacted)
+        if detected:
+            for p in inj_patterns:
+                violations.append({"check": "syntax", "detail": p})
                 risk_score += 0.4
 
         for pattern in _SECRET_PATTERNS:
@@ -69,7 +98,7 @@ class SecurityScanner:
 
         pip_matches = re.findall(r'pip\s+install\s+([a-zA-Z0-9-_]+)==([0-9.]+)', redacted)
         for pkg, ver in pip_matches:
-            osv = self._check_osv(pkg, ver)
+            osv = self._check_osv(pkg, ver, allow_network=allow_network)
             if osv and "vulns" in osv:
                 violations.append({"check": "supply_chain", "detail": f"OSV vulnerability: {pkg}=={ver}"})
                 risk_score += 0.8
@@ -80,18 +109,15 @@ class SecurityScanner:
                 risk_score += 0.6
 
         if self.config.pii_detection:
-            for label, pattern in _PII_PATTERNS:
-                if pattern.search(redacted):
-                    violations.append({"check": "pii", "detail": f"Found PII: {label}"})
-                    risk_score += 0.5
-                    if self.config.pii_action == "redact":
-                        redacted = pattern.sub(f"[REDACTED_{label.upper()}]", redacted)
+            pii_items, redacted = self.detect_pii(redacted, redact=(self.config.pii_action == "redact"))
+            for item in pii_items:
+                violations.append({"check": "pii", "detail": f"Found PII: {item['type']}"})
+                risk_score += 0.5
 
         if self.config.injection_detection:
-            for pattern in _INJECTION_PATTERNS:
-                if pattern.search(redacted):
-                    violations.append({"check": "injection", "detail": f"Injection: {pattern.pattern}"})
-                    risk_score += 0.6
+            for p in inj_patterns:
+                violations.append({"check": "injection", "detail": f"Injection: {p}"})
+                risk_score += 0.6
 
         risk_score = min(1.0, risk_score)
         return SecurityResult(
@@ -105,18 +131,27 @@ class SecurityScanner:
 
     def check_owasp(self, code: str) -> list[dict]:
         vulns = []
-        if re.search(r"(execute|query)\s*\(\s*(f['\"].*?\{|['\"].*?\s*\+\s*\w+)", code, re.I):
-            vulns.append({"vuln": "A03:2021-SQL Injection", "severity": "HIGH",
-                          "detail": "Raw string in SQL execution. Use parameterized queries."})
-        if re.search(r"\b(os\.system|subprocess\.(Popen|run)|eval|exec)\b", code):
-            vulns.append({"vuln": "A03:2021-Command Injection", "severity": "HIGH",
-                          "detail": "OS command execution or eval on untrusted input."})
+        if (re.search(r"(execute|query)\s*\(\s*(f['\"].*?\{|['\"].*?\s*\+\s*\w+)", code, re.I)
+                or re.search(r'f["\'].*?(SELECT|INSERT|UPDATE|DELETE).*?\{', code, re.I)):
+            vulns.append({"category": "A03:2021-SQL Injection", "severity": "critical",
+                          "description": "Raw/f-string interpolation in SQL execution. Use parameterized queries."})
+        if re.search(r'(?i)(password|api[_-]?key|secret)\s*=\s*["\'][^"\']{4,}["\']', code):
+            vulns.append({"category": "A07:2021-Hardcoded Secrets", "severity": "critical",
+                          "description": "Hardcoded credential."})
+        if re.search(r'(innerHTML|document\.write)\s*[=\(]', code):
+            vulns.append({"category": "A03:2021-XSS", "severity": "high",
+                          "description": "Unsafe DOM write."})
+        if re.search(r"\b(os\.system|subprocess\.(Popen|run|call)|eval|exec)\b", code):
+            vulns.append({"category": "A03:2021-Command Injection", "severity": "high",
+                          "description": "OS command execution or eval on untrusted input."})
         if re.search(r"ssl\._create_unverified_context", code):
-            vulns.append({"vuln": "A05:2021-Security Misconfiguration", "severity": "MEDIUM",
-                          "detail": "SSL certificate verification disabled."})
+            vulns.append({"category": "A05:2021-Security Misconfiguration", "severity": "medium",
+                          "description": "SSL certificate verification disabled."})
         return vulns
 
-    def _check_osv(self, package: str, version: str) -> dict:
+    def _check_osv(self, package: str, version: str, *, allow_network: bool = False) -> dict:
+        if not allow_network:
+            return {}
         try:
             req = urllib.request.Request(
                 "https://api.osv.dev/v1/query",
