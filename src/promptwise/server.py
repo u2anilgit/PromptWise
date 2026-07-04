@@ -317,6 +317,19 @@ _TOOL_DEFS = [
              "audit_path": {"type": "string"},
              "use_embeddings": {"type": "boolean", "default": False}},
          "required": ["query"]}),
+    Tool(name="rank_context", description="Retrieval-augmented context manager: rank and prune candidates from the trace (audit + learnings) and an optionally-supplied doc onto one token budget. No new ranking algorithm - reuses search_trace's keyword/BM25 (or optional embeddings) scoring; docs are sharded per call, not indexed. Offline.",
+         inputSchema={"type": "object", "properties": {
+             "query": {"type": "string"},
+             "token_budget": {"type": "integer", "default": 2000},
+             "doc_path": {"type": "string"},
+             "doc_text": {"type": "string"},
+             "sources": {"type": "array", "items": {"type": "string", "enum": ["audit", "learnings", "doc"]},
+                        "default": ["audit", "learnings", "doc"]},
+             "use_embeddings": {"type": "boolean", "default": False},
+             "repo_root": {"type": "string", "default": "."},
+             "audit_path": {"type": "string"},
+             "learning_db": {"type": "string"}},
+         "required": ["query"]}),
 
     # ── Skill auto-optimization (Phase 3, additive · offline, deterministic) ──
     Tool(name="optimize_skill_pack", description="Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
@@ -1120,6 +1133,17 @@ async def _handle_search_trace(ctx: ServerContext, arguments: dict) -> str:
         use_embeddings=arguments.get("use_embeddings", False)))
 
 
+async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.context_ranker import rank_context
+    sources = arguments.get("sources") or ["audit", "learnings", "doc"]
+    return json.dumps(rank_context(
+        arguments.get("query", ""), token_budget=arguments.get("token_budget", 2000),
+        doc_path=arguments.get("doc_path"), doc_text=arguments.get("doc_text"),
+        sources=tuple(sources), use_embeddings=arguments.get("use_embeddings", False),
+        repo_root=arguments.get("repo_root", "."), audit_path=arguments.get("audit_path"),
+        learning_db=arguments.get("learning_db")))
+
+
 # ── Skill auto-optimization (Phase 3) ────────────────────────────────
 async def _handle_optimize_skill_pack(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.skill_optimizer import optimize_skill_pack
@@ -1237,6 +1261,7 @@ _HANDLERS = {
     "tune_permissions": _handle_tune_permissions,
     "audit_mcp_servers": _handle_audit_mcp_servers,
     "search_trace": _handle_search_trace,
+    "rank_context": _handle_rank_context,
     "optimize_skill_pack": _handle_optimize_skill_pack,
     "export_compliance_bundle": _handle_export_compliance_bundle,
     "run_governor": _handle_run_governor,
