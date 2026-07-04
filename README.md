@@ -15,7 +15,7 @@ packs — emitted in the formats every agent already reads.
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Skill packs](https://img.shields.io/badge/skill%20packs-81-7C5BD4.svg)
-![MCP tools](https://img.shields.io/badge/MCP%20tools-76-4C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-83-4C5BD4.svg)
 
 📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -33,6 +33,7 @@ them have:
 - **Role intelligence** — 81 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
 - **Compliance gating** — auditable PRD→architecture→story→commit chain for regulated teams.
 - **Runtime enforcement** — Claude Code lifecycle hooks auto-run security/policy/audit checks and can *block* (secret writes, runaway loops), turning advisory governance into enforced governance. Fail-open: a hook error never wedges the session. See `hooks/`.
+- **Red-team regression harness** — a durable, offline attack/benign corpus run against the security scanner, diffed against a stored baseline to catch both missed detections and false-positive regressions (`run_red_team_harness`). All scanning is air-gapped by default — no unconditional network calls.
 - **Continuous learning** — corrections become durable, searchable rules (FTS5) replayed before relevant work; packs self-optimize offline. Local-first, air-gapped safe.
 - **Workflow planning** — classify a task → an ordered chain of PromptWise's *own* skill packs (PRD → design → stories → TDD → review). Fully self-contained, no external tools.
 - **Governed agile method** — analyst→pm→architect→po planning then per-story sm→dev→qa loop, with context-engineered stories, advisory quality gates, policy-as-code, and a hash-chained audit trail. See [docs/AGILE_METHOD.md](docs/AGILE_METHOD.md).
@@ -41,7 +42,7 @@ them have:
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (76)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (83)
         ├─▶ SKILL.md packs → 81 portable packs in skill_packs/
         ├─▶ Lifecycle hooks→ enforce security/policy/audit at runtime (hooks/)
         └─▶ AGENTS.md      → project context + active constitution
@@ -121,8 +122,11 @@ python -m pytest tests -q        # packs, planner, agile method, governance, enf
 skill packs (incl. the `agile/` method personas), the self-contained workflow planner, the
 governed agile method (quality gates, policy-as-code, hash-chained audit trail), the runtime
 enforcement hooks layer, a continuous learning loop with offline skill auto-optimization,
-MCP supply-chain auditing, a searchable trace, diagram generators, and a task/effort/token
-tracker. Everything runs directly from PromptWise — local-first, no third-party integrations.
+an autonomous governor (policy-gated, reversible, advise-by-default) with a budget-guardian
+overlay, a durable eval + red-team regression harness (offline, baseline-diffed, pass/fail
+gated), MCP supply-chain auditing, a searchable trace, diagram generators, and a
+task/effort/token tracker. Everything runs directly from PromptWise — local-first, no
+third-party integrations, air-gapped by default.
 
 ## License
 
