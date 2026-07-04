@@ -48,3 +48,22 @@ def test_scan_response_handler_shape_unchanged():
 def test_security_check_handler_allow_network_default_false():
     out = json.loads(_call("security_check", {"text": "hello world"}))
     assert set(out) == {"passed", "risk_score", "violations", "blocked", "details"}
+
+
+def test_run_security_suite_aggregates_all_checks_and_persists(tmp_path, monkeypatch):
+    from promptwise.core import security_log
+    monkeypatch.setattr(security_log, "_default_db", lambda: tmp_path / "sec.db")
+
+    out = json.loads(_call("run_security_suite", {
+        "targets": [_CASES["rt-injection-attack"].input_text,
+                    _CASES["rt-pii-attack"].input_text,
+                    _CASES["rt-owasp-attack"].input_text]}))
+    assert set(out) == {"security", "owasp", "injection", "pii", "status"}
+    assert out["injection"]["detected"] is True
+    assert out["pii"]["found"] is True
+    assert out["owasp"]
+    assert out["status"] == "completed"
+
+    rows = security_log.SecurityScanStore(tmp_path / "sec.db").results()
+    assert len(rows) == 1
+    assert rows[0]["findings_count"] > 0

@@ -893,11 +893,29 @@ async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
 
 
 async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.security_log import SecurityScanStore
     text = " ".join(arguments.get("targets", []))
     sec = ctx.security.check(text)
     owasp = ctx.security.check_owasp(text)
+    inj_detected, inj_confidence, inj_patterns = ctx.security.detect_injection(text)
+    pii_items, _ = ctx.security.detect_pii(text)
+    findings_count = len(sec.violations) + len(owasp) + (1 if inj_detected else 0) + len(pii_items)
+    severity_breakdown = {
+        "critical": sum(1 for v in owasp if v["severity"] == "critical"),
+        "high": sum(1 for v in owasp if v["severity"] == "high"),
+        "medium": sum(1 for v in owasp if v["severity"] == "medium"),
+    }
+    try:
+        SecurityScanStore().record(
+            checks_run=list(sec.checks_run), findings_count=findings_count,
+            severity_breakdown=severity_breakdown, passed=sec.passed and not owasp)
+    except Exception:
+        pass  # storage is best-effort; a full disk must not sink the suite
     return json.dumps({"security": {"passed": sec.passed, "violations": sec.violations, "risk_score": sec.risk_score},
-                       "owasp": owasp, "status": "completed"})
+                       "owasp": owasp,
+                       "injection": {"detected": inj_detected, "confidence": round(inj_confidence, 2), "patterns_found": inj_patterns},
+                       "pii": {"found": len(pii_items) > 0, "items": pii_items},
+                       "status": "completed"})
 
 
 # ── Agile method + governance (additive) ─────────────────────────────
