@@ -246,6 +246,8 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"}, "paths": {"type": "array", "items": {"type": "string"}}}}),
     Tool(name="run_security_suite", description="Run all security checks as a suite",
          inputSchema={"type": "object", "properties": {"targets": {"type": "array", "items": {"type": "string"}}, "context": {"type": "object"}}}),
+    Tool(name="run_red_team_harness", description="Run a durable, offline red-team suite against the security scanners: known attack patterns (must be caught) and benign counterexamples (must NOT be flagged) across injection/owasp/secrets/destructive/permissions/pii/supply_chain checks. Diffs against a stored baseline to flag regressions (an attack that used to be caught now escapes, or a benign input starts false-positiving) and exposes a pass/fail gate. Defaults to a built-in corpus when no cases/cases_path given. Set save_baseline=true to bless this run as the new baseline.",
+         inputSchema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "save_baseline": {"type": "boolean", "default": False}}}),
 
     # ── Agile method + governance (additive) ─────────────────────────────────
     Tool(name="agile_plan", description="Two-phase, persona-aware agile plan (analyst->pm->[ux]->architect->po, then per-story sm->dev->qa loop) layered on the workflow classifier; carries the compliance gate and model-tier routing",
@@ -918,6 +920,24 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
                        "status": "completed"})
 
 
+async def _handle_run_red_team_harness(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.redteam_harness import (
+        RedTeamCase, RedTeamHarness, RedTeamResultStore, builtin_cases, load_cases)
+    cases = [RedTeamCase.from_dict(c) for c in arguments.get("cases", []) if isinstance(c, dict)]
+    cases_path = arguments.get("cases_path", "")
+    if cases_path:
+        cases.extend(load_cases(cases_path))
+    if not cases and not cases_path:
+        cases = builtin_cases()
+    suite = arguments.get("suite", "default")
+    harness = RedTeamHarness(result_store=RedTeamResultStore(), suite=suite)
+    run = harness.run(cases)
+    out = run.to_dict()
+    if arguments.get("save_baseline"):
+        out["baseline_saved"] = harness.save_baseline(run)
+    return json.dumps(out)
+
+
 # ── Agile method + governance (additive) ─────────────────────────────
 async def _handle_agile_plan(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.agile_planner import AgilePlanner
@@ -1196,6 +1216,7 @@ _HANDLERS = {
     "run_eval_harness": _handle_run_eval_harness,
     "get_sbom": _handle_get_sbom,
     "run_security_suite": _handle_run_security_suite,
+    "run_red_team_harness": _handle_run_red_team_harness,
     "agile_plan": _handle_agile_plan,
     "shard_doc": _handle_shard_doc,
     "draft_story": _handle_draft_story,
