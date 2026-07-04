@@ -93,8 +93,8 @@ _TOOL_DEFS = [
          "required": ["text"]}),
 
     # --- Security ---
-    Tool(name="security_check", description="Run security check (secrets, injection, PII, destructive, permissions)",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
+    Tool(name="security_check", description="Run security check (secrets, injection, PII, destructive, permissions). Supply-chain OSV.dev lookups are off by default (air-gap safe); set allow_network=true to opt in.",
+         inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "allow_network": {"type": "boolean", "default": False}}, "required": ["text"]}),
     Tool(name="prompt_injection", description="Scan user input for prompt injection or jailbreak attempts",
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]}),
     Tool(name="owasp_scan", description="Scan code for OWASP Top-10 vulnerabilities",
@@ -450,31 +450,20 @@ async def _handle_compare_providers(ctx: ServerContext, arguments: dict) -> str:
 
 # ── Security ─────────────────────────────────────────────────────────
 async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
-    r = ctx.security.check(arguments.get("text", ""))
+    r = ctx.security.check(arguments.get("text", ""), allow_network=bool(arguments.get("allow_network", False)))
     return json.dumps({"passed": r.passed, "risk_score": r.risk_score, "violations": r.violations, "blocked": r.blocked, "details": r.details})
 
 
 async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
     text = arguments.get("text", "")
     threshold = float(arguments.get("threshold", 0.7))
-    keywords = ["ignore previous", "dan mode", "act as", "developer mode", "jailbreak", "override", "disregard", "forget instructions"]
-    found = [kw for kw in keywords if kw in text.lower()]
-    confidence = min(1.0, len(found) * 0.25)
+    detected, confidence, found = ctx.security.detect_injection(text)
     action = "block" if confidence > threshold else ("warn" if confidence > 0 else "allow")
-    return json.dumps({"injection_detected": len(found) > 0, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
+    return json.dumps({"injection_detected": detected, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
 
 
 async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
-    code = arguments.get("code", "")
-    vulns = []
-    if _re.search(r'f["\'].*?(SELECT|INSERT|UPDATE|DELETE).*?\{', code, _re.I):
-        vulns.append({"category": "A03:2021-SQL Injection", "severity": "critical", "description": "f-string in SQL query"})
-    if _re.search(r'(?i)(password|api_key|secret)\s*=\s*["\'][^"\']{4,}["\']', code):
-        vulns.append({"category": "A07:2021-Hardcoded Secrets", "severity": "critical", "description": "Hardcoded credential"})
-    if _re.search(r'(innerHTML|document\.write)\s*[=\(]', code):
-        vulns.append({"category": "A03:2021-XSS", "severity": "high", "description": "Unsafe DOM write"})
-    if _re.search(r'os\.system\s*\(|subprocess\.(Popen|run|call)\s*\(.*shell\s*=\s*True|eval\s*\(', code):
-        vulns.append({"category": "A03:2021-Command Injection", "severity": "high", "description": "Shell execution on untrusted input"})
+    vulns = ctx.security.check_owasp(arguments.get("code", ""))
     weights = {"critical": 3, "high": 2, "medium": 1}
     risk = sum(weights.get(v["severity"], 1) for v in vulns)
     return json.dumps({"vulnerabilities": vulns, "risk_score": risk, "passed": risk < 4})
@@ -483,19 +472,10 @@ async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
     response = arguments.get("response", "")
     original = arguments.get("original_prompt", "")
-    pii_patterns = [("email", _re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')),
-                    ("ssn", _re.compile(r'\b\d{3}-\d{2}-\d{4}\b')),
-                    ("credit_card", _re.compile(r'\b(?:\d[ -]*?){16}\b')),
-                    ("phone", _re.compile(r'\b(?:\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}\b'))]
-    pii_items = []
-    redacted = response
-    for label, pat in pii_patterns:
-        matches = pat.findall(response)
-        if matches:
-            pii_items.append({"type": label, "count": len(matches)})
-            redacted = pat.sub("[REDACTED]", redacted)
-    inj_kw = ["ignore previous", "dan mode", "developer mode", "jailbreak", "override"]
-    echo = any(kw in original.lower() for kw in inj_kw) and any(kw in response.lower() for kw in inj_kw)
+    pii_items, redacted = ctx.security.detect_pii(response, redact=True)
+    inj_detected_orig, _, _ = ctx.security.detect_injection(original)
+    inj_detected_resp, _, _ = ctx.security.detect_injection(response)
+    echo = inj_detected_orig and inj_detected_resp
     leak = any(p in response.lower() for p in ["system prompt", "instructions say", "i was told to"])
     # Responsible-AI advisory: grounding / bias / ethics (heuristic, never blocks).
     try:
