@@ -2,11 +2,13 @@
 
 import asyncio
 import difflib
+import inspect
 import json
 import sys
 import re as _re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Awaitable, Callable
 
 from mcp.server import Server, InitializationOptions, NotificationOptions
 from mcp.server.stdio import stdio_server
@@ -50,6 +52,45 @@ class ServerContext:
     skill_loader: SkillLoader
     workflow_planner: WorkflowPlanner
     task_tracker: TaskTracker
+
+
+@dataclass
+class _RegistryEntry:
+    tool: Tool
+    handler: Callable[[ServerContext, dict], Awaitable[str]]
+
+
+class ToolRegistry:
+    """Collects @tool-decorated handlers into one name -> (Tool, handler) map.
+
+    Replaces the hand-synced _TOOL_DEFS list / _HANDLERS dict pair (Phase 10)
+    with one source of truth per tool, physically adjacent to its handler.
+    Guards duplicate names, non-coroutine handlers, and malformed schemas at
+    decoration time (import time for the real module registry) instead of
+    only at test time.
+    """
+
+    def __init__(self) -> None:
+        self.entries: dict[str, _RegistryEntry] = {}
+
+    def tool(self, name: str, description: str, schema: dict):
+        def _register(fn):
+            if name in self.entries:
+                raise ValueError(f"duplicate tool registration: {name!r}")
+            if not inspect.iscoroutinefunction(fn):
+                raise TypeError(f"tool handler must be a coroutine function: {name!r}")
+            if not isinstance(schema, dict) or schema.get("type") != "object":
+                raise TypeError(f"tool schema must be an object-type inputSchema: {name!r}")
+            self.entries[name] = _RegistryEntry(
+                tool=Tool(name=name, description=description, inputSchema=schema),
+                handler=fn,
+            )
+            return fn
+        return _register
+
+
+_registry = ToolRegistry()
+tool = _registry.tool
 
 
 _TOOL_DEFS = [
