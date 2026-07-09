@@ -99,8 +99,10 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]}),
     Tool(name="owasp_scan", description="Scan code for OWASP Top-10 vulnerabilities",
          inputSchema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}}, "required": ["code"]}),
-    Tool(name="scan_response", description="Scan a model response for PII leaks, injection echoes, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Advisory.",
-         inputSchema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}}, "required": ["response"]}),
+    Tool(name="scan_response", description="Scan a model response for PII leaks, injection echoes, canary leaks, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Pass a canary token (issued via the indirect-injection canary) to flag if content that flowed through tool output/RAG leaks back into the response. Advisory.",
+         inputSchema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}, "canary": {"type": "string", "default": "", "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here"}}, "required": ["response"]}),
+    Tool(name="benchmark_injection", description="Benchmark the prompt-injection detector against a bundled offline attack+benign corpus and report measured precision/recall/F1/accuracy plus the actual false positives/negatives (a real number, not a claim). Offline by default (air-gap safe); an optional live PINT-style corpus fetch is gated behind allow_network=true.",
+         inputSchema={"type": "object", "properties": {"threshold": {"type": "number", "default": 0.0}, "corpus_path": {"type": "string", "default": ""}, "pint_url": {"type": "string", "default": ""}, "allow_network": {"type": "boolean", "default": False}}}),
 
     # --- Workflow Planning (PromptWise-native) ---
     Tool(name="plan_workflow", description="Classify a task (greenfield/brownfield/regulated) and return an ordered workflow of PromptWise's own skill packs + tools to run (PRD -> design -> stories -> TDD -> review). No third-party frameworks.",
@@ -475,6 +477,18 @@ async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
     detected, confidence, found = ctx.security.detect_injection(text)
     action = "block" if confidence > threshold else ("warn" if confidence > 0 else "allow")
     return json.dumps({"injection_detected": detected, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
+
+
+async def _handle_benchmark_injection(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.security.injection_benchmark import benchmark_injection_detector
+    report = benchmark_injection_detector(
+        ctx.security,
+        threshold=float(arguments.get("threshold", 0.0)),
+        corpus_path=arguments.get("corpus_path") or None,
+        pint_url=arguments.get("pint_url", ""),
+        allow_network=bool(arguments.get("allow_network", False)),
+    )
+    return json.dumps(report.to_dict())
 
 
 async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
@@ -1192,6 +1206,7 @@ _HANDLERS = {
     "compare_providers": _handle_compare_providers,
     "security_check": _handle_security_check,
     "prompt_injection": _handle_prompt_injection,
+    "benchmark_injection": _handle_benchmark_injection,
     "owasp_scan": _handle_owasp_scan,
     "scan_response": _handle_scan_response,
     "plan_workflow": _handle_plan_workflow,

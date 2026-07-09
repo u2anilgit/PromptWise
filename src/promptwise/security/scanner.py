@@ -31,10 +31,41 @@ _PII_PATTERNS = [
     ("ssn", re.compile(r'\b\d{3}-\d{2}-\d{4}\b')),
     ("credit_card", re.compile(r'\b(?:\d[ -]*?){13,16}\b')),
 ]
+# Weighted, family-grouped injection patterns. Each entry is
+# ``(compiled, weight, family)``; ``detect_injection`` sums the weights of the
+# matched families (capped at 1.0) for a confidence score, replacing the old
+# ``matches * 0.25`` count heuristic. Patterns require a trigger word to sit
+# next to an adversarial object (e.g. an override verb next to an
+# instructions/rules/prompt noun) so benign near-misses (a "ready to deploy"
+# persona phrase, "override the default timeout") do not false-positive.
+# Benchmarked offline in ``security/injection_benchmark.py`` (Phase 13.1).
 _INJECTION_PATTERNS = [
-    re.compile(r'ignore\s+(previous|prior|all)\s+instructions', re.I),
-    re.compile(r'disregard\s+(your|all)\s+(instructions|rules)', re.I),
-    re.compile(r'you\s+are\s+now\s+', re.I), re.compile(r'dan\s+mode|jailbreak', re.I),
+    # instruction override: an override verb sitting next to an instruction noun
+    (re.compile(r'(?i)\b(ignore|disregard|forget|override|bypass|skip)\b'
+                r'[^.\n]{0,32}\b(instruction|instructions|rule|rules|prompt|prompts|'
+                r'directive|directives|guardrail|guardrails|guideline|guidelines|'
+                r'system\s+message)\b'), 0.8, "instruction_override"),
+    # unfiltered / unrestricted persona request
+    (re.compile(r'(?i)\b(unfiltered|unrestricted|jailbroken|no\s+restrictions|'
+                r'no\s+filter|without\s+(any\s+)?(restrictions|filters|guardrails|'
+                r'rules|limits))\b'), 0.7, "unfiltered_persona"),
+    # jail-break keywords
+    (re.compile(r'(?i)\b(jail\s?break|do\s+anything\s+now|dan\s+mode)\b'), 0.8, "jail_break"),
+    # developer / god "mode"
+    (re.compile(r'(?i)\b(developer|god)\s+mode\b'), 0.5, "developer_mode"),
+    # persona reassignment to an adversarial role
+    (re.compile(r'(?i)\b(you\s+are\s+now|from\s+now\s+on[, ]+you\s+are|'
+                r'you\s+will\s+now\s+be)\b[^.\n]{0,20}\b(dan|an?|going\s+to|unfiltered|'
+                r'unrestricted|evil|malicious|hacker|jailbroken)\b'), 0.6, "persona_reassign"),
+    # system-prompt exfiltration: a reveal verb before a prompt/instructions object
+    (re.compile(r'(?i)\b(reveal|repeat|print|show|expose|leak|display|reprint|'
+                r'output|tell\s+me)\b[^.\n]{0,28}\b(system\s+prompt|'
+                r'your\s+(initial\s+|system\s+)?(instructions|prompt|rules)|'
+                r'the\s+prompt\s+above)\b'), 0.7, "prompt_exfiltration"),
+    # embedded role marker (indirect injection via a fake system/assistant turn)
+    (re.compile(r'(?im)(^|\n)\s*(system|assistant|developer)\s*:'), 0.5, "embedded_role_marker"),
+    (re.compile(r'(?i)\b(new\s+instructions?|begin\s+new\s+task|new\s+task)\s*:'),
+     0.6, "embedded_task_marker"),
 ]
 
 
@@ -49,9 +80,13 @@ class SecurityScanner:
         Shared by ``check()`` and the standalone ``prompt_injection`` tool so
         there is exactly one place that knows what an injection looks like.
         """
-        found = [p.pattern for p in _INJECTION_PATTERNS if p.search(text)]
-        confidence = min(1.0, len(found) * 0.25)
-        return bool(found), confidence, found
+        found: list[str] = []
+        confidence = 0.0
+        for pattern, weight, family in _INJECTION_PATTERNS:
+            if pattern.search(text):
+                found.append(family)
+                confidence += weight
+        return bool(found), round(min(1.0, confidence), 3), found
 
     def detect_pii(self, text: str, *, redact: bool = False) -> tuple[list[dict], str]:
         """Scan text for PII patterns.
