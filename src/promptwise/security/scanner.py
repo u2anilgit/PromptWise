@@ -208,6 +208,37 @@ class SecurityScanner:
         if re.search(r"ssl\._create_unverified_context", code):
             vulns.append({"category": "A05:2021-Security Misconfiguration", "severity": "medium",
                           "description": "SSL certificate verification disabled."})
+        # A02: weak hashing / broken ciphers.
+        if re.search(r"(?i)\bhashlib\.(md5|sha1)\b|\b(md5|sha1)\s*\(", code) or \
+                re.search(r"\b(DES|RC4)\b", code):
+            vulns.append({"category": "A02:2021-Cryptographic Failures", "severity": "high",
+                          "description": "Weak hash (MD5/SHA1) or broken cipher (DES/RC4). "
+                                         "Use SHA-256+/AES."})
+        # A08: insecure deserialization. yaml.load is unsafe unless a safe loader is used.
+        if re.search(r"\b(pickle\.loads|marshal\.loads)\s*\(", code) or (
+                re.search(r"\byaml\.load\s*\(", code)
+                and not re.search(r"safe_load|SafeLoader|Loader\s*=", code)):
+            vulns.append({"category": "A08:2021-Software and Data Integrity Failures",
+                          "severity": "high",
+                          "description": "Insecure deserialization (pickle/marshal/unsafe yaml.load) "
+                                         "on untrusted data. Use a safe loader."})
+        # A10: SSRF — request on a non-literal (variable) URL.
+        if re.search(r"(?i)\b(requests\.(get|post|put|delete|head|patch)|urlopen)"
+                     r"\s*\(\s*(?!['\"])[A-Za-z_]", code):
+            vulns.append({"category": "A10:2021-Server-Side Request Forgery (SSRF)",
+                          "severity": "high",
+                          "description": "Request issued to a non-literal URL. Validate/allow-list "
+                                         "the destination host."})
+        # A01: path traversal into a file open.
+        if re.search(r"\bopen\s*\([^)\n]*\.\.[\\/]", code):
+            vulns.append({"category": "A01:2021-Broken Access Control (Path Traversal)",
+                          "severity": "high",
+                          "description": "Path traversal in a file open. Normalize and confine to a "
+                                         "base directory."})
+        # A05: debug mode left enabled.
+        if re.search(r"(?i)\bdebug\s*=\s*True\b", code):
+            vulns.append({"category": "A05:2021-Security Misconfiguration", "severity": "medium",
+                          "description": "Debug mode enabled. Disable in production."})
         return vulns
 
     def _check_osv(self, package: str, version: str, *, allow_network: bool = False) -> dict:
