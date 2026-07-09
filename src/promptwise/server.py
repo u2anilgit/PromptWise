@@ -155,7 +155,8 @@ _TOOL_DEFS = [
     # --- Budget & Cost ---
     Tool(name="monitor_budget", description="Check spend against budget limit",
          inputSchema={"type": "object", "properties": {
-             "used_usd": {"type": "number"}, "days_elapsed": {"type": "integer", "default": 1}, "project_id": {"type": "string"}},
+             "used_usd": {"type": "number"}, "days_elapsed": {"type": "integer", "default": 1}, "project_id": {"type": "string"},
+             "tool_cost_usd": {"type": "number", "description": "Tool/API execution cost for this workflow, attributed alongside used_usd's LLM token cost"}},
          "required": ["used_usd"]}),
     Tool(name="predict_cost", description="Estimate cost of a prompt before sending",
          inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "model": {"type": "string", "default": "claude-sonnet-4-6"}}, "required": ["prompt"]}),
@@ -582,10 +583,11 @@ async def _handle_run_autonomous(ctx: ServerContext, arguments: dict) -> str:
 
 # ── Budget & Cost ────────────────────────────────────────────────────
 async def _handle_monitor_budget(ctx: ServerContext, arguments: dict) -> str:
-    r = ctx.budget.check(used_usd=float(arguments.get("used_usd", 0)), days_elapsed=int(arguments.get("days_elapsed", 1)), project_id=arguments.get("project_id"))
+    r = ctx.budget.check(used_usd=float(arguments.get("used_usd", 0)), days_elapsed=int(arguments.get("days_elapsed", 1)),
+                         project_id=arguments.get("project_id"), tool_cost_usd=float(arguments.get("tool_cost_usd", 0) or 0))
     return json.dumps({"used_usd": r.used_usd, "limit_usd": r.limit_usd, "pct_used": r.pct_used,
                        "daily_burn_usd": r.daily_burn_usd, "projected_monthly_usd": r.projected_monthly_usd,
-                       "alert_level": r.alert_level, "project_id": r.project_id})
+                       "alert_level": r.alert_level, "project_id": r.project_id, "cost_breakdown": r.cost_breakdown})
 
 
 async def _handle_predict_cost(ctx: ServerContext, arguments: dict) -> str:

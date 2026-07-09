@@ -86,12 +86,19 @@ class BudgetGuardian:
         self._config = config or AppConfig()
         self._registry = registry or ModelRegistry()
 
-    def check(self, used_usd: float, days_elapsed: int, project_id: str | None = None) -> BudgetStatus:
-        pct = round(used_usd / self.limit_usd * 100, 1) if self.limit_usd else 0.0
-        daily_burn = round(used_usd / max(days_elapsed, 1), 4)
+    def check(self, used_usd: float, days_elapsed: int, project_id: str | None = None,
+              tool_cost_usd: float = 0.0) -> BudgetStatus:
+        """``used_usd`` is the LLM token-cost leg; ``tool_cost_usd`` is an optional
+        second leg for tool/API execution cost incurred by the same workflow
+        (Phase 14 workflow-level cost attribution -- LangSmith attributes both).
+        Every existing caller omits ``tool_cost_usd`` and sees identical output:
+        the total collapses to ``used_usd`` and ``cost_breakdown`` stays ``None``."""
+        total = used_usd + tool_cost_usd
+        pct = round(total / self.limit_usd * 100, 1) if self.limit_usd else 0.0
+        daily_burn = round(total / max(days_elapsed, 1), 4)
         projected = round(daily_burn * 30, 4)
 
-        if used_usd >= self.limit_usd:
+        if total >= self.limit_usd:
             alert = "hard_stop"
         elif pct >= 90:
             alert = "critical"
@@ -100,9 +107,10 @@ class BudgetGuardian:
         else:
             alert = "ok"
 
-        return BudgetStatus(used_usd=round(used_usd, 4), limit_usd=self.limit_usd, pct_used=pct,
+        breakdown = {"llm_usd": round(used_usd, 6), "tool_usd": round(tool_cost_usd, 6)} if tool_cost_usd else None
+        return BudgetStatus(used_usd=round(total, 4), limit_usd=self.limit_usd, pct_used=pct,
                             daily_burn_usd=daily_burn, projected_monthly_usd=projected,
-                            alert_level=alert, project_id=project_id)
+                            alert_level=alert, project_id=project_id, cost_breakdown=breakdown)
 
     def _resolve_alias(self, model: str) -> str:
         """Accept either a concrete alias or a bare family/tier word (haiku/sonnet/

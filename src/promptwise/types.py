@@ -156,6 +156,7 @@ class BudgetStatus:
     projected_monthly_usd: float
     alert_level: str
     project_id: str | None = None
+    cost_breakdown: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)
