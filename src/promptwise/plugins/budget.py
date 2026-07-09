@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from promptwise.config import AppConfig
+from promptwise.core.model_registry import ModelRegistry
 from promptwise.types import BudgetStatus
 
 try:  # PyYAML is already a PromptWise dependency (policy/model registry/governor use it)
@@ -56,8 +58,18 @@ def effective_limit(explicit: float | None) -> float:
     return overlay if overlay is not None else _DEFAULT_LIMIT_USD
 
 
+# Bare tier/family words predict_cost has always accepted alongside a concrete
+# alias (e.g. ``model="haiku"``) -> the registry tier they resolve to.
+_FAMILY_TIER = {"haiku": "fast", "sonnet": "balanced", "opus": "powerful"}
+# Registry tier -> the tier-name vocabulary this repo's guardrails allow
+# (sonnet/opus/haiku), for the human-facing ``recommendation`` label only. The
+# actual cost math never uses this table -- it reads live registry/config price.
+_TIER_LABELS = {"fast": "haiku", "balanced": "sonnet", "powerful": "opus"}
+
+
 class BudgetGuardian:
-    def __init__(self, limit_usd: float | None = None, team_budget_usd: float = 100.0):
+    def __init__(self, limit_usd: float | None = None, team_budget_usd: float = 100.0,
+                 config: "AppConfig | None" = None, registry: "ModelRegistry | None" = None):
         # ``limit_usd is None`` marks "caller relied on the default" -> read the
         # governor overlay (closing the loop) and fall back to _DEFAULT_LIMIT_USD.
         # An explicit ``limit_usd=X`` still wins, preserving existing callers.
@@ -67,6 +79,12 @@ class BudgetGuardian:
         self._limits: dict[str, float] = {"monthly": limit}
         self._current_spend = 0.0
         self._daily_burn = 0.0
+        # Pricing source for predict_cost: registry first (the live source
+        # core/router.py already reads), config second, RateSpec defaults last --
+        # same fallback chain as Router._input_rate, so the two engines can never
+        # drift out of sync again (see docs/GAP_ANALYSIS_2026-07.md section 3).
+        self._config = config or AppConfig()
+        self._registry = registry or ModelRegistry()
 
     def check(self, used_usd: float, days_elapsed: int, project_id: str | None = None) -> BudgetStatus:
         pct = round(used_usd / self.limit_usd * 100, 1) if self.limit_usd else 0.0
@@ -86,16 +104,39 @@ class BudgetGuardian:
                             daily_burn_usd=daily_burn, projected_monthly_usd=projected,
                             alert_level=alert, project_id=project_id)
 
-    def predict_cost(self, prompt: str, model: str = "claude-sonnet-4-6") -> dict:
-        pricing = {"haiku": {"input": 0.8, "output": 4.0}, "sonnet": {"input": 3.0, "output": 15.0}, "opus": {"input": 15.0, "output": 75.0}}
+    def _resolve_alias(self, model: str) -> str:
+        """Accept either a concrete alias or a bare family/tier word (haiku/sonnet/
+        opus) for backward compatibility with predict_cost's original leniency."""
+        if self._registry.tier_of(model) or model in self._config.models:
+            return model
         ml = model.lower()
-        tier = "haiku" if "haiku" in ml else ("opus" if "opus" in ml else "sonnet")
-        p = pricing[tier]
+        for fam, tier in _FAMILY_TIER.items():
+            if fam in ml:
+                resolved = self._registry.resolve(tier, "claude")
+                if resolved:
+                    return resolved
+        return model
+
+    def _model_rates(self, alias: str) -> tuple[float, float]:
+        """(input_per_mtok, output_per_mtok) -- registry price first (the live
+        source), then config pricing, then RateSpec defaults. Mirrors
+        Router._input_rate exactly so the two engines never drift again."""
+        pr = self._registry.price(alias)
+        cfg = self._config.get_model(alias)
+        in_rate = pr.get("input_per_mtok") if pr and "input_per_mtok" in pr else cfg.rates.input_per_mtok
+        out_rate = pr.get("output_per_mtok") if pr and "output_per_mtok" in pr else cfg.rates.output_per_mtok
+        return float(in_rate), float(out_rate)
+
+    def predict_cost(self, prompt: str, model: str = "claude-sonnet-4-6") -> dict:
+        alias = self._resolve_alias(model)
+        in_rate, out_rate = self._model_rates(alias)
         inp = max(1, len(prompt) // 4)
         out = inp * 2
-        cost = inp * p["input"] / 1_000_000 + out * p["output"] / 1_000_000
+        cost = inp * in_rate / 1_000_000 + out * out_rate / 1_000_000
+        tier = self._registry.tier_of(alias) or self._config.get_model(alias).tier or "balanced"
+        label = _TIER_LABELS.get(tier, tier)
         return {"estimated_input_tokens": inp, "estimated_output_tokens": out, "estimated_cost_usd": round(cost, 8),
-                "model": model, "recommendation": "haiku" if cost > self.limit_usd * 0.1 else tier}
+                "model": model, "recommendation": "haiku" if cost > self.limit_usd * 0.1 else label}
 
     def set_limit(self, limit_usd: float, period: str = "monthly") -> None:
         self._limits[period] = limit_usd

@@ -1311,7 +1311,7 @@ async def main() -> None:
         compliance=ComplianceEngine(config_dir / "config" / "compliance" if (config_dir / "config").exists() else None),
         code_validator=CodeValidator(),
         codex_validator=CodexOutputValidator(),
-        budget=BudgetGuardian(limit_usd=config.policies.budget_hard_stop_usd, team_budget_usd=config.policies.team_budget_usd),
+        budget=BudgetGuardian(limit_usd=config.policies.budget_hard_stop_usd, team_budget_usd=config.policies.team_budget_usd, config=config),
         cost_monitor=CostMonitor(),
         roi=ROITracker(),
         session_manager=SessionManager(db_path),
