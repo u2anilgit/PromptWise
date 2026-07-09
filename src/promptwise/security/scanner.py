@@ -70,6 +70,25 @@ _INJECTION_PATTERNS = [
 ]
 
 
+def _luhn_valid(number: str) -> bool:
+    """Return True iff ``number`` (digits, optionally spaced/hyphenated) passes
+    the Luhn checksum used by real card numbers. Cheap way to drop the
+    order-number / tracking-id false positives the bare 13-16 digit regex
+    otherwise counts as cards."""
+    digits = [int(c) for c in number if c.isdigit()]
+    if not 13 <= len(digits) <= 19:
+        return False
+    checksum = 0
+    parity = len(digits) % 2
+    for i, n in enumerate(digits):
+        if i % 2 == parity:
+            n *= 2
+            if n > 9:
+                n -= 9
+        checksum += n
+    return checksum % 10 == 0
+
+
 class SecurityScanner:
     def __init__(self, config: SecurityConfig | None = None):
         self.config = config or SecurityConfig()
@@ -124,6 +143,16 @@ class SecurityScanner:
         items: list[dict] = []
         redacted = text
         for label, pattern in _PII_PATTERNS:
+            if label == "credit_card":
+                # Only count/redact runs that pass the Luhn checksum — the bare
+                # 13-16 digit regex otherwise false-positives on order numbers.
+                valid = [m.group(0) for m in pattern.finditer(text) if _luhn_valid(m.group(0))]
+                if valid:
+                    items.append({"type": label, "count": len(valid)})
+                    if redact:
+                        for card in valid:
+                            redacted = redacted.replace(card, f"[REDACTED_{label.upper()}]")
+                continue
             matches = pattern.findall(text)
             if matches:
                 items.append({"type": label, "count": len(matches)})
