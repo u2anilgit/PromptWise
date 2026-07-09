@@ -64,6 +64,15 @@ class Router:
                 tier, self.config.default_model)
         return self.config.default_model
 
+    def _provider_cap(self, provider: str) -> float | None:
+        """Configured hard spend cap for a provider (``daily_cap_usd``), or
+        ``None`` when unlimited/unconfigured -- opt-in, no behavior change unless
+        a phase-14 ``daily_cap_usd`` row is present in ``config/promptwise.yaml``."""
+        key = self._provider_key(provider)
+        if key and key in self.config.providers:
+            return self.config.providers[key].daily_cap_usd
+        return None
+
     def _current_models(self) -> list[str]:
         """Selectable current models (for alternatives / fallbacks)."""
         if self.registry.loaded:
@@ -86,13 +95,25 @@ class Router:
         return float(rate), int(cfg.context_window)
 
     def route(self, text: str, intent: str = "auto", stakes: str = "auto", provider: str = "claude",
-              monthly_budget_usd: float | None = None, days_elapsed_in_month: int | None = None) -> RouteResult:
+              monthly_budget_usd: float | None = None, days_elapsed_in_month: int | None = None,
+              provider_spend_usd: float | None = None) -> RouteResult:
         intent = intent.lower() if intent != "auto" else self._detect_intent(text)
         stakes = stakes.lower() if stakes != "auto" else self._detect_stakes(text)
         provider = provider.lower()
 
         static_tier = self._static_tier(intent, stakes)
         tier, adaptive_note = self._maybe_adapt(intent, stakes, static_tier)
+
+        # Provider-level hard budget cap (LiteLLM provider_budget_routing analogue):
+        # once the caller-reported spend for this provider hits its configured cap,
+        # refuse the computed tier and reroute to the cheapest one BEFORE the call
+        # is made. Fail-open: no cap configured, or no spend figure supplied -> no
+        # enforcement, byte-for-byte identical to pre-Phase-14 routing.
+        cap = self._provider_cap(provider)
+        provider_capped = cap is not None and provider_spend_usd is not None and provider_spend_usd >= cap
+        if provider_capped:
+            tier = "fast"
+
         recommended = self._resolve_current(tier, provider)
         input_tokens = max(1, len(text) // 4)
         in_rate, ctx_window = self._input_rate(recommended)
@@ -102,6 +123,9 @@ class Router:
         reason = f"Routed to {recommended} based on intent={intent}, stakes={stakes}"
         if adaptive_note:
             reason += f" | adaptive: {adaptive_note}"
+        if provider_capped:
+            reason += (f" | provider '{provider}' hard budget cap reached "
+                       f"(${provider_spend_usd:.2f} >= ${cap:.2f}) -- rerouted to fast tier")
 
         return RouteResult(
             recommended_model=recommended,
@@ -112,6 +136,7 @@ class Router:
             context_window_pct=round(input_tokens / ctx_window * 100, 1),
             alternatives=alt,
             batch_recommended=intent in ("extract", "classify", "summarize"),
+            provider_capped=provider_capped,
         )
 
     def compare_providers(self, text: str, model: str | None = None) -> list[dict]:

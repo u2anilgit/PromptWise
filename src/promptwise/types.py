@@ -17,6 +17,7 @@ class RouteResult:
     alternatives: list[str] = field(default_factory=list)
     batch_recommended: bool = False
     batch_recommendation_note: str | None = None
+    provider_capped: bool = False
 
 
 @dataclass(frozen=True)
@@ -155,6 +156,7 @@ class BudgetStatus:
     projected_monthly_usd: float
     alert_level: str
     project_id: str | None = None
+    cost_breakdown: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)
