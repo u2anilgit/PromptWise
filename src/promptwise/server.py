@@ -1375,8 +1375,8 @@ def sync_main() -> None:
     asyncio.run(main())
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
-
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
+
+if __name__ == "__main__":
+    asyncio.run(main())
