@@ -17,14 +17,13 @@ async function build() {
     external: ["vscode"],
   });
 
-  // re-enabled in Task 4 once src/webview/main.ts exists
-  // await esbuild.build({
-  //   ...shared,
-  //   entryPoints: ["src/webview/main.ts"],
-  //   outfile: "dist/webview/main.js",
-  //   platform: "browser",
-  //   format: "iife",
-  // });
+  await esbuild.build({
+    ...shared,
+    entryPoints: ["src/webview/main.ts"],
+    outfile: "dist/webview/main.js",
+    platform: "browser",
+    format: "iife",
+  });
 }
 
 build().catch((err) => {
