@@ -105,8 +105,8 @@ export class PanelProvider {
     try {
       await this.client.connect(pythonPath, cwd);
     } catch (err) {
-      this.postMessage({ type: "connectionError", message: (err as Error).message });
       this.panel.webview.html = this.renderHtml(webviewUri.toString());
+      this.postMessage({ type: "connectionError", message: (err as Error).message });
       return;
     }
 
