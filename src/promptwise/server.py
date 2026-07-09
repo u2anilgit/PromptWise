@@ -93,348 +93,6 @@ _registry = ToolRegistry()
 tool = _registry.tool
 
 
-_TOOL_DEFS = [
-    # --- Core Routing & Optimization ---
-    Tool(name="route_request", description="Route request to appropriate model tier based on intent, stakes, and budget",
-         inputSchema={"type": "object", "properties": {
-             "text": {"type": "string"}, "intent": {"type": "string", "enum": ["auto", "extract", "classify", "summarize", "question", "code", "analysis", "agent_loop", "research"], "default": "auto"},
-             "stakes": {"type": "string", "enum": ["auto", "low", "medium", "high"], "default": "auto"},
-             "provider": {"type": "string", "default": "claude"}, "monthly_budget_usd": {"type": "number"}, "days_elapsed_in_month": {"type": "integer"},
-             "provider_spend_usd": {"type": "number", "description": "Spend already incurred for this provider (e.g. today) -- enables a hard budget-cap reroute before the call, if the provider has a configured daily_cap_usd"}},
-         "required": ["text"]}),
-    Tool(name="rewrite_prompt", description="Rewrite prompt with role framing and filler removal",
-         inputSchema={"type": "object", "properties": {
-             "text": {"type": "string"}, "role": {"type": "string", "enum": ["general", "developer", "analyst", "manager", "security", "IT", "designer", "writer", "researcher", "pm"], "default": "general"},
-             "model": {"type": "string", "default": "claude-sonnet-4-6"}},
-         "required": ["text"]}),
-    Tool(name="optimize_context", description="Compress context to fit token budget by dropping low-value content",
-         inputSchema={"type": "object", "properties": {
-             "context": {"type": "string"}, "token_budget": {"type": "integer", "default": 2000, "minimum": 100},
-             "model": {"type": "string", "default": "claude-sonnet-4-6"}},
-         "required": ["context"]}),
-    Tool(name="compress_prompt", description="Apply caveman compression: remove articles, filler, pleasantries, hedging",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
-    Tool(name="plan_cache", description="Plan cache breakpoints for prompt reuse",
-         inputSchema={"type": "object", "properties": {
-             "messages": {"type": "array", "items": {"type": "object", "properties": {"role": {"type": "string", "enum": ["system", "user", "assistant"]}, "content": {"type": "string"}, "label": {"type": "string"}}, "required": ["role", "content"]}},
-             "expected_reuse_count": {"type": "integer", "default": 2, "minimum": 1}, "model": {"type": "string", "default": "claude-sonnet-4-6"}},
-         "required": ["messages"]}),
-    Tool(name="cache_lookup", description="Exact-match lookup in the local result cache (ExactCache): given identical (tool, request) input to a prior cache_store call, return the stored result instead of recomputing. Hash-based only, no embeddings/similarity threshold. Offline.",
-         inputSchema={"type": "object", "properties": {
-             "tool": {"type": "string", "description": "name of the tool/skill this result belongs to"},
-             "request": {"description": "the request payload to hash (string or object)"}},
-         "required": ["tool", "request"]}),
-    Tool(name="cache_store", description="Store a result in the local exact-match cache (ExactCache) for later cache_lookup hits. Refuses to store (reports why) if category is medical/legal/financial/personalized/health, or if the request/result contains PII or secrets per security.scanner. Offline.",
-         inputSchema={"type": "object", "properties": {
-             "tool": {"type": "string", "description": "name of the tool/skill this result belongs to"},
-             "request": {"description": "the request payload to hash (string or object)"},
-             "result": {"description": "the result to cache (any JSON-serializable value)"},
-             "category": {"type": "string", "default": "", "description": "e.g. 'medical'/'legal'/'financial'/'personalized'/'health' are never cached"},
-             "ttl_seconds": {"type": "integer", "description": "override the default 1h TTL; 0 means no expiry"}},
-         "required": ["tool", "request", "result"]}),
-    Tool(name="cache_stats", description="Hit/miss/entry-count/hit-rate report for the local exact-match cache (ExactCache), broken down by category. Purges expired entries first by default.",
-         inputSchema={"type": "object", "properties": {
-             "purge_expired": {"type": "boolean", "default": True}}}),
-    Tool(name="batch_prompts", description="Batch multiple tasks into one prompt to reduce overhead",
-         inputSchema={"type": "object", "properties": {
-             "tasks": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 5},
-             "role": {"type": "string", "default": "general"}, "model": {"type": "string", "default": "claude-sonnet-4-6"}},
-         "required": ["tasks"]}),
-    Tool(name="summarize_thread", description="Compress conversation for fresh thread handoff",
-         inputSchema={"type": "object", "properties": {
-             "conversation": {"type": "string"}, "max_tokens": {"type": "integer", "default": 500, "minimum": 100, "maximum": 2000},
-             "model": {"type": "string", "default": "claude-sonnet-4-6"}},
-         "required": ["conversation"]}),
-    Tool(name="compare_providers", description="Compare cost of same request across providers",
-         inputSchema={"type": "object", "properties": {
-             "text": {"type": "string"}, "model": {"type": "string", "default": "claude-sonnet-4-6"}},
-         "required": ["text"]}),
-
-    # --- Security ---
-    Tool(name="security_check", description="Run security check (secrets, injection, PII, destructive, permissions). Supply-chain OSV.dev lookups are off by default (air-gap safe); set allow_network=true to opt in.",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "allow_network": {"type": "boolean", "default": False}}, "required": ["text"]}),
-    Tool(name="prompt_injection", description="Scan user input for prompt injection or jailbreak attempts",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]}),
-    Tool(name="owasp_scan", description="Scan code for OWASP Top-10 vulnerabilities",
-         inputSchema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}}, "required": ["code"]}),
-    Tool(name="scan_response", description="Scan a model response for PII leaks, injection echoes, canary leaks, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Pass a canary token (issued via the indirect-injection canary) to flag if content that flowed through tool output/RAG leaks back into the response. Advisory.",
-         inputSchema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}, "canary": {"type": "string", "default": "", "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here"}}, "required": ["response"]}),
-    Tool(name="benchmark_injection", description="Benchmark the prompt-injection detector against a bundled offline attack+benign corpus and report measured precision/recall/F1/accuracy plus the actual false positives/negatives (a real number, not a claim). Offline by default (air-gap safe); an optional live PINT-style corpus fetch is gated behind allow_network=true.",
-         inputSchema={"type": "object", "properties": {"threshold": {"type": "number", "default": 0.0}, "corpus_path": {"type": "string", "default": ""}, "pint_url": {"type": "string", "default": ""}, "allow_network": {"type": "boolean", "default": False}}}),
-
-    # --- Workflow Planning (PromptWise-native) ---
-    Tool(name="plan_workflow", description="Classify a task (greenfield/brownfield/regulated) and return an ordered workflow of PromptWise's own skill packs + tools to run (PRD -> design -> stories -> TDD -> review). No third-party frameworks.",
-         inputSchema={"type": "object", "properties": {
-             "text": {"type": "string"},
-             "regulated": {"type": "boolean", "description": "Override auto-detection of regulated/compliance context"},
-             "brownfield": {"type": "boolean", "description": "Override auto-detection of brownfield (existing-code) change"}},
-         "required": ["text"]}),
-
-    # --- Task / Effort / Token Tracker ---
-    Tool(name="add_task", description="Create a development task with an effort estimate; tracks effort, tokens, and cost",
-         inputSchema={"type": "object", "properties": {
-             "title": {"type": "string"},
-             "estimate_hours": {"type": "number", "default": 0},
-             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"], "default": "todo"},
-             "tags": {"type": "array", "items": {"type": "string"}}},
-         "required": ["title"]}),
-    Tool(name="update_task", description="Update a task's status, actual hours, tokens, or cost (set or increment)",
-         inputSchema={"type": "object", "properties": {
-             "task_id": {"type": "string"},
-             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"]},
-             "actual_hours": {"type": "number"}, "tokens": {"type": "number"}, "cost_usd": {"type": "number"},
-             "add_tokens": {"type": "number"}, "add_cost": {"type": "number"}},
-         "required": ["task_id"]}),
-    Tool(name="list_tasks", description="List tracked tasks, optionally filtered by status",
-         inputSchema={"type": "object", "properties": {
-             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"]}}}),
-    Tool(name="task_report", description="Effort (estimate vs actual), token, and cost rollup across all tasks",
-         inputSchema={"type": "object", "properties": {}}),
-
-    # --- Diagrams ---
-    Tool(name="validate_mermaid", description="Lint Mermaid diagram source (type, bracket/quote balance) so it renders",
-         inputSchema={"type": "object", "properties": {"source": {"type": "string"}}, "required": ["source"]}),
-
-    # --- Role Detection ---
-    Tool(name="detect_role", description="Detect organizational role from prompt context",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "file_type": {"type": "string"}}, "required": ["text"]}),
-
-    # --- Orchestration ---
-    Tool(name="orchestrate_tasks", description="Parse a multi-step prompt into a DAG and execute with a failure strategy. Pass 'tasks' (with depends_on / file) to instead emit a safe parallel wave plan (which tasks can run at once) for the caller to dispatch.",
-         inputSchema={"type": "object", "properties": {
-             "text": {"type": "string"}, "strategy": {"type": "string", "enum": ["stop", "retry", "fallback", "all"], "default": "fallback"},
-             "tasks": {"type": "array", "description": "Structured tasks [{id, depends_on:[ids], file}] — when present, returns a wave plan instead of executing",
-                       "items": {"type": "object", "properties": {
-                           "id": {"type": "string"}, "depends_on": {"type": "array", "items": {"type": "string"}}, "file": {"type": "string"}}}},
-             "fan_out_cap": {"type": "integer", "default": 8, "description": "Max tasks per parallel wave"}},
-         "required": ["text"]}),
-    Tool(name="run_autonomous", description="Run autonomous developer loop (Plan -> Execute -> Test -> Fix)",
-         inputSchema={"type": "object", "properties": {"task": {"type": "string"}, "max_iterations": {"type": "integer", "default": 5}}, "required": ["task"]}),
-
-    # --- Budget & Cost ---
-    Tool(name="monitor_budget", description="Check spend against budget limit",
-         inputSchema={"type": "object", "properties": {
-             "used_usd": {"type": "number"}, "days_elapsed": {"type": "integer", "default": 1}, "project_id": {"type": "string"},
-             "tool_cost_usd": {"type": "number", "description": "Tool/API execution cost for this workflow, attributed alongside used_usd's LLM token cost"}},
-         "required": ["used_usd"]}),
-    Tool(name="predict_cost", description="Estimate cost of a prompt before sending",
-         inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "model": {"type": "string", "default": "claude-sonnet-4-6"}}, "required": ["prompt"]}),
-    Tool(name="set_budget_limit", description="Set monthly or daily spending limit",
-         inputSchema={"type": "object", "properties": {"limit_usd": {"type": "number"}, "period": {"type": "string", "enum": ["daily", "monthly"], "default": "monthly"}}, "required": ["limit_usd"]}),
-    Tool(name="get_budget_status", description="Check current spend vs configured budget limits",
-         inputSchema={"type": "object", "properties": {}}),
-    Tool(name="budget_report", description="Get detailed budget report with cost anomaly detection",
-         inputSchema={"type": "object", "properties": {"period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"}, "project_id": {"type": "string"}}}),
-
-    # --- Code Validation ---
-    Tool(name="validate_output", description="Validate generated code for syntax errors and hallucinated imports",
-         inputSchema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"}}, "required": ["code"]}),
-
-    # --- ROI ---
-    Tool(name="track_roi", description="Calculate ROI ratio: value of time saved vs cost incurred",
-         inputSchema={"type": "object", "properties": {
-             "session_id": {"type": "string"}, "total_cost_usd": {"type": "number"}, "tokens_saved": {"type": "integer"}, "calls": {"type": "integer"}},
-         "required": ["session_id", "total_cost_usd", "tokens_saved", "calls"]}),
-    Tool(name="get_roi_report", description="Generate team ROI report based on cumulative stats",
-         inputSchema={"type": "object", "properties": {"period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"}}}),
-    Tool(name="cost_report", description="Get cost breakdown by project/period",
-         inputSchema={"type": "object", "properties": {"project_id": {"type": "string"}, "period": {"type": "string", "default": "weekly"}, "format": {"type": "string", "default": "json"}}}),
-
-    # --- Memory & Session ---
-    Tool(name="get_memory_context", description="Retrieve past memory entries for a session",
-         inputSchema={"type": "object", "properties": {"session_id": {"type": "string"}, "limit": {"type": "integer", "default": 20}}, "required": ["session_id"]}),
-    Tool(name="query_memory", description="Query cross-session episodic and semantic memory",
-         inputSchema={"type": "object", "properties": {"query": {"type": "string"}, "scope": {"type": "string", "enum": ["session", "org"], "default": "org"}}, "required": ["query"]}),
-    Tool(name="ping_session", description="Record session activity to reset idle clock",
-         inputSchema={"type": "object", "properties": {"session_id": {"type": "string"}}}),
-    Tool(name="check_session_timeout", description="Check if session has exceeded idle thresholds",
-         inputSchema={"type": "object", "properties": {"session_id": {"type": "string"}, "idle_threshold_minutes": {"type": "integer", "default": 30}, "warn_threshold_minutes": {"type": "integer", "default": 20}}, "required": ["session_id"]}),
-
-    # --- Skills ---
-    Tool(name="invoke_skill", description="Invoke a specific skill with context",
-         inputSchema={"type": "object", "properties": {"skill_name": {"type": "string"}, "context": {"type": "object", "default": {}}, "params": {"type": "object", "default": {}}}, "required": ["skill_name"]}),
-    Tool(name="list_skills", description="List all available skills filtered by role",
-         inputSchema={"type": "object", "properties": {"role": {"type": "string"}, "category": {"type": "string"}}}),
-    Tool(name="skill_chain", description="Execute a list of skills sequentially",
-         inputSchema={"type": "object", "properties": {"skills": {"type": "array", "items": {"type": "string"}}, "mode": {"type": "string", "enum": ["sequential", "parallel"], "default": "sequential"}, "context": {"type": "object", "default": {}}}, "required": ["skills"]}),
-    Tool(name="suggest_skill", description="Recommend best skill for a given user message",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
-
-    # --- Prompt Engineering ---
-    Tool(name="suggest_technique", description="Auto-detect best prompting technique: CRAFT, Few-Shot, Chain-of-Thought, or Chaining",
-         inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}}, "required": ["prompt"]}),
-    Tool(name="apply_craft", description="Analyze prompt against CRAFT axes (Context/Role/Action/Format/Tone) and rebuild",
-         inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}}, "required": ["prompt"]}),
-    Tool(name="inject_few_shot", description="Enhance prompt with few-shot examples",
-         inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "examples": {"type": "array", "items": {"type": "object"}, "default": []}}, "required": ["prompt"]}),
-    Tool(name="add_chain_of_thought", description="Wrap prompt with Chain-of-Thought scaffold",
-         inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "style": {"type": "string", "enum": ["standard", "step-by-step", "tree-of-thought"], "default": "step-by-step"}}, "required": ["prompt"]}),
-    Tool(name="chain_prompts", description="Decompose complex task into sequential prompt chain",
-         inputSchema={"type": "object", "properties": {"task": {"type": "string"}, "steps": {"type": "integer", "default": 3}}, "required": ["task"]}),
-    Tool(name="eval_prompt_across_models", description="Estimate cost and recommend model tier across Haiku/Sonnet/Opus",
-         inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "task_type": {"type": "string", "default": "general"}}, "required": ["prompt"]}),
-    Tool(name="audit_system_prompt", description="Score system prompt on clarity, role, constraints, and jailbreak resistance",
-         inputSchema={"type": "object", "properties": {"system_prompt": {"type": "string"}}, "required": ["system_prompt"]}),
-
-    # --- Prompt Registry ---
-    Tool(name="save_prompt", description="Save a prompt to the versioned prompt registry",
-         inputSchema={"type": "object", "properties": {"name": {"type": "string"}, "content": {"type": "string"}, "version": {"type": "string", "default": "1.0.0"}, "description": {"type": "string", "default": ""}, "tags": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["name", "content"]}),
-    Tool(name="search_prompts", description="Search prompts in the versioned prompt registry",
-         inputSchema={"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}),
-    Tool(name="compare_prompts", description="Diff two versions of a registered prompt",
-         inputSchema={"type": "object", "properties": {"name": {"type": "string"}, "version_a": {"type": "string"}, "version_b": {"type": "string"}}, "required": ["name", "version_a", "version_b"]}),
-
-    # --- Session Data ---
-    Tool(name="get_session_stats", description="Get session usage statistics",
-         inputSchema={"type": "object", "properties": {"since": {"type": "string", "description": "ISO 8601 timestamp filter"}}}),
-    Tool(name="clear_history", description="Delete usage history older than N days",
-         inputSchema={"type": "object", "properties": {"older_than_days": {"type": "integer", "minimum": 1}}, "required": ["older_than_days"]}),
-    Tool(name="export_stats", description="Export usage history as JSON",
-         inputSchema={"type": "object", "properties": {"since": {"type": "string"}, "format": {"type": "string", "enum": ["json", "csv"], "default": "json"}}}),
-    Tool(name="reload_config", description="Reload configuration without restarting server",
-         inputSchema={"type": "object", "properties": {}}),
-
-    # --- Energy & Plugin Routing ---
-    Tool(name="check_energy", description="Get energy efficiency score for a model",
-         inputSchema={"type": "object", "properties": {"model": {"type": "string"}, "tokens": {"type": "integer", "default": 1000}}, "required": ["model"]}),
-    Tool(name="route_for_plugin", description="Detect applicable plugin for text",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}),
-    Tool(name="run_eval", description="A/B test a prompt across multiple models",
-         inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}, "default": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]}}, "required": ["prompt"]}),
-    Tool(name="run_eval_harness", description="Run a durable eval + regression suite (prompt+rubric cases) offline; score with the quality gate, diff against a stored baseline to flag regressions, expose a pass/fail gate, and feed outcomes back into adaptive routing. Offline default is a record/dry-run mode (no cloud). Set save_baseline=true to bless this run as the new baseline.",
-         inputSchema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "tiers": {"type": "array", "items": {"type": "string"}}, "bar": {"type": "number", "default": 0.6}, "save_baseline": {"type": "boolean", "default": False}}}),
-    Tool(name="get_sbom", description="Generate SBOM in CycloneDX format",
-         inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"}, "paths": {"type": "array", "items": {"type": "string"}}}}),
-    Tool(name="run_security_suite", description="Run all security checks as a suite",
-         inputSchema={"type": "object", "properties": {"targets": {"type": "array", "items": {"type": "string"}}, "context": {"type": "object"}}}),
-    Tool(name="run_red_team_harness", description="Run a durable, offline red-team suite against the security scanners: known attack patterns (must be caught) and benign counterexamples (must NOT be flagged) across injection/owasp/secrets/destructive/permissions/pii/supply_chain checks. Diffs against a stored baseline to flag regressions (an attack that used to be caught now escapes, or a benign input starts false-positiving) and exposes a pass/fail gate. Defaults to a built-in corpus when no cases/cases_path given. Set save_baseline=true to bless this run as the new baseline.",
-         inputSchema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "save_baseline": {"type": "boolean", "default": False}}}),
-
-    # ── Agile method + governance (additive) ─────────────────────────────────
-    Tool(name="agile_plan", description="Two-phase, persona-aware agile plan (analyst->pm->[ux]->architect->po, then per-story sm->dev->qa loop) layered on the workflow classifier; carries the compliance gate and model-tier routing",
-         inputSchema={"type": "object", "properties": {"task": {"type": "string"}, "regulated": {"type": "boolean"}, "brownfield": {"type": "boolean"}}, "required": ["task"]}),
-    Tool(name="shard_doc", description="Split a PRD/architecture markdown document into focused, anchored shards by heading level",
-         inputSchema={"type": "object", "properties": {"markdown": {"type": "string"}, "by_level": {"type": "integer", "default": 2}}, "required": ["markdown"]}),
-    Tool(name="draft_story", description="Assemble a self-contained, context-engineered story: embeds architecture shards, constraints, and compliance rules inline so the dev executor needs no external lookup",
-         inputSchema={"type": "object", "properties": {"story_id": {"type": "string"}, "title": {"type": "string"}, "epic_id": {"type": "string", "default": ""}, "acceptance_criteria": {"type": "array", "items": {"type": "string"}, "default": []}, "arch_shards": {"type": "array", "items": {"type": "object"}, "default": []}, "files_to_touch": {"type": "array", "items": {"type": "string"}, "default": []}, "constraints": {"type": "array", "items": {"type": "string"}, "default": []}, "compliance_rules": {"type": "array", "items": {"type": "string"}, "default": []}, "tasks": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["story_id", "title"]}),
-    Tool(name="run_quality_gate", description="Issue an advisory, auditable quality-gate decision (PASS/CONCERNS/FAIL/WAIVED) from findings, risk score, and NFR assessment",
-         inputSchema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"}}, "required": ["story_id"]}),
-    Tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons",
-         inputSchema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}}}),
-    Tool(name="record_audit", description="Append a tamper-evident, hash-chained audit record of an AI-assisted change ('the trace'); returns the record and chain verification status",
-         inputSchema={"type": "object", "properties": {"task": {"type": "string"}, "agent": {"type": "string", "default": ""}, "model": {"type": "string", "default": ""}, "cost_usd": {"type": "number", "default": 0.0}, "rules_applied": {"type": "array", "items": {"type": "string"}, "default": []}, "gate_decision": {"type": "string", "default": ""}, "compliance_decision": {"type": "string", "default": ""}, "files_touched": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["task"]}),
-    Tool(name="export_audit", description="Export the full AI-change audit trail (portable JSON + human-readable text) with hash-chain verification status",
-         inputSchema={"type": "object", "properties": {"format": {"type": "string", "enum": ["json", "text", "both"], "default": "both"}}}),
-    Tool(name="sync_agent_config", description="Compile one governance source (policy + packs + method) into every agent's native rules file (CLAUDE.md, AGENTS.md, .cursor/rules, copilot-instructions, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules). Non-destructive: only the managed block is regenerated; user edits are preserved",
-         inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "path_rules": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}, "description": "glob -> path-scoped rules (Copilot .github/instructions/*)"}, "mode": {"type": "string", "enum": ["apply", "preview", "check"], "default": "apply"}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]}),
-    # ── Cross-agent config compiler (additive) ──────────────────────────────
-    Tool(name="detect_agents", description="Detect which coding agents a repo is configured for (CLAUDE.md, AGENTS.md, .cursor/rules, copilot) + confidence + recommended targets",
-         inputSchema={"type": "object", "properties": {"repo_root": {"type": "string", "default": "."}}}),
-    Tool(name="build_context_model", description="Derive structured intent/role/stack/domain/regulated context from a prompt (+ optional repo) to drive config emission",
-         inputSchema={"type": "object", "properties": {"text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}}, "required": ["text"]}),
-    Tool(name="propose_agent_config", description="Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing — the review step before apply",
-         inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "path_rules": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]}),
-    Tool(name="lint_agent_config", description="Lint an agent rules file (or content) for token tax, byte caps, missing .mdc frontmatter, and inferable bloat",
-         inputSchema={"type": "object", "properties": {"content": {"type": "string"}, "path": {"type": "string"}, "fmt": {"type": "string", "enum": ["md", "mdc"], "default": "md"}, "max_bytes": {"type": "integer"}, "always_apply": {"type": "boolean", "default": False}, "token_budget": {"type": "integer", "default": 0}}}),
-    Tool(name="check_portability", description="Cross-host portability check (Phase 7 §7.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
-         inputSchema={"type": "object", "properties": {"repo_root": {"type": "string", "default": "."}, "hosts": {"type": "array", "items": {"type": "string"}, "description": "subset of supported hosts to check; default all"}, "emit_ci": {"type": "boolean", "default": False, "description": "also return a host-neutral CI-snippet"}}}),
-
-    # ── Web-agent single-file bundle (Phase 17.3, additive · offline, stdlib only) ──
-    # Structurally separate from the IDE emitters above: no host config file to
-    # merge into, so no managed block, no TARGETS entry, no sync_agent_config wiring.
-    Tool(name="export_web_bundle", description="Flatten one governance source (policy + packs + method) into a SINGLE self-contained, pasteable file for web-chat hosts with no IDE/CLI/MCP support (ChatGPT, Gemini, Claude.ai web chat). Not a managed-block IDE config: every call fully regenerates the bundle, there is no user-owned region to preserve. Set out_path to also write it to disk.",
-         inputSchema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "text": {"type": "string"}, "skill_root": {"type": "string", "default": "skill_packs"}, "include_packs": {"type": "boolean", "default": True}, "out_path": {"type": "string", "description": "optional path to also write the bundle as a single file"}}, "required": ["project"]}),
-
-    # ── Continuous learning loop (Phase 2, additive · local SQLite + FTS5) ────
-    Tool(name="capture_learning", description="Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline.",
-         inputSchema={"type": "object", "properties": {
-             "category": {"type": "string", "description": "e.g. 'style', 'security', 'api-misuse'"},
-             "mistake": {"type": "string", "description": "what went wrong"},
-             "correction": {"type": "string", "description": "the fix / the rule going forward"},
-             "project": {"type": "string", "default": ""},
-             "tags": {"type": "array", "items": {"type": "string"}}},
-         "required": ["category", "mistake", "correction"]}),
-    Tool(name="replay_learnings", description="Top-K relevant past corrections for a task description (FTS5 BM25, LIKE fallback) plus a ready-to-inject reminder block.",
-         inputSchema={"type": "object", "properties": {
-             "task": {"type": "string"}, "k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 25},
-             "project": {"type": "string"}},
-         "required": ["task"]}),
-    Tool(name="learning_insights", description="Correction trends from the local learning store: counts by category, project, month, and the most-repeated mistakes.",
-         inputSchema={"type": "object", "properties": {}}),
-    Tool(name="insights_report", description="Ranked, actionable recommendations over local telemetry: routing downgrades/escalations, top cost drivers & spend anomalies, quality/eval regressions, and budget projections. Deterministic, offline, min-sample gated.",
-         inputSchema={"type": "object", "properties": {
-             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365,
-                             "description": "analysis window for cost/quality/budget families"},
-             "top_n": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}}}),
-
-    # ── Policy intelligence & searchable trace (Phase 4, additive · offline) ──
-    Tool(name="tune_permissions", description="Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
-         inputSchema={"type": "object", "properties": {
-             "state_dir": {"type": "string", "default": ".", "description": "project dir holding .promptwise/denials.jsonl"},
-             "min_count": {"type": "integer", "default": 2, "minimum": 1},
-             "mcp_json": {"type": "string", "description": "path to .mcp.json for the current allowlist"}}}),
-    Tool(name="audit_mcp_servers", description="Audit declared MCP servers (.mcp.json + plugin.json) for security flags, allow-surface, and redundancy. Offline; inspects config, does not call servers.",
-         inputSchema={"type": "object", "properties": {
-             "repo_root": {"type": "string", "default": "."},
-             "extra_configs": {"type": "array", "items": {"type": "string"}}}}),
-    Tool(name="search_trace", description="Search the trace (hash-chained audit trail + learnings) by meaning. Keyword/FTS by default; optional local embeddings if installed and enabled. Offline.",
-         inputSchema={"type": "object", "properties": {
-             "query": {"type": "string"}, "k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 25},
-             "repo_root": {"type": "string", "default": "."},
-             "audit_path": {"type": "string"},
-             "use_embeddings": {"type": "boolean", "default": False}},
-         "required": ["query"]}),
-    Tool(name="rank_context", description="Retrieval-augmented context manager: rank and prune candidates from the trace (audit + learnings) and an optionally-supplied doc onto one token budget. No new ranking algorithm - reuses search_trace's keyword/BM25 (or optional embeddings) scoring; docs are sharded per call, not indexed. Offline.",
-         inputSchema={"type": "object", "properties": {
-             "query": {"type": "string"},
-             "token_budget": {"type": "integer", "default": 2000},
-             "doc_path": {"type": "string"},
-             "doc_text": {"type": "string"},
-             "sources": {"type": "array", "items": {"type": "string", "enum": ["audit", "learnings", "doc"]},
-                        "default": ["audit", "learnings", "doc"]},
-             "use_embeddings": {"type": "boolean", "default": False},
-             "repo_root": {"type": "string", "default": "."},
-             "audit_path": {"type": "string"},
-             "learning_db": {"type": "string"}},
-         "required": ["query"]}),
-
-    # ── Skill auto-optimization (Phase 3, additive · offline, deterministic) ──
-    Tool(name="optimize_skill_pack", description="Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
-         inputSchema={"type": "object", "properties": {
-             "skill_path": {"type": "string", "description": "path to the SKILL.md / pack .md to optimize"},
-             "project": {"type": "string", "description": "scope corrections to a project"},
-             "max_rules": {"type": "integer", "default": 8, "minimum": 1, "maximum": 25},
-             "dry_run": {"type": "boolean", "default": False, "description": "score and preview without writing"}},
-         "required": ["skill_path"]}),
-
-    # ── Compliance evidence export (Phase 7, additive · offline, stdlib only) ──
-    Tool(name="export_compliance_bundle", description="Build a self-verifying, HMAC-signed compliance evidence bundle from the hash-chained audit trail: verifies the chain, wraps records in a manifest (time range, count, chain-head digest), signs with a local key, and can write a .zip. Offline; no network.",
-         inputSchema={"type": "object", "properties": {
-             "sign": {"type": "boolean", "default": True, "description": "HMAC-sign the bundle with the local key (env PROMPTWISE_AUDIT_KEY or PROMPTWISE_AUDIT_KEY_FILE)"},
-             "control_families": {"type": "array", "items": {"type": "string"}, "description": "generic control-family tags; inferred from the trace when omitted"},
-             "out_path": {"type": "string", "description": "optional path to write a .zip evidence archive"}}}),
-
-    # ── Scheduled org/compliance report export (Phase 16, additive · offline, stdlib only) ──
-    Tool(name="export_org_report", description="Build a periodic summary (spend, security-scan verdicts, governance/governor actions) for a stakeholder who doesn't touch a CLI. Markdown or self-contained HTML; no PDF dependency. Pass out_path to write it; omit to just return the report data. Offline; no network.",
-         inputSchema={"type": "object", "properties": {
-             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365},
-             "format": {"type": "string", "enum": ["markdown", "html"], "default": "markdown"},
-             "out_path": {"type": "string", "description": "optional path to write the report"},
-             "repo_root": {"type": "string", "default": "."}}}),
-
-    # ── Autonomous governor (Phase 9, additive · policy-gated, reversible, default advise-only) ──
-    Tool(name="run_governor", description="Turn local insights recommendations into typed, policy-gated, REVERSIBLE governance actions. Default advise-only: proposes actions + policy verdicts and reports what would/did apply for the current mode (env PROMPTWISE_AUTONOMY in {advise,dry_run,apply}). Only allowlisted 'safe' actions (AdjustBudgetGuard, WriteRoutingPreferenceNote) can ever move state, and only in apply; each writes a local undo-ledger entry. Everything else is advisory-only. Offline; fully audited.",
-         inputSchema={"type": "object", "properties": {
-             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365},
-             "mode": {"type": "string", "enum": ["advise", "dry_run", "apply"], "description": "override PROMPTWISE_AUTONOMY for this call; omit to use the env (default advise)"},
-             "root": {"type": "string", "default": ".", "description": "project root holding the gitignored .promptwise overlay + ledger"},
-             "policy_path": {"type": "string", "default": "config/policy.yaml"}}}),
-    Tool(name="governor_undo", description="Reverse a previously-applied governor action by id, restoring the exact prior state from the undo ledger (audited). No-op if the id is unknown or non-reversible.",
-         inputSchema={"type": "object", "properties": {
-             "action_id": {"type": "string"},
-             "root": {"type": "string", "default": "."}},
-         "required": ["action_id"]}),
-]
 
 
 async def list_tools() -> list[Tool]:
@@ -477,6 +135,13 @@ def _get_audit_log():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+@tool(name="route_request", description="Route request to appropriate model tier based on intent, stakes, and budget",
+         schema={"type": "object", "properties": {
+             "text": {"type": "string"}, "intent": {"type": "string", "enum": ["auto", "extract", "classify", "summarize", "question", "code", "analysis", "agent_loop", "research"], "default": "auto"},
+             "stakes": {"type": "string", "enum": ["auto", "low", "medium", "high"], "default": "auto"},
+             "provider": {"type": "string", "default": "claude"}, "monthly_budget_usd": {"type": "number"}, "days_elapsed_in_month": {"type": "integer"},
+             "provider_spend_usd": {"type": "number", "description": "Spend already incurred for this provider (e.g. today) -- enables a hard budget-cap reroute before the call, if the provider has a configured daily_cap_usd"}},
+         "required": ["text"]})
 async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.router.route(
         text=arguments.get("text", ""), intent=arguments.get("intent", "auto"),
@@ -504,33 +169,63 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
                        "provider_capped": r.provider_capped, "route_id": route_id})
 
 
+@tool(name="rewrite_prompt", description="Rewrite prompt with role framing and filler removal",
+         schema={"type": "object", "properties": {
+             "text": {"type": "string"}, "role": {"type": "string", "enum": ["general", "developer", "analyst", "manager", "security", "IT", "designer", "writer", "researcher", "pm"], "default": "general"},
+             "model": {"type": "string", "default": "claude-sonnet-4-6"}},
+         "required": ["text"]})
 async def _handle_rewrite_prompt(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.rewriter.rewrite(arguments.get("text", ""), role=arguments.get("role", "general"), model=arguments.get("model", "claude-sonnet-4-6"))
     await ctx.memory.record_cost(tool="rewrite_prompt", session_id="default", model=arguments.get("model", "claude-sonnet-4-6"), input_tokens=r.raw_tokens, saving_pct=r.saving_pct)
     return json.dumps({"rewritten": r.rewritten, "saving_pct": r.saving_pct, "warning": r.warning})
 
 
+@tool(name="optimize_context", description="Compress context to fit token budget by dropping low-value content",
+         schema={"type": "object", "properties": {
+             "context": {"type": "string"}, "token_budget": {"type": "integer", "default": 2000, "minimum": 100},
+             "model": {"type": "string", "default": "claude-sonnet-4-6"}},
+         "required": ["context"]})
 async def _handle_optimize_context(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.optimizer.optimize(arguments.get("context", ""), token_budget=arguments.get("token_budget", 2000), model=arguments.get("model", "claude-sonnet-4-6"))
     return json.dumps({"optimized": r.optimized, "saving_pct": r.saving_pct, "chunks_dropped": r.chunks_dropped})
 
 
+@tool(name="compress_prompt", description="Apply caveman compression: remove articles, filler, pleasantries, hedging",
+         schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]})
 async def _handle_compress_prompt(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.compression.compress(arguments.get("text", ""))
     return json.dumps({"compressed": r.compressed, "saving_pct": r.saving_pct, "tokens_saved": r.tokens_saved, "rules_applied": r.rules_applied})
 
 
+@tool(name="plan_cache", description="Plan cache breakpoints for prompt reuse",
+         schema={"type": "object", "properties": {
+             "messages": {"type": "array", "items": {"type": "object", "properties": {"role": {"type": "string", "enum": ["system", "user", "assistant"]}, "content": {"type": "string"}, "label": {"type": "string"}}, "required": ["role", "content"]}},
+             "expected_reuse_count": {"type": "integer", "default": 2, "minimum": 1}, "model": {"type": "string", "default": "claude-sonnet-4-6"}},
+         "required": ["messages"]})
 async def _handle_plan_cache(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.cache_planner.plan(arguments.get("messages", []), expected_reuse_count=arguments.get("expected_reuse_count", 2), model=arguments.get("model", "claude-sonnet-4-6"))
     return json.dumps({"breakpoints": r.breakpoints, "savings_pct": r.savings_pct})
 
 
+@tool(name="cache_lookup", description="Exact-match lookup in the local result cache (ExactCache): given identical (tool, request) input to a prior cache_store call, return the stored result instead of recomputing. Hash-based only, no embeddings/similarity threshold. Offline.",
+         schema={"type": "object", "properties": {
+             "tool": {"type": "string", "description": "name of the tool/skill this result belongs to"},
+             "request": {"description": "the request payload to hash (string or object)"}},
+         "required": ["tool", "request"]})
 async def _handle_cache_lookup(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.exact_cache import ExactCache
     r = ExactCache().get(arguments.get("tool", ""), arguments.get("request"))
     return json.dumps(r.to_dict())
 
 
+@tool(name="cache_store", description="Store a result in the local exact-match cache (ExactCache) for later cache_lookup hits. Refuses to store (reports why) if category is medical/legal/financial/personalized/health, or if the request/result contains PII or secrets per security.scanner. Offline.",
+         schema={"type": "object", "properties": {
+             "tool": {"type": "string", "description": "name of the tool/skill this result belongs to"},
+             "request": {"description": "the request payload to hash (string or object)"},
+             "result": {"description": "the result to cache (any JSON-serializable value)"},
+             "category": {"type": "string", "default": "", "description": "e.g. 'medical'/'legal'/'financial'/'personalized'/'health' are never cached"},
+             "ttl_seconds": {"type": "integer", "description": "override the default 1h TTL; 0 means no expiry"}},
+         "required": ["tool", "request", "result"]})
 async def _handle_cache_store(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.exact_cache import ExactCache
     r = ExactCache().put(
@@ -539,6 +234,9 @@ async def _handle_cache_store(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(r.to_dict())
 
 
+@tool(name="cache_stats", description="Hit/miss/entry-count/hit-rate report for the local exact-match cache (ExactCache), broken down by category. Purges expired entries first by default.",
+         schema={"type": "object", "properties": {
+             "purge_expired": {"type": "boolean", "default": True}}})
 async def _handle_cache_stats(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.exact_cache import ExactCache
     cache = ExactCache()
@@ -547,16 +245,30 @@ async def _handle_cache_stats(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(cache.stats())
 
 
+@tool(name="batch_prompts", description="Batch multiple tasks into one prompt to reduce overhead",
+         schema={"type": "object", "properties": {
+             "tasks": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 5},
+             "role": {"type": "string", "default": "general"}, "model": {"type": "string", "default": "claude-sonnet-4-6"}},
+         "required": ["tasks"]})
 async def _handle_batch_prompts(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.batcher.batch(arguments.get("tasks", []), role=arguments.get("role", "general"), model=arguments.get("model", "claude-sonnet-4-6"))
     return json.dumps({"batched_prompt": r.batched_prompt, "saving_pct": r.saving_pct})
 
 
+@tool(name="summarize_thread", description="Compress conversation for fresh thread handoff",
+         schema={"type": "object", "properties": {
+             "conversation": {"type": "string"}, "max_tokens": {"type": "integer", "default": 500, "minimum": 100, "maximum": 2000},
+             "model": {"type": "string", "default": "claude-sonnet-4-6"}},
+         "required": ["conversation"]})
 async def _handle_summarize_thread(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.summarizer.summarize(arguments.get("conversation", ""), max_tokens=arguments.get("max_tokens", 500), model=arguments.get("model", "claude-sonnet-4-6"))
     return json.dumps({"summary": r.summary, "reset_prompt": r.reset_prompt, "saving_pct": r.saving_pct})
 
 
+@tool(name="compare_providers", description="Compare cost of same request across providers",
+         schema={"type": "object", "properties": {
+             "text": {"type": "string"}, "model": {"type": "string", "default": "claude-sonnet-4-6"}},
+         "required": ["text"]})
 async def _handle_compare_providers(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"comparisons": ctx.router.compare_providers(arguments.get("text", ""), model=arguments.get("model", "claude-sonnet-4-6"))})
 
@@ -582,12 +294,16 @@ def _maybe_alert_budget(status) -> None:
         pass
 
 
+@tool(name="security_check", description="Run security check (secrets, injection, PII, destructive, permissions). Supply-chain OSV.dev lookups are off by default (air-gap safe); set allow_network=true to opt in.",
+         schema={"type": "object", "properties": {"text": {"type": "string"}, "allow_network": {"type": "boolean", "default": False}}, "required": ["text"]})
 async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.security.check(arguments.get("text", ""), allow_network=bool(arguments.get("allow_network", False)))
     _maybe_alert_security(r)
     return json.dumps({"passed": r.passed, "risk_score": r.risk_score, "violations": r.violations, "blocked": r.blocked, "details": r.details})
 
 
+@tool(name="prompt_injection", description="Scan user input for prompt injection or jailbreak attempts",
+         schema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]})
 async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
     text = arguments.get("text", "")
     threshold = float(arguments.get("threshold", 0.7))
@@ -596,18 +312,8 @@ async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"injection_detected": detected, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
 
 
-async def _handle_benchmark_injection(ctx: ServerContext, arguments: dict) -> str:
-    from promptwise.security.injection_benchmark import benchmark_injection_detector
-    report = benchmark_injection_detector(
-        ctx.security,
-        threshold=float(arguments.get("threshold", 0.0)),
-        corpus_path=arguments.get("corpus_path") or None,
-        pint_url=arguments.get("pint_url", ""),
-        allow_network=bool(arguments.get("allow_network", False)),
-    )
-    return json.dumps(report.to_dict())
-
-
+@tool(name="owasp_scan", description="Scan code for OWASP Top-10 vulnerabilities",
+         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}}, "required": ["code"]})
 async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
     vulns = ctx.security.check_owasp(arguments.get("code", ""))
     weights = {"critical": 3, "high": 2, "medium": 1}
@@ -615,6 +321,8 @@ async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"vulnerabilities": vulns, "risk_score": risk, "passed": risk < 4})
 
 
+@tool(name="scan_response", description="Scan a model response for PII leaks, injection echoes, canary leaks, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Pass a canary token (issued via the indirect-injection canary) to flag if content that flowed through tool output/RAG leaks back into the response. Advisory.",
+         schema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}, "canary": {"type": "string", "default": "", "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here"}}, "required": ["response"]})
 async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
     response = arguments.get("response", "")
     original = arguments.get("original_prompt", "")
@@ -638,7 +346,27 @@ async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
                        "redacted_response": redacted, "responsible_ai": rai})
 
 
+@tool(name="benchmark_injection", description="Benchmark the prompt-injection detector against a bundled offline attack+benign corpus and report measured precision/recall/F1/accuracy plus the actual false positives/negatives (a real number, not a claim). Offline by default (air-gap safe); an optional live PINT-style corpus fetch is gated behind allow_network=true.",
+         schema={"type": "object", "properties": {"threshold": {"type": "number", "default": 0.0}, "corpus_path": {"type": "string", "default": ""}, "pint_url": {"type": "string", "default": ""}, "allow_network": {"type": "boolean", "default": False}}})
+async def _handle_benchmark_injection(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.security.injection_benchmark import benchmark_injection_detector
+    report = benchmark_injection_detector(
+        ctx.security,
+        threshold=float(arguments.get("threshold", 0.0)),
+        corpus_path=arguments.get("corpus_path") or None,
+        pint_url=arguments.get("pint_url", ""),
+        allow_network=bool(arguments.get("allow_network", False)),
+    )
+    return json.dumps(report.to_dict())
+
+
 # ── Role Detection ───────────────────────────────────────────────────
+@tool(name="plan_workflow", description="Classify a task (greenfield/brownfield/regulated) and return an ordered workflow of PromptWise's own skill packs + tools to run (PRD -> design -> stories -> TDD -> review). No third-party frameworks.",
+         schema={"type": "object", "properties": {
+             "text": {"type": "string"},
+             "regulated": {"type": "boolean", "description": "Override auto-detection of regulated/compliance context"},
+             "brownfield": {"type": "boolean", "description": "Override auto-detection of brownfield (existing-code) change"}},
+         "required": ["text"]})
 async def _handle_plan_workflow(ctx: ServerContext, arguments: dict) -> str:
     plan = ctx.workflow_planner.plan(
         text=arguments.get("text", ""),
@@ -649,6 +377,13 @@ async def _handle_plan_workflow(ctx: ServerContext, arguments: dict) -> str:
                        "compliance_gate": plan.compliance_gate, "signals": plan.signals})
 
 
+@tool(name="add_task", description="Create a development task with an effort estimate; tracks effort, tokens, and cost",
+         schema={"type": "object", "properties": {
+             "title": {"type": "string"},
+             "estimate_hours": {"type": "number", "default": 0},
+             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"], "default": "todo"},
+             "tags": {"type": "array", "items": {"type": "string"}}},
+         "required": ["title"]})
 async def _handle_add_task(ctx: ServerContext, arguments: dict) -> str:
     res = await ctx.task_tracker.add(
         title=arguments.get("title", ""), estimate_hours=arguments.get("estimate_hours", 0),
@@ -656,6 +391,13 @@ async def _handle_add_task(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(res)
 
 
+@tool(name="update_task", description="Update a task's status, actual hours, tokens, or cost (set or increment)",
+         schema={"type": "object", "properties": {
+             "task_id": {"type": "string"},
+             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"]},
+             "actual_hours": {"type": "number"}, "tokens": {"type": "number"}, "cost_usd": {"type": "number"},
+             "add_tokens": {"type": "number"}, "add_cost": {"type": "number"}},
+         "required": ["task_id"]})
 async def _handle_update_task(ctx: ServerContext, arguments: dict) -> str:
     res = await ctx.task_tracker.update(
         task_id=arguments.get("task_id", ""), status=arguments.get("status"),
@@ -665,21 +407,30 @@ async def _handle_update_task(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(res)
 
 
+@tool(name="list_tasks", description="List tracked tasks, optionally filtered by status",
+         schema={"type": "object", "properties": {
+             "status": {"type": "string", "enum": ["todo", "in_progress", "blocked", "done"]}}})
 async def _handle_list_tasks(ctx: ServerContext, arguments: dict) -> str:
     res = await ctx.task_tracker.list(status=arguments.get("status"))
     return json.dumps({"tasks": res, "count": len(res)})
 
 
+@tool(name="task_report", description="Effort (estimate vs actual), token, and cost rollup across all tasks",
+         schema={"type": "object", "properties": {}})
 async def _handle_task_report(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(await ctx.task_tracker.report())
 
 
+@tool(name="validate_mermaid", description="Lint Mermaid diagram source (type, bracket/quote balance) so it renders",
+         schema={"type": "object", "properties": {"source": {"type": "string"}}, "required": ["source"]})
 async def _handle_validate_mermaid(ctx: ServerContext, arguments: dict) -> str:
     r = validate_mermaid(arguments.get("source", ""))
     return json.dumps({"valid": r.valid, "diagram_type": r.diagram_type,
                        "errors": r.errors, "warnings": r.warnings, "node_count": r.node_count})
 
 
+@tool(name="detect_role", description="Detect organizational role from prompt context",
+         schema={"type": "object", "properties": {"text": {"type": "string"}, "file_type": {"type": "string"}}, "required": ["text"]})
 async def _handle_detect_role(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.role_detector.detect(arguments.get("text", ""), context={"file_type": arguments.get("file_type", "")})
     return json.dumps({"role": r.primary_role, "confidence": r.confidence, "keywords_matched": r.keywords_matched,
@@ -687,6 +438,14 @@ async def _handle_detect_role(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Orchestration ────────────────────────────────────────────────────
+@tool(name="orchestrate_tasks", description="Parse a multi-step prompt into a DAG and execute with a failure strategy. Pass 'tasks' (with depends_on / file) to instead emit a safe parallel wave plan (which tasks can run at once) for the caller to dispatch.",
+         schema={"type": "object", "properties": {
+             "text": {"type": "string"}, "strategy": {"type": "string", "enum": ["stop", "retry", "fallback", "all"], "default": "fallback"},
+             "tasks": {"type": "array", "description": "Structured tasks [{id, depends_on:[ids], file}] — when present, returns a wave plan instead of executing",
+                       "items": {"type": "object", "properties": {
+                           "id": {"type": "string"}, "depends_on": {"type": "array", "items": {"type": "string"}}, "file": {"type": "string"}}}},
+             "fan_out_cap": {"type": "integer", "default": 8, "description": "Max tasks per parallel wave"}},
+         "required": ["text"]})
 async def _handle_orchestrate_tasks(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.task_graph import plan_waves, summarize_plan
     fan_out = int(arguments.get("fan_out_cap", 8))
@@ -708,12 +467,19 @@ async def _handle_orchestrate_tasks(ctx: ServerContext, arguments: dict) -> str:
                        "error": r.error, "wave_plan": wave_plan})
 
 
+@tool(name="run_autonomous", description="Run autonomous developer loop (Plan -> Execute -> Test -> Fix)",
+         schema={"type": "object", "properties": {"task": {"type": "string"}, "max_iterations": {"type": "integer", "default": 5}}, "required": ["task"]})
 async def _handle_run_autonomous(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.orchestrator.execute_autonomous(arguments.get("task", ""), max_iterations=arguments.get("max_iterations", 5))
     return json.dumps(r)
 
 
 # ── Budget & Cost ────────────────────────────────────────────────────
+@tool(name="monitor_budget", description="Check spend against budget limit",
+         schema={"type": "object", "properties": {
+             "used_usd": {"type": "number"}, "days_elapsed": {"type": "integer", "default": 1}, "project_id": {"type": "string"},
+             "tool_cost_usd": {"type": "number", "description": "Tool/API execution cost for this workflow, attributed alongside used_usd's LLM token cost"}},
+         "required": ["used_usd"]})
 async def _handle_monitor_budget(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.budget.check(used_usd=float(arguments.get("used_usd", 0)), days_elapsed=int(arguments.get("days_elapsed", 1)),
                          project_id=arguments.get("project_id"), tool_cost_usd=float(arguments.get("tool_cost_usd", 0) or 0))
@@ -723,20 +489,28 @@ async def _handle_monitor_budget(ctx: ServerContext, arguments: dict) -> str:
                        "alert_level": r.alert_level, "project_id": r.project_id, "cost_breakdown": r.cost_breakdown})
 
 
+@tool(name="predict_cost", description="Estimate cost of a prompt before sending",
+         schema={"type": "object", "properties": {"prompt": {"type": "string"}, "model": {"type": "string", "default": "claude-sonnet-4-6"}}, "required": ["prompt"]})
 async def _handle_predict_cost(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.budget.predict_cost(arguments.get("prompt", ""), model=arguments.get("model", "claude-sonnet-4-6"))
     return json.dumps(r)
 
 
+@tool(name="set_budget_limit", description="Set monthly or daily spending limit",
+         schema={"type": "object", "properties": {"limit_usd": {"type": "number"}, "period": {"type": "string", "enum": ["daily", "monthly"], "default": "monthly"}}, "required": ["limit_usd"]})
 async def _handle_set_budget_limit(ctx: ServerContext, arguments: dict) -> str:
     ctx.budget.set_limit(float(arguments.get("limit_usd", 0)), period=arguments.get("period", "monthly"))
     return json.dumps({"status": "ok", "limit_usd": arguments.get("limit_usd"), "period": arguments.get("period", "monthly")})
 
 
+@tool(name="get_budget_status", description="Check current spend vs configured budget limits",
+         schema={"type": "object", "properties": {}})
 async def _handle_get_budget_status(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(ctx.budget.get_budget_status())
 
 
+@tool(name="budget_report", description="Get detailed budget report with cost anomaly detection",
+         schema={"type": "object", "properties": {"period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"}, "project_id": {"type": "string"}}})
 async def _handle_budget_report(ctx: ServerContext, arguments: dict) -> str:
     costs = [0.01, 0.02, 0.015, 0.03, 0.025, 0.01, 0.04, 0.02, 0.015, 0.035]
     anomaly = ctx.budget.cost_anomaly_detect(costs)
@@ -745,6 +519,8 @@ async def _handle_budget_report(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Code Validation ──────────────────────────────────────────────────
+@tool(name="validate_output", description="Validate generated code for syntax errors and hallucinated imports",
+         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"}}, "required": ["code"]})
 async def _handle_validate_output(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.code_validator.validate(arguments.get("code", ""), language=arguments.get("language", "python"))
     _record_route_verdict(arguments.get("route_id"), r.valid)  # WP8.1 loop close (fail-open)
@@ -752,6 +528,10 @@ async def _handle_validate_output(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── ROI ──────────────────────────────────────────────────────────────
+@tool(name="track_roi", description="Calculate ROI ratio: value of time saved vs cost incurred",
+         schema={"type": "object", "properties": {
+             "session_id": {"type": "string"}, "total_cost_usd": {"type": "number"}, "tokens_saved": {"type": "integer"}, "calls": {"type": "integer"}},
+         "required": ["session_id", "total_cost_usd", "tokens_saved", "calls"]})
 async def _handle_track_roi(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.roi.calculate(session_id=arguments.get("session_id", ""), total_cost_usd=float(arguments.get("total_cost_usd", 0)),
                           tokens_saved=int(arguments.get("tokens_saved", 0)), calls=int(arguments.get("calls", 1)))
@@ -759,6 +539,8 @@ async def _handle_track_roi(ctx: ServerContext, arguments: dict) -> str:
                        "productivity_score": r.productivity_score, "total_cost_usd": r.total_cost_usd})
 
 
+@tool(name="get_roi_report", description="Generate team ROI report based on cumulative stats",
+         schema={"type": "object", "properties": {"period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"}}})
 async def _handle_get_roi_report(ctx: ServerContext, arguments: dict) -> str:
     stats = await ctx.memory.get_roi_stats()
     total_hours = sum(s["hours_saved"] for s in stats)
@@ -768,6 +550,8 @@ async def _handle_get_roi_report(ctx: ServerContext, arguments: dict) -> str:
                        "total_cost_usd": round(total_cost, 6), "total_tokens_saved": total_tokens, "records": stats})
 
 
+@tool(name="cost_report", description="Get cost breakdown by project/period",
+         schema={"type": "object", "properties": {"project_id": {"type": "string"}, "period": {"type": "string", "default": "weekly"}, "format": {"type": "string", "default": "json"}}})
 async def _handle_cost_report(ctx: ServerContext, arguments: dict) -> str:
     stats = await ctx.memory.get_roi_stats()
     pid = arguments.get("project_id")
@@ -784,21 +568,29 @@ async def _handle_cost_report(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Memory & Session ─────────────────────────────────────────────────
+@tool(name="get_memory_context", description="Retrieve past memory entries for a session",
+         schema={"type": "object", "properties": {"session_id": {"type": "string"}, "limit": {"type": "integer", "default": 20}}, "required": ["session_id"]})
 async def _handle_get_memory_context(ctx: ServerContext, arguments: dict) -> str:
     entries = await ctx.memory.get_context(session_id=arguments.get("session_id", ""), limit=int(arguments.get("limit", 20)))
     return json.dumps([{"entry_id": e.entry_id, "tool": e.tool, "summary": e.summary, "ts": e.ts} for e in entries])
 
 
+@tool(name="query_memory", description="Query cross-session episodic and semantic memory",
+         schema={"type": "object", "properties": {"query": {"type": "string"}, "scope": {"type": "string", "enum": ["session", "org"], "default": "org"}}, "required": ["query"]})
 async def _handle_query_memory(ctx: ServerContext, arguments: dict) -> str:
     facts = await ctx.memory.query_facts(arguments.get("query", ""))
     return json.dumps({"facts": facts})
 
 
+@tool(name="ping_session", description="Record session activity to reset idle clock",
+         schema={"type": "object", "properties": {"session_id": {"type": "string"}}})
 async def _handle_ping_session(ctx: ServerContext, arguments: dict) -> str:
     r = await ctx.session_manager.ping(session_id=arguments.get("session_id"))
     return json.dumps(r)
 
 
+@tool(name="check_session_timeout", description="Check if session has exceeded idle thresholds",
+         schema={"type": "object", "properties": {"session_id": {"type": "string"}, "idle_threshold_minutes": {"type": "integer", "default": 30}, "warn_threshold_minutes": {"type": "integer", "default": 20}}, "required": ["session_id"]})
 async def _handle_check_session_timeout(ctx: ServerContext, arguments: dict) -> str:
     r = await ctx.session_manager.check_timeout(
         session_id=arguments.get("session_id", ""),
@@ -808,6 +600,8 @@ async def _handle_check_session_timeout(ctx: ServerContext, arguments: dict) -> 
 
 
 # ── Skills ───────────────────────────────────────────────────────────
+@tool(name="invoke_skill", description="Invoke a specific skill with context",
+         schema={"type": "object", "properties": {"skill_name": {"type": "string"}, "context": {"type": "object", "default": {}}, "params": {"type": "object", "default": {}}}, "required": ["skill_name"]})
 async def _handle_invoke_skill(ctx: ServerContext, arguments: dict) -> str:
     sk = ctx.skill_loader.get_skill(arguments.get("skill_name", ""))
     if not sk:
@@ -816,6 +610,8 @@ async def _handle_invoke_skill(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(res)
 
 
+@tool(name="list_skills", description="List all available skills filtered by role",
+         schema={"type": "object", "properties": {"role": {"type": "string"}, "category": {"type": "string"}}})
 async def _handle_list_skills(ctx: ServerContext, arguments: dict) -> str:
     skills_list = []
     for sk in ctx.skill_loader.skills.values():
@@ -827,12 +623,16 @@ async def _handle_list_skills(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"skills": skills_list})
 
 
+@tool(name="skill_chain", description="Execute a list of skills sequentially",
+         schema={"type": "object", "properties": {"skills": {"type": "array", "items": {"type": "string"}}, "mode": {"type": "string", "enum": ["sequential", "parallel"], "default": "sequential"}, "context": {"type": "object", "default": {}}}, "required": ["skills"]})
 async def _handle_skill_chain(ctx: ServerContext, arguments: dict) -> str:
     res = await ctx.orchestrator.execute_skill_chain(ctx.skill_loader, arguments.get("skills", []),
                                                       arguments.get("mode", "sequential"), arguments.get("context", {}), router=ctx.router)
     return json.dumps(res)
 
 
+@tool(name="suggest_skill", description="Recommend best skill for a given user message",
+         schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]})
 async def _handle_suggest_skill(ctx: ServerContext, arguments: dict) -> str:
     text = arguments.get("text", "")
     match = ctx.skill_loader.match_skill(text)
@@ -844,6 +644,8 @@ async def _handle_suggest_skill(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Prompt Engineering ───────────────────────────────────────────────
+@tool(name="suggest_technique", description="Auto-detect best prompting technique: CRAFT, Few-Shot, Chain-of-Thought, or Chaining",
+         schema={"type": "object", "properties": {"prompt": {"type": "string"}}, "required": ["prompt"]})
 async def _handle_suggest_technique(ctx: ServerContext, arguments: dict) -> str:
     prompt = arguments.get("prompt", "")
     pl = prompt.lower()
@@ -858,6 +660,8 @@ async def _handle_suggest_technique(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"technique": tech, "confidence": conf, "rationale": reason})
 
 
+@tool(name="apply_craft", description="Analyze prompt against CRAFT axes (Context/Role/Action/Format/Tone) and rebuild",
+         schema={"type": "object", "properties": {"prompt": {"type": "string"}}, "required": ["prompt"]})
 async def _handle_apply_craft(ctx: ServerContext, arguments: dict) -> str:
     prompt = arguments.get("prompt", "")
     pl = prompt.lower()
@@ -877,6 +681,8 @@ async def _handle_apply_craft(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"axes": axes, "score": score, "missing_axes": missing, "improved_prompt": improved})
 
 
+@tool(name="inject_few_shot", description="Enhance prompt with few-shot examples",
+         schema={"type": "object", "properties": {"prompt": {"type": "string"}, "examples": {"type": "array", "items": {"type": "object"}, "default": []}}, "required": ["prompt"]})
 async def _handle_inject_few_shot(ctx: ServerContext, arguments: dict) -> str:
     prompt = arguments.get("prompt", "")
     examples = arguments.get("examples", [])
@@ -887,6 +693,8 @@ async def _handle_inject_few_shot(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"enhanced_prompt": "[INSERT EXAMPLES HERE]\n\n" + prompt, "example_count": 0})
 
 
+@tool(name="add_chain_of_thought", description="Wrap prompt with Chain-of-Thought scaffold",
+         schema={"type": "object", "properties": {"prompt": {"type": "string"}, "style": {"type": "string", "enum": ["standard", "step-by-step", "tree-of-thought"], "default": "step-by-step"}}, "required": ["prompt"]})
 async def _handle_add_chain_of_thought(ctx: ServerContext, arguments: dict) -> str:
     prompt = arguments.get("prompt", "")
     style = arguments.get("style", "step-by-step")
@@ -895,6 +703,8 @@ async def _handle_add_chain_of_thought(ctx: ServerContext, arguments: dict) -> s
     return json.dumps({"wrapped_prompt": prompt + "\n\n" + cot, "technique_applied": style})
 
 
+@tool(name="chain_prompts", description="Decompose complex task into sequential prompt chain",
+         schema={"type": "object", "properties": {"task": {"type": "string"}, "steps": {"type": "integer", "default": 3}}, "required": ["task"]})
 async def _handle_chain_prompts(ctx: ServerContext, arguments: dict) -> str:
     task = arguments.get("task", "")
     steps = int(arguments.get("steps", 3))
@@ -904,6 +714,8 @@ async def _handle_chain_prompts(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"chain": chain, "handoff_instructions": "Pass output of each step as input to the next."})
 
 
+@tool(name="eval_prompt_across_models", description="Estimate cost and recommend model tier across Haiku/Sonnet/Opus",
+         schema={"type": "object", "properties": {"prompt": {"type": "string"}, "task_type": {"type": "string", "default": "general"}}, "required": ["prompt"]})
 async def _handle_eval_prompt_across_models(ctx: ServerContext, arguments: dict) -> str:
     prompt = arguments.get("prompt", "")
     inp = max(1, len(prompt) // 4)
@@ -915,6 +727,8 @@ async def _handle_eval_prompt_across_models(ctx: ServerContext, arguments: dict)
     return json.dumps({"recommendation": rec, "tiers": tiers, "rationale": reason, "estimated_input_tokens": inp})
 
 
+@tool(name="audit_system_prompt", description="Score system prompt on clarity, role, constraints, and jailbreak resistance",
+         schema={"type": "object", "properties": {"system_prompt": {"type": "string"}}, "required": ["system_prompt"]})
 async def _handle_audit_system_prompt(ctx: ServerContext, arguments: dict) -> str:
     sp = arguments.get("system_prompt", "")
     spl = sp.lower()
@@ -951,17 +765,23 @@ async def _handle_audit_system_prompt(ctx: ServerContext, arguments: dict) -> st
 
 
 # ── Prompt Registry ──────────────────────────────────────────────────
+@tool(name="save_prompt", description="Save a prompt to the versioned prompt registry",
+         schema={"type": "object", "properties": {"name": {"type": "string"}, "content": {"type": "string"}, "version": {"type": "string", "default": "1.0.0"}, "description": {"type": "string", "default": ""}, "tags": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["name", "content"]})
 async def _handle_save_prompt(ctx: ServerContext, arguments: dict) -> str:
     await ctx.memory.save_prompt(arguments.get("name"), arguments.get("content"), arguments.get("version", "1.0.0"),
                                   arguments.get("description", ""), arguments.get("tags", []))
     return json.dumps({"status": "saved", "name": arguments.get("name"), "version": arguments.get("version", "1.0.0")})
 
 
+@tool(name="search_prompts", description="Search prompts in the versioned prompt registry",
+         schema={"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]})
 async def _handle_search_prompts(ctx: ServerContext, arguments: dict) -> str:
     prompts = await ctx.memory.search_prompts(arguments.get("query", ""))
     return json.dumps({"prompts": prompts})
 
 
+@tool(name="compare_prompts", description="Diff two versions of a registered prompt",
+         schema={"type": "object", "properties": {"name": {"type": "string"}, "version_a": {"type": "string"}, "version_b": {"type": "string"}}, "required": ["name", "version_a", "version_b"]})
 async def _handle_compare_prompts(ctx: ServerContext, arguments: dict) -> str:
     name_val = arguments.get("name")
     va, vb = arguments.get("version_a"), arguments.get("version_b")
@@ -977,37 +797,51 @@ async def _handle_compare_prompts(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Session Data ─────────────────────────────────────────────────────
+@tool(name="get_session_stats", description="Get session usage statistics",
+         schema={"type": "object", "properties": {"since": {"type": "string", "description": "ISO 8601 timestamp filter"}}})
 async def _handle_get_session_stats(ctx: ServerContext, arguments: dict) -> str:
     snap = await ctx.memory.snapshot(since=arguments.get("since"))
     pricing_age = getattr(ctx.config, "last_verified", None)
     return json.dumps({**snap, "pricing_last_verified": pricing_age})
 
 
+@tool(name="clear_history", description="Delete usage history older than N days",
+         schema={"type": "object", "properties": {"older_than_days": {"type": "integer", "minimum": 1}}, "required": ["older_than_days"]})
 async def _handle_clear_history(ctx: ServerContext, arguments: dict) -> str:
     deleted = await ctx.memory.clear_old(older_than_days=int(arguments.get("older_than_days", 90)))
     return json.dumps({"deleted_count": deleted, "older_than_days": arguments.get("older_than_days", 90)})
 
 
+@tool(name="export_stats", description="Export usage history as JSON",
+         schema={"type": "object", "properties": {"since": {"type": "string"}, "format": {"type": "string", "enum": ["json", "csv"], "default": "json"}}})
 async def _handle_export_stats(ctx: ServerContext, arguments: dict) -> str:
     return await ctx.memory.export_json()
 
 
+@tool(name="reload_config", description="Reload configuration without restarting server",
+         schema={"type": "object", "properties": {}})
 async def _handle_reload_config(ctx: ServerContext, arguments: dict) -> str:
     ctx.config = load_config()
     return json.dumps({"reloaded": True})
 
 
 # ── Energy & Plugin Routing ──────────────────────────────────────────
+@tool(name="check_energy", description="Get energy efficiency score for a model",
+         schema={"type": "object", "properties": {"model": {"type": "string"}, "tokens": {"type": "integer", "default": 1000}}, "required": ["model"]})
 async def _handle_check_energy(ctx: ServerContext, arguments: dict) -> str:
     score = ctx.cost_monitor.energy_efficiency_score(arguments.get("model", ""), int(arguments.get("tokens", 1000)))
     return json.dumps({"energy_efficiency_score": score, "model": arguments.get("model")})
 
 
+@tool(name="route_for_plugin", description="Detect applicable plugin for text",
+         schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]})
 async def _handle_route_for_plugin(ctx: ServerContext, arguments: dict) -> str:
     plugin = ctx.router.route_for_plugin(arguments.get("text", ""))
     return json.dumps({"plugin": plugin})
 
 
+@tool(name="run_eval", description="A/B test a prompt across multiple models",
+         schema={"type": "object", "properties": {"prompt": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}, "default": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]}}, "required": ["prompt"]})
 async def _handle_run_eval(ctx: ServerContext, arguments: dict) -> str:
     scores = {}
     for m in arguments.get("models", []):
@@ -1017,6 +851,8 @@ async def _handle_run_eval(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"prompt": arguments.get("prompt"), "eval": scores})
 
 
+@tool(name="run_eval_harness", description="Run a durable eval + regression suite (prompt+rubric cases) offline; score with the quality gate, diff against a stored baseline to flag regressions, expose a pass/fail gate, and feed outcomes back into adaptive routing. Offline default is a record/dry-run mode (no cloud). Set save_baseline=true to bless this run as the new baseline.",
+         schema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "tiers": {"type": "array", "items": {"type": "string"}}, "bar": {"type": "number", "default": 0.6}, "save_baseline": {"type": "boolean", "default": False}}})
 async def _handle_run_eval_harness(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.adaptive_router import OutcomeStore
     from promptwise.core.eval_harness import (
@@ -1037,6 +873,8 @@ async def _handle_run_eval_harness(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(out)
 
 
+@tool(name="get_sbom", description="Generate SBOM in CycloneDX format",
+         schema={"type": "object", "properties": {"format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"}, "paths": {"type": "array", "items": {"type": "string"}}}})
 async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.sbom import SBOMGenerator
     gen = SBOMGenerator()
@@ -1044,6 +882,8 @@ async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(sbom)
 
 
+@tool(name="run_security_suite", description="Run all security checks as a suite",
+         schema={"type": "object", "properties": {"targets": {"type": "array", "items": {"type": "string"}}, "context": {"type": "object"}}})
 async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.security_log import SecurityScanStore
     text = " ".join(arguments.get("targets", []))
@@ -1071,6 +911,8 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
                        "status": "completed"})
 
 
+@tool(name="run_red_team_harness", description="Run a durable, offline red-team suite against the security scanners: known attack patterns (must be caught) and benign counterexamples (must NOT be flagged) across injection/owasp/secrets/destructive/permissions/pii/supply_chain checks. Diffs against a stored baseline to flag regressions (an attack that used to be caught now escapes, or a benign input starts false-positiving) and exposes a pass/fail gate. Defaults to a built-in corpus when no cases/cases_path given. Set save_baseline=true to bless this run as the new baseline.",
+         schema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "save_baseline": {"type": "boolean", "default": False}}})
 async def _handle_run_red_team_harness(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.redteam_harness import (
         RedTeamCase, RedTeamHarness, RedTeamResultStore, builtin_cases, load_cases)
@@ -1090,6 +932,8 @@ async def _handle_run_red_team_harness(ctx: ServerContext, arguments: dict) -> s
 
 
 # ── Agile method + governance (additive) ─────────────────────────────
+@tool(name="agile_plan", description="Two-phase, persona-aware agile plan (analyst->pm->[ux]->architect->po, then per-story sm->dev->qa loop) layered on the workflow classifier; carries the compliance gate and model-tier routing",
+         schema={"type": "object", "properties": {"task": {"type": "string"}, "regulated": {"type": "boolean"}, "brownfield": {"type": "boolean"}}, "required": ["task"]})
 async def _handle_agile_plan(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.agile_planner import AgilePlanner
     cfg_path = Path(__file__).resolve().parents[2] / "config" / "agile.yaml"
@@ -1098,12 +942,16 @@ async def _handle_agile_plan(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(plan.to_dict())
 
 
+@tool(name="shard_doc", description="Split a PRD/architecture markdown document into focused, anchored shards by heading level",
+         schema={"type": "object", "properties": {"markdown": {"type": "string"}, "by_level": {"type": "integer", "default": 2}}, "required": ["markdown"]})
 async def _handle_shard_doc(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.doc_sharder import DocSharder
     shards = DocSharder().shard(arguments.get("markdown", ""), int(arguments.get("by_level", 2)))
     return json.dumps([s.__dict__ for s in shards])
 
 
+@tool(name="draft_story", description="Assemble a self-contained, context-engineered story: embeds architecture shards, constraints, and compliance rules inline so the dev executor needs no external lookup",
+         schema={"type": "object", "properties": {"story_id": {"type": "string"}, "title": {"type": "string"}, "epic_id": {"type": "string", "default": ""}, "acceptance_criteria": {"type": "array", "items": {"type": "string"}, "default": []}, "arch_shards": {"type": "array", "items": {"type": "object"}, "default": []}, "files_to_touch": {"type": "array", "items": {"type": "string"}, "default": []}, "constraints": {"type": "array", "items": {"type": "string"}, "default": []}, "compliance_rules": {"type": "array", "items": {"type": "string"}, "default": []}, "tasks": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["story_id", "title"]})
 async def _handle_draft_story(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.story_context import StoryContextBuilder
     story = StoryContextBuilder().build(
@@ -1118,6 +966,8 @@ async def _handle_draft_story(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"story": story.to_dict(), "markdown": story.to_markdown()})
 
 
+@tool(name="run_quality_gate", description="Issue an advisory, auditable quality-gate decision (PASS/CONCERNS/FAIL/WAIVED) from findings, risk score, and NFR assessment",
+         schema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"}}, "required": ["story_id"]})
 async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.quality_gate import QualityGate
     res = QualityGate().evaluate(
@@ -1128,6 +978,8 @@ async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(res.to_dict())
 
 
+@tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons",
+         schema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}}})
 async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.policy import Policy
     policy_path = arguments.get("policy_path", "config/policy.yaml")
@@ -1142,6 +994,8 @@ async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(dec.to_dict())
 
 
+@tool(name="record_audit", description="Append a tamper-evident, hash-chained audit record of an AI-assisted change ('the trace'); returns the record and chain verification status",
+         schema={"type": "object", "properties": {"task": {"type": "string"}, "agent": {"type": "string", "default": ""}, "model": {"type": "string", "default": ""}, "cost_usd": {"type": "number", "default": 0.0}, "rules_applied": {"type": "array", "items": {"type": "string"}, "default": []}, "gate_decision": {"type": "string", "default": ""}, "compliance_decision": {"type": "string", "default": ""}, "files_touched": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["task"]})
 async def _handle_record_audit(ctx: ServerContext, arguments: dict) -> str:
     audit = _get_audit_log()
     rec = audit.append(
@@ -1153,6 +1007,8 @@ async def _handle_record_audit(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"record": rec.__dict__, "chain_ok": ok, "chain_msg": msg})
 
 
+@tool(name="export_audit", description="Export the full AI-change audit trail (portable JSON + human-readable text) with hash-chain verification status",
+         schema={"type": "object", "properties": {"format": {"type": "string", "enum": ["json", "text", "both"], "default": "both"}}})
 async def _handle_export_audit(ctx: ServerContext, arguments: dict) -> str:
     audit = _get_audit_log()
     ok, msg = audit.verify()
@@ -1165,6 +1021,8 @@ async def _handle_export_audit(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(out)
 
 
+@tool(name="sync_agent_config", description="Compile one governance source (policy + packs + method) into every agent's native rules file (CLAUDE.md, AGENTS.md, .cursor/rules, copilot-instructions, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules). Non-destructive: only the managed block is regenerated; user edits are preserved",
+         schema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "path_rules": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}, "description": "glob -> path-scoped rules (Copilot .github/instructions/*)"}, "mode": {"type": "string", "enum": ["apply", "preview", "check"], "default": "apply"}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]})
 async def _handle_sync_agent_config(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
     bundle = GovernanceBundle.from_context(arguments)
@@ -1174,12 +1032,16 @@ async def _handle_sync_agent_config(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"written": res})
 
 
+@tool(name="detect_agents", description="Detect which coding agents a repo is configured for (CLAUDE.md, AGENTS.md, .cursor/rules, copilot) + confidence + recommended targets",
+         schema={"type": "object", "properties": {"repo_root": {"type": "string", "default": "."}}})
 async def _handle_detect_agents(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.agent_detector import detect_agents
     d = detect_agents(arguments.get("repo_root", "."))
     return json.dumps({"targets": d.targets, "confidence": d.confidence, "fingerprints": d.fingerprints})
 
 
+@tool(name="build_context_model", description="Derive structured intent/role/stack/domain/regulated context from a prompt (+ optional repo) to drive config emission",
+         schema={"type": "object", "properties": {"text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}}, "required": ["text"]})
 async def _handle_build_context_model(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.context_model import build_context_model
     cm = build_context_model(arguments["text"], arguments.get("repo_root", "."))
@@ -1187,6 +1049,8 @@ async def _handle_build_context_model(ctx: ServerContext, arguments: dict) -> st
                        "domain": cm.domain, "regulated": cm.regulated})
 
 
+@tool(name="propose_agent_config", description="Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing — the review step before apply",
+         schema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "text": {"type": "string"}, "repo_root": {"type": "string", "default": "."}, "targets": {"type": "array", "items": {"type": "string"}}, "path_rules": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}, "adopt": {"type": "boolean", "default": False}}, "required": ["project"]})
 async def _handle_propose_agent_config(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
     from promptwise.core.agent_detector import detect_agents
@@ -1196,6 +1060,8 @@ async def _handle_propose_agent_config(ctx: ServerContext, arguments: dict) -> s
     return json.dumps(ConfigEmitter().diff(bundle, root, targets, adopt=arguments.get("adopt", False)))
 
 
+@tool(name="lint_agent_config", description="Lint an agent rules file (or content) for token tax, byte caps, missing .mdc frontmatter, and inferable bloat",
+         schema={"type": "object", "properties": {"content": {"type": "string"}, "path": {"type": "string"}, "fmt": {"type": "string", "enum": ["md", "mdc"], "default": "md"}, "max_bytes": {"type": "integer"}, "always_apply": {"type": "boolean", "default": False}, "token_budget": {"type": "integer", "default": 0}}})
 async def _handle_lint_agent_config(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.config_linter import ConfigLinter
     linter = ConfigLinter()
@@ -1209,6 +1075,8 @@ async def _handle_lint_agent_config(ctx: ServerContext, arguments: dict) -> str:
                        "issues": [{"severity": i.severity, "message": i.message, "line": i.line} for i in res.issues]})
 
 
+@tool(name="check_portability", description="Cross-host portability check (Phase 7 §7.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
+         schema={"type": "object", "properties": {"repo_root": {"type": "string", "default": "."}, "hosts": {"type": "array", "items": {"type": "string"}, "description": "subset of supported hosts to check; default all"}, "emit_ci": {"type": "boolean", "default": False, "description": "also return a host-neutral CI-snippet"}}})
 async def _handle_check_portability(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.portability_check import check_portability, emit_ci_snippet
     rep = check_portability(arguments.get("repo_root", "."), hosts=arguments.get("hosts"))
@@ -1218,6 +1086,8 @@ async def _handle_check_portability(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(out)
 
 
+@tool(name="export_web_bundle", description="Flatten one governance source (policy + packs + method) into a SINGLE self-contained, pasteable file for web-chat hosts with no IDE/CLI/MCP support (ChatGPT, Gemini, Claude.ai web chat). Not a managed-block IDE config: every call fully regenerates the bundle, there is no user-owned region to preserve. Set out_path to also write it to disk.",
+         schema={"type": "object", "properties": {"project": {"type": "string"}, "policy_summary": {"type": "array", "items": {"type": "string"}, "default": []}, "packs": {"type": "array", "items": {"type": "string"}, "default": []}, "rules": {"type": "array", "items": {"type": "string"}, "default": []}, "text": {"type": "string"}, "skill_root": {"type": "string", "default": "skill_packs"}, "include_packs": {"type": "boolean", "default": True}, "out_path": {"type": "string", "description": "optional path to also write the bundle as a single file"}}, "required": ["project"]})
 async def _handle_export_web_bundle(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.config_emitter import GovernanceBundle
     from promptwise.core.web_bundle import WebBundleEmitter
@@ -1234,6 +1104,14 @@ async def _handle_export_web_bundle(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Continuous learning loop (Phase 2) ───────────────────────────────
+@tool(name="capture_learning", description="Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline.",
+         schema={"type": "object", "properties": {
+             "category": {"type": "string", "description": "e.g. 'style', 'security', 'api-misuse'"},
+             "mistake": {"type": "string", "description": "what went wrong"},
+             "correction": {"type": "string", "description": "the fix / the rule going forward"},
+             "project": {"type": "string", "default": ""},
+             "tags": {"type": "array", "items": {"type": "string"}}},
+         "required": ["category", "mistake", "correction"]})
 async def _handle_capture_learning(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.learning_store import LearningStore
     learning = LearningStore().capture(
@@ -1243,17 +1121,29 @@ async def _handle_capture_learning(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"captured": learning.to_dict()})
 
 
+@tool(name="replay_learnings", description="Top-K relevant past corrections for a task description (FTS5 BM25, LIKE fallback) plus a ready-to-inject reminder block.",
+         schema={"type": "object", "properties": {
+             "task": {"type": "string"}, "k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 25},
+             "project": {"type": "string"}},
+         "required": ["task"]})
 async def _handle_replay_learnings(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.learning_replay import replay
     return json.dumps(replay(arguments.get("task", ""), k=arguments.get("k", 5),
                              project=arguments.get("project")))
 
 
+@tool(name="learning_insights", description="Correction trends from the local learning store: counts by category, project, month, and the most-repeated mistakes.",
+         schema={"type": "object", "properties": {}})
 async def _handle_learning_insights(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.insights import compute_insights
     return json.dumps(compute_insights())
 
 
+@tool(name="insights_report", description="Ranked, actionable recommendations over local telemetry: routing downgrades/escalations, top cost drivers & spend anomalies, quality/eval regressions, and budget projections. Deterministic, offline, min-sample gated.",
+         schema={"type": "object", "properties": {
+             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365,
+                             "description": "analysis window for cost/quality/budget families"},
+             "top_n": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}}})
 async def _handle_insights_report(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.insights import compute_recommendations
     recs = compute_recommendations(window_days=arguments.get("window_days", 30))
@@ -1262,6 +1152,11 @@ async def _handle_insights_report(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Policy intelligence & searchable trace (Phase 4) ─────────────────
+@tool(name="tune_permissions", description="Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
+         schema={"type": "object", "properties": {
+             "state_dir": {"type": "string", "default": ".", "description": "project dir holding .promptwise/denials.jsonl"},
+             "min_count": {"type": "integer", "default": 2, "minimum": 1},
+             "mcp_json": {"type": "string", "description": "path to .mcp.json for the current allowlist"}}})
 async def _handle_tune_permissions(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.permission_tuner import tune_permissions
     return json.dumps(tune_permissions(
@@ -1270,6 +1165,10 @@ async def _handle_tune_permissions(ctx: ServerContext, arguments: dict) -> str:
         mcp_json=arguments.get("mcp_json")))
 
 
+@tool(name="audit_mcp_servers", description="Audit declared MCP servers (.mcp.json + plugin.json) for security flags, allow-surface, and redundancy. Offline; inspects config, does not call servers.",
+         schema={"type": "object", "properties": {
+             "repo_root": {"type": "string", "default": "."},
+             "extra_configs": {"type": "array", "items": {"type": "string"}}}})
 async def _handle_audit_mcp_servers(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.mcp_auditor import audit_mcp_servers
     return json.dumps(audit_mcp_servers(
@@ -1277,6 +1176,13 @@ async def _handle_audit_mcp_servers(ctx: ServerContext, arguments: dict) -> str:
         extra_configs=arguments.get("extra_configs")))
 
 
+@tool(name="search_trace", description="Search the trace (hash-chained audit trail + learnings) by meaning. Keyword/FTS by default; optional local embeddings if installed and enabled. Offline.",
+         schema={"type": "object", "properties": {
+             "query": {"type": "string"}, "k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 25},
+             "repo_root": {"type": "string", "default": "."},
+             "audit_path": {"type": "string"},
+             "use_embeddings": {"type": "boolean", "default": False}},
+         "required": ["query"]})
 async def _handle_search_trace(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.semantic_index import search_trace
     return json.dumps(search_trace(
@@ -1286,6 +1192,19 @@ async def _handle_search_trace(ctx: ServerContext, arguments: dict) -> str:
         use_embeddings=arguments.get("use_embeddings", False)))
 
 
+@tool(name="rank_context", description="Retrieval-augmented context manager: rank and prune candidates from the trace (audit + learnings) and an optionally-supplied doc onto one token budget. No new ranking algorithm - reuses search_trace's keyword/BM25 (or optional embeddings) scoring; docs are sharded per call, not indexed. Offline.",
+         schema={"type": "object", "properties": {
+             "query": {"type": "string"},
+             "token_budget": {"type": "integer", "default": 2000},
+             "doc_path": {"type": "string"},
+             "doc_text": {"type": "string"},
+             "sources": {"type": "array", "items": {"type": "string", "enum": ["audit", "learnings", "doc"]},
+                        "default": ["audit", "learnings", "doc"]},
+             "use_embeddings": {"type": "boolean", "default": False},
+             "repo_root": {"type": "string", "default": "."},
+             "audit_path": {"type": "string"},
+             "learning_db": {"type": "string"}},
+         "required": ["query"]})
 async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.context_ranker import rank_context
     sources = arguments.get("sources") or ["audit", "learnings", "doc"]
@@ -1298,6 +1217,13 @@ async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Skill auto-optimization (Phase 3) ────────────────────────────────
+@tool(name="optimize_skill_pack", description="Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
+         schema={"type": "object", "properties": {
+             "skill_path": {"type": "string", "description": "path to the SKILL.md / pack .md to optimize"},
+             "project": {"type": "string", "description": "scope corrections to a project"},
+             "max_rules": {"type": "integer", "default": 8, "minimum": 1, "maximum": 25},
+             "dry_run": {"type": "boolean", "default": False, "description": "score and preview without writing"}},
+         "required": ["skill_path"]})
 async def _handle_optimize_skill_pack(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.skill_optimizer import optimize_skill_pack
     return json.dumps(optimize_skill_pack(
@@ -1306,6 +1232,11 @@ async def _handle_optimize_skill_pack(ctx: ServerContext, arguments: dict) -> st
 
 
 # ── Compliance evidence export (Phase 7) ─────────────────────────────
+@tool(name="export_compliance_bundle", description="Build a self-verifying, HMAC-signed compliance evidence bundle from the hash-chained audit trail: verifies the chain, wraps records in a manifest (time range, count, chain-head digest), signs with a local key, and can write a .zip. Offline; no network.",
+         schema={"type": "object", "properties": {
+             "sign": {"type": "boolean", "default": True, "description": "HMAC-sign the bundle with the local key (env PROMPTWISE_AUDIT_KEY or PROMPTWISE_AUDIT_KEY_FILE)"},
+             "control_families": {"type": "array", "items": {"type": "string"}, "description": "generic control-family tags; inferred from the trace when omitted"},
+             "out_path": {"type": "string", "description": "optional path to write a .zip evidence archive"}}})
 async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.compliance_export import export_bundle
     audit = _get_audit_log()
@@ -1317,6 +1248,12 @@ async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) 
 
 
 # ── Scheduled org/compliance report export (Phase 16) ────────────────
+@tool(name="export_org_report", description="Build a periodic summary (spend, security-scan verdicts, governance/governor actions) for a stakeholder who doesn't touch a CLI. Markdown or self-contained HTML; no PDF dependency. Pass out_path to write it; omit to just return the report data. Offline; no network.",
+         schema={"type": "object", "properties": {
+             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365},
+             "format": {"type": "string", "enum": ["markdown", "html"], "default": "markdown"},
+             "out_path": {"type": "string", "description": "optional path to write the report"},
+             "repo_root": {"type": "string", "default": "."}}})
 async def _handle_export_org_report(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.report_export import export_report
     return json.dumps(export_report(
@@ -1327,6 +1264,12 @@ async def _handle_export_org_report(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Autonomous governor (Phase 9) ────────────────────────────────────
+@tool(name="run_governor", description="Turn local insights recommendations into typed, policy-gated, REVERSIBLE governance actions. Default advise-only: proposes actions + policy verdicts and reports what would/did apply for the current mode (env PROMPTWISE_AUTONOMY in {advise,dry_run,apply}). Only allowlisted 'safe' actions (AdjustBudgetGuard, WriteRoutingPreferenceNote) can ever move state, and only in apply; each writes a local undo-ledger entry. Everything else is advisory-only. Offline; fully audited.",
+         schema={"type": "object", "properties": {
+             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365},
+             "mode": {"type": "string", "enum": ["advise", "dry_run", "apply"], "description": "override PROMPTWISE_AUTONOMY for this call; omit to use the env (default advise)"},
+             "root": {"type": "string", "default": ".", "description": "project root holding the gitignored .promptwise overlay + ledger"},
+             "policy_path": {"type": "string", "default": "config/policy.yaml"}}})
 async def _handle_run_governor(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.governor import Governor
     from promptwise.core.insights import compute_recommendations
@@ -1338,104 +1281,17 @@ async def _handle_run_governor(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(gov.run(recs))
 
 
+@tool(name="governor_undo", description="Reverse a previously-applied governor action by id, restoring the exact prior state from the undo ledger (audited). No-op if the id is unknown or non-reversible.",
+         schema={"type": "object", "properties": {
+             "action_id": {"type": "string"},
+             "root": {"type": "string", "default": "."}},
+         "required": ["action_id"]})
 async def _handle_governor_undo(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.governor import Governor
     gov = Governor(root=arguments.get("root"), audit_log=_get_audit_log())
     return json.dumps(gov.undo(arguments.get("action_id", "")))
 
 
-_HANDLERS = {
-    "route_request": _handle_route_request,
-    "rewrite_prompt": _handle_rewrite_prompt,
-    "optimize_context": _handle_optimize_context,
-    "compress_prompt": _handle_compress_prompt,
-    "plan_cache": _handle_plan_cache,
-    "cache_lookup": _handle_cache_lookup,
-    "cache_store": _handle_cache_store,
-    "cache_stats": _handle_cache_stats,
-    "batch_prompts": _handle_batch_prompts,
-    "summarize_thread": _handle_summarize_thread,
-    "compare_providers": _handle_compare_providers,
-    "security_check": _handle_security_check,
-    "prompt_injection": _handle_prompt_injection,
-    "benchmark_injection": _handle_benchmark_injection,
-    "owasp_scan": _handle_owasp_scan,
-    "scan_response": _handle_scan_response,
-    "plan_workflow": _handle_plan_workflow,
-    "add_task": _handle_add_task,
-    "update_task": _handle_update_task,
-    "list_tasks": _handle_list_tasks,
-    "task_report": _handle_task_report,
-    "validate_mermaid": _handle_validate_mermaid,
-    "detect_role": _handle_detect_role,
-    "orchestrate_tasks": _handle_orchestrate_tasks,
-    "run_autonomous": _handle_run_autonomous,
-    "monitor_budget": _handle_monitor_budget,
-    "predict_cost": _handle_predict_cost,
-    "set_budget_limit": _handle_set_budget_limit,
-    "get_budget_status": _handle_get_budget_status,
-    "budget_report": _handle_budget_report,
-    "validate_output": _handle_validate_output,
-    "track_roi": _handle_track_roi,
-    "get_roi_report": _handle_get_roi_report,
-    "cost_report": _handle_cost_report,
-    "get_memory_context": _handle_get_memory_context,
-    "query_memory": _handle_query_memory,
-    "ping_session": _handle_ping_session,
-    "check_session_timeout": _handle_check_session_timeout,
-    "invoke_skill": _handle_invoke_skill,
-    "list_skills": _handle_list_skills,
-    "skill_chain": _handle_skill_chain,
-    "suggest_skill": _handle_suggest_skill,
-    "suggest_technique": _handle_suggest_technique,
-    "apply_craft": _handle_apply_craft,
-    "inject_few_shot": _handle_inject_few_shot,
-    "add_chain_of_thought": _handle_add_chain_of_thought,
-    "chain_prompts": _handle_chain_prompts,
-    "eval_prompt_across_models": _handle_eval_prompt_across_models,
-    "audit_system_prompt": _handle_audit_system_prompt,
-    "save_prompt": _handle_save_prompt,
-    "search_prompts": _handle_search_prompts,
-    "compare_prompts": _handle_compare_prompts,
-    "get_session_stats": _handle_get_session_stats,
-    "clear_history": _handle_clear_history,
-    "export_stats": _handle_export_stats,
-    "reload_config": _handle_reload_config,
-    "check_energy": _handle_check_energy,
-    "route_for_plugin": _handle_route_for_plugin,
-    "run_eval": _handle_run_eval,
-    "run_eval_harness": _handle_run_eval_harness,
-    "get_sbom": _handle_get_sbom,
-    "run_security_suite": _handle_run_security_suite,
-    "run_red_team_harness": _handle_run_red_team_harness,
-    "agile_plan": _handle_agile_plan,
-    "shard_doc": _handle_shard_doc,
-    "draft_story": _handle_draft_story,
-    "run_quality_gate": _handle_run_quality_gate,
-    "check_policy": _handle_check_policy,
-    "record_audit": _handle_record_audit,
-    "export_audit": _handle_export_audit,
-    "sync_agent_config": _handle_sync_agent_config,
-    "detect_agents": _handle_detect_agents,
-    "build_context_model": _handle_build_context_model,
-    "propose_agent_config": _handle_propose_agent_config,
-    "lint_agent_config": _handle_lint_agent_config,
-    "check_portability": _handle_check_portability,
-    "export_web_bundle": _handle_export_web_bundle,
-    "capture_learning": _handle_capture_learning,
-    "replay_learnings": _handle_replay_learnings,
-    "learning_insights": _handle_learning_insights,
-    "insights_report": _handle_insights_report,
-    "tune_permissions": _handle_tune_permissions,
-    "audit_mcp_servers": _handle_audit_mcp_servers,
-    "search_trace": _handle_search_trace,
-    "rank_context": _handle_rank_context,
-    "optimize_skill_pack": _handle_optimize_skill_pack,
-    "export_compliance_bundle": _handle_export_compliance_bundle,
-    "export_org_report": _handle_export_org_report,
-    "run_governor": _handle_run_governor,
-    "governor_undo": _handle_governor_undo,
-}
 
 
 async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
@@ -1521,3 +1377,6 @@ def sync_main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+_TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
+_HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
