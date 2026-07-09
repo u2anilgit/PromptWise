@@ -1,4 +1,5 @@
 import re
+import secrets as _secrets
 import urllib.request
 import json
 
@@ -31,11 +32,61 @@ _PII_PATTERNS = [
     ("ssn", re.compile(r'\b\d{3}-\d{2}-\d{4}\b')),
     ("credit_card", re.compile(r'\b(?:\d[ -]*?){13,16}\b')),
 ]
+# Weighted, family-grouped injection patterns. Each entry is
+# ``(compiled, weight, family)``; ``detect_injection`` sums the weights of the
+# matched families (capped at 1.0) for a confidence score, replacing the old
+# ``matches * 0.25`` count heuristic. Patterns require a trigger word to sit
+# next to an adversarial object (e.g. an override verb next to an
+# instructions/rules/prompt noun) so benign near-misses (a "ready to deploy"
+# persona phrase, "override the default timeout") do not false-positive.
+# Benchmarked offline in ``security/injection_benchmark.py`` (Phase 13.1).
 _INJECTION_PATTERNS = [
-    re.compile(r'ignore\s+(previous|prior|all)\s+instructions', re.I),
-    re.compile(r'disregard\s+(your|all)\s+(instructions|rules)', re.I),
-    re.compile(r'you\s+are\s+now\s+', re.I), re.compile(r'dan\s+mode|jailbreak', re.I),
+    # instruction override: an override verb sitting next to an instruction noun
+    (re.compile(r'(?i)\b(ignore|disregard|forget|override|bypass|skip)\b'
+                r'[^.\n]{0,32}\b(instruction|instructions|rule|rules|prompt|prompts|'
+                r'directive|directives|guardrail|guardrails|guideline|guidelines|'
+                r'system\s+message)\b'), 0.8, "instruction_override"),
+    # unfiltered / unrestricted persona request
+    (re.compile(r'(?i)\b(unfiltered|unrestricted|jailbroken|no\s+restrictions|'
+                r'no\s+filter|without\s+(any\s+)?(restrictions|filters|guardrails|'
+                r'rules|limits))\b'), 0.7, "unfiltered_persona"),
+    # jail-break keywords
+    (re.compile(r'(?i)\b(jail\s?break|do\s+anything\s+now|dan\s+mode)\b'), 0.8, "jail_break"),
+    # developer / god "mode"
+    (re.compile(r'(?i)\b(developer|god)\s+mode\b'), 0.5, "developer_mode"),
+    # persona reassignment to an adversarial role
+    (re.compile(r'(?i)\b(you\s+are\s+now|from\s+now\s+on[, ]+you\s+are|'
+                r'you\s+will\s+now\s+be)\b[^.\n]{0,20}\b(dan|an?|going\s+to|unfiltered|'
+                r'unrestricted|evil|malicious|hacker|jailbroken)\b'), 0.6, "persona_reassign"),
+    # system-prompt exfiltration: a reveal verb before a prompt/instructions object
+    (re.compile(r'(?i)\b(reveal|repeat|print|show|expose|leak|display|reprint|'
+                r'output|tell\s+me)\b[^.\n]{0,28}\b(system\s+prompt|'
+                r'your\s+(initial\s+|system\s+)?(instructions|prompt|rules)|'
+                r'the\s+prompt\s+above)\b'), 0.7, "prompt_exfiltration"),
+    # embedded role marker (indirect injection via a fake system/assistant turn)
+    (re.compile(r'(?im)(^|\n)\s*(system|assistant|developer)\s*:'), 0.5, "embedded_role_marker"),
+    (re.compile(r'(?i)\b(new\s+instructions?|begin\s+new\s+task|new\s+task)\s*:'),
+     0.6, "embedded_task_marker"),
 ]
+
+
+def _luhn_valid(number: str) -> bool:
+    """Return True iff ``number`` (digits, optionally spaced/hyphenated) passes
+    the Luhn checksum used by real card numbers. Cheap way to drop the
+    order-number / tracking-id false positives the bare 13-16 digit regex
+    otherwise counts as cards."""
+    digits = [int(c) for c in number if c.isdigit()]
+    if not 13 <= len(digits) <= 19:
+        return False
+    checksum = 0
+    parity = len(digits) % 2
+    for i, n in enumerate(digits):
+        if i % 2 == parity:
+            n *= 2
+            if n > 9:
+                n -= 9
+        checksum += n
+    return checksum % 10 == 0
 
 
 class SecurityScanner:
@@ -49,9 +100,38 @@ class SecurityScanner:
         Shared by ``check()`` and the standalone ``prompt_injection`` tool so
         there is exactly one place that knows what an injection looks like.
         """
-        found = [p.pattern for p in _INJECTION_PATTERNS if p.search(text)]
-        confidence = min(1.0, len(found) * 0.25)
-        return bool(found), confidence, found
+        found: list[str] = []
+        confidence = 0.0
+        for pattern, weight, family in _INJECTION_PATTERNS:
+            if pattern.search(text):
+                found.append(family)
+                confidence += weight
+        return bool(found), round(min(1.0, confidence), 3), found
+
+    # ── indirect prompt-injection canary (Rebuff-style) ──────────────────
+    def issue_canary(self, prefix: str = "pw-canary") -> str:
+        """Mint a fresh, hard-to-guess canary token.
+
+        Embed it into content that will flow through tool output / RAG with
+        ``embed_canary``; if it later surfaces in model output
+        (``check_canary_leak``) the injected content leaked back out — the
+        exfiltration signature of an indirect prompt injection.
+        """
+        return f"{prefix}-{_secrets.token_hex(12)}"
+
+    def embed_canary(self, content: str, token: str) -> str:
+        """Hide ``token`` in ``content`` as a trailing HTML comment, so it
+        rides along with tool-output/RAG text without altering the visible
+        body. Returns ``content`` unchanged if no token is supplied."""
+        if not token:
+            return content
+        return f"{content}\n<!-- canary:{token} -->"
+
+    def check_canary_leak(self, output: str, token: str) -> bool:
+        """True iff a previously-issued canary ``token`` appears in model
+        ``output`` — i.e. tool-output/RAG content leaked back into the
+        response. Empty token means nothing to check."""
+        return bool(token) and token in (output or "")
 
     def detect_pii(self, text: str, *, redact: bool = False) -> tuple[list[dict], str]:
         """Scan text for PII patterns.
@@ -63,6 +143,16 @@ class SecurityScanner:
         items: list[dict] = []
         redacted = text
         for label, pattern in _PII_PATTERNS:
+            if label == "credit_card":
+                # Only count/redact runs that pass the Luhn checksum — the bare
+                # 13-16 digit regex otherwise false-positives on order numbers.
+                valid = [m.group(0) for m in pattern.finditer(text) if _luhn_valid(m.group(0))]
+                if valid:
+                    items.append({"type": label, "count": len(valid)})
+                    if redact:
+                        for card in valid:
+                            redacted = redacted.replace(card, f"[REDACTED_{label.upper()}]")
+                continue
             matches = pattern.findall(text)
             if matches:
                 items.append({"type": label, "count": len(matches)})
@@ -147,6 +237,37 @@ class SecurityScanner:
         if re.search(r"ssl\._create_unverified_context", code):
             vulns.append({"category": "A05:2021-Security Misconfiguration", "severity": "medium",
                           "description": "SSL certificate verification disabled."})
+        # A02: weak hashing / broken ciphers.
+        if re.search(r"(?i)\bhashlib\.(md5|sha1)\b|\b(md5|sha1)\s*\(", code) or \
+                re.search(r"\b(DES|RC4)\b", code):
+            vulns.append({"category": "A02:2021-Cryptographic Failures", "severity": "high",
+                          "description": "Weak hash (MD5/SHA1) or broken cipher (DES/RC4). "
+                                         "Use SHA-256+/AES."})
+        # A08: insecure deserialization. yaml.load is unsafe unless a safe loader is used.
+        if re.search(r"\b(pickle\.loads|marshal\.loads)\s*\(", code) or (
+                re.search(r"\byaml\.load\s*\(", code)
+                and not re.search(r"safe_load|SafeLoader|Loader\s*=", code)):
+            vulns.append({"category": "A08:2021-Software and Data Integrity Failures",
+                          "severity": "high",
+                          "description": "Insecure deserialization (pickle/marshal/unsafe yaml.load) "
+                                         "on untrusted data. Use a safe loader."})
+        # A10: SSRF — request on a non-literal (variable) URL.
+        if re.search(r"(?i)\b(requests\.(get|post|put|delete|head|patch)|urlopen)"
+                     r"\s*\(\s*(?!['\"])[A-Za-z_]", code):
+            vulns.append({"category": "A10:2021-Server-Side Request Forgery (SSRF)",
+                          "severity": "high",
+                          "description": "Request issued to a non-literal URL. Validate/allow-list "
+                                         "the destination host."})
+        # A01: path traversal into a file open.
+        if re.search(r"\bopen\s*\([^)\n]*\.\.[\\/]", code):
+            vulns.append({"category": "A01:2021-Broken Access Control (Path Traversal)",
+                          "severity": "high",
+                          "description": "Path traversal in a file open. Normalize and confine to a "
+                                         "base directory."})
+        # A05: debug mode left enabled.
+        if re.search(r"(?i)\bdebug\s*=\s*True\b", code):
+            vulns.append({"category": "A05:2021-Security Misconfiguration", "severity": "medium",
+                          "description": "Debug mode enabled. Disable in production."})
         return vulns
 
     def _check_osv(self, package: str, version: str, *, allow_network: bool = False) -> dict:
