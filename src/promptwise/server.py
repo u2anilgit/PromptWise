@@ -58,7 +58,8 @@ _TOOL_DEFS = [
          inputSchema={"type": "object", "properties": {
              "text": {"type": "string"}, "intent": {"type": "string", "enum": ["auto", "extract", "classify", "summarize", "question", "code", "analysis", "agent_loop", "research"], "default": "auto"},
              "stakes": {"type": "string", "enum": ["auto", "low", "medium", "high"], "default": "auto"},
-             "provider": {"type": "string", "default": "claude"}, "monthly_budget_usd": {"type": "number"}, "days_elapsed_in_month": {"type": "integer"}},
+             "provider": {"type": "string", "default": "claude"}, "monthly_budget_usd": {"type": "number"}, "days_elapsed_in_month": {"type": "integer"},
+             "provider_spend_usd": {"type": "number", "description": "Spend already incurred for this provider (e.g. today) -- enables a hard budget-cap reroute before the call, if the provider has a configured daily_cap_usd"}},
          "required": ["text"]}),
     Tool(name="rewrite_prompt", description="Rewrite prompt with role framing and filler removal",
          inputSchema={"type": "object", "properties": {
@@ -406,7 +407,8 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.router.route(
         text=arguments.get("text", ""), intent=arguments.get("intent", "auto"),
         stakes=arguments.get("stakes", "auto"), provider=arguments.get("provider", "claude"),
-        monthly_budget_usd=arguments.get("monthly_budget_usd"), days_elapsed_in_month=arguments.get("days_elapsed_in_month"))
+        monthly_budget_usd=arguments.get("monthly_budget_usd"), days_elapsed_in_month=arguments.get("days_elapsed_in_month"),
+        provider_spend_usd=arguments.get("provider_spend_usd"))
     await ctx.memory.record_cost(tool="route_request", session_id="default", model=r.recommended_model, cost_usd=r.estimated_input_cost_usd)
     # Close the learning loop: record the decision as a neutral outcome row
     # (WP8.1). Fail-open — recording never changes or breaks the route.
@@ -425,7 +427,7 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
                        "stakes_detected": r.stakes_detected, "estimated_input_cost_usd": r.estimated_input_cost_usd,
                        "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
                        "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
-                       "route_id": route_id})
+                       "provider_capped": r.provider_capped, "route_id": route_id})
 
 
 async def _handle_rewrite_prompt(ctx: ServerContext, arguments: dict) -> str:
