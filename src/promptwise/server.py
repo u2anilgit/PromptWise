@@ -464,8 +464,29 @@ async def _handle_compare_providers(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Security ─────────────────────────────────────────────────────────
+def _maybe_alert_security(result) -> None:
+    """Best-effort, opt-in notification hook (Phase 16). Subscribes to an
+    ALREADY-COMPUTED SecurityResult; never touches security/scanner.py."""
+    try:
+        from promptwise.core import alerts
+        alerts.notify_security(result)
+    except Exception:
+        pass
+
+
+def _maybe_alert_budget(status) -> None:
+    """Best-effort, opt-in notification hook (Phase 16). Subscribes to an
+    ALREADY-COMPUTED BudgetStatus; never touches plugins/budget.py."""
+    try:
+        from promptwise.core import alerts
+        alerts.notify_budget(status)
+    except Exception:
+        pass
+
+
 async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.security.check(arguments.get("text", ""), allow_network=bool(arguments.get("allow_network", False)))
+    _maybe_alert_security(r)
     return json.dumps({"passed": r.passed, "risk_score": r.risk_score, "violations": r.violations, "blocked": r.blocked, "details": r.details})
 
 
@@ -581,6 +602,7 @@ async def _handle_run_autonomous(ctx: ServerContext, arguments: dict) -> str:
 # ── Budget & Cost ────────────────────────────────────────────────────
 async def _handle_monitor_budget(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.budget.check(used_usd=float(arguments.get("used_usd", 0)), days_elapsed=int(arguments.get("days_elapsed", 1)), project_id=arguments.get("project_id"))
+    _maybe_alert_budget(r)
     return json.dumps({"used_usd": r.used_usd, "limit_usd": r.limit_usd, "pct_used": r.pct_used,
                        "daily_burn_usd": r.daily_burn_usd, "projected_monthly_usd": r.projected_monthly_usd,
                        "alert_level": r.alert_level, "project_id": r.project_id})
@@ -926,6 +948,7 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
             severity_breakdown=severity_breakdown, passed=sec.passed and not owasp)
     except Exception:
         pass  # storage is best-effort; a full disk must not sink the suite
+    _maybe_alert_security(sec)
     return json.dumps({"security": {"passed": sec.passed, "violations": sec.violations, "risk_score": sec.risk_score},
                        "owasp": owasp,
                        "injection": {"detected": inj_detected, "confidence": round(inj_confidence, 2), "patterns_found": inj_patterns},

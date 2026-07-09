@@ -100,6 +100,11 @@ def pretooluse_scan(payload: dict) -> HookDecision:
         if not text.strip():
             return HookDecision(action="allow", event="PreToolUse")
         res = SecurityScanner().check(text)
+        try:  # Phase 16, best-effort/opt-in: subscribes to the result above,
+            from promptwise.core import alerts  # never edits SecurityScanner itself.
+            alerts.notify_security(res)
+        except Exception:
+            pass
         if getattr(res, "blocked", False):
             details = "; ".join(v.get("check", "?") for v in (res.violations or [])) or res.details
             return HookDecision(
