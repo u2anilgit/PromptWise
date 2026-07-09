@@ -506,6 +506,9 @@ async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
     inj_detected_resp, _, _ = ctx.security.detect_injection(response)
     echo = inj_detected_orig and inj_detected_resp
     leak = any(p in response.lower() for p in ["system prompt", "instructions say", "i was told to"])
+    # Indirect-injection canary: if a canary planted in tool-output/RAG content
+    # surfaces here, that content leaked back into the response.
+    canary_leak = ctx.security.check_canary_leak(response, arguments.get("canary", ""))
     # Responsible-AI advisory: grounding / bias / ethics (heuristic, never blocks).
     try:
         from promptwise.core.responsible_ai import scan as _rai_scan
@@ -513,7 +516,8 @@ async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
     except Exception:
         rai = {"overall": "clean", "findings": []}
     return json.dumps({"pii_found": len(pii_items) > 0, "pii_items": pii_items, "injection_echo": echo,
-                       "system_leak": leak, "safe": not pii_items and not echo and not leak,
+                       "system_leak": leak, "canary_leak": canary_leak,
+                       "safe": not pii_items and not echo and not leak and not canary_leak,
                        "redacted_response": redacted, "responsible_ai": rai})
 
 

@@ -1,4 +1,5 @@
 import re
+import secrets as _secrets
 import urllib.request
 import json
 
@@ -87,6 +88,31 @@ class SecurityScanner:
                 found.append(family)
                 confidence += weight
         return bool(found), round(min(1.0, confidence), 3), found
+
+    # ── indirect prompt-injection canary (Rebuff-style) ──────────────────
+    def issue_canary(self, prefix: str = "pw-canary") -> str:
+        """Mint a fresh, hard-to-guess canary token.
+
+        Embed it into content that will flow through tool output / RAG with
+        ``embed_canary``; if it later surfaces in model output
+        (``check_canary_leak``) the injected content leaked back out — the
+        exfiltration signature of an indirect prompt injection.
+        """
+        return f"{prefix}-{_secrets.token_hex(12)}"
+
+    def embed_canary(self, content: str, token: str) -> str:
+        """Hide ``token`` in ``content`` as a trailing HTML comment, so it
+        rides along with tool-output/RAG text without altering the visible
+        body. Returns ``content`` unchanged if no token is supplied."""
+        if not token:
+            return content
+        return f"{content}\n<!-- canary:{token} -->"
+
+    def check_canary_leak(self, output: str, token: str) -> bool:
+        """True iff a previously-issued canary ``token`` appears in model
+        ``output`` — i.e. tool-output/RAG content leaked back into the
+        response. Empty token means nothing to check."""
+        return bool(token) and token in (output or "")
 
     def detect_pii(self, text: str, *, redact: bool = False) -> tuple[list[dict], str]:
         """Scan text for PII patterns.
