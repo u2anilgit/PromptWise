@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { handleWebviewMessage } from "../src/panel.ts";
+import { handleWebviewMessage, PendingMessageQueue } from "../src/panel.ts";
 
 function fakeClient(responses: Record<string, string>) {
   return {
@@ -11,13 +11,11 @@ function fakeClient(responses: Record<string, string>) {
   };
 }
 
-test("refresh budget calls the 5 budget tools and returns a tileUpdate", async () => {
+test("refresh budget calls the 3 budget tools it actually uses and returns a tileUpdate", async () => {
   const client = fakeClient({
     get_budget_status: JSON.stringify({ spend_usd: 10, limit_usd: 100 }),
     budget_report: JSON.stringify({ anomalies: [] }),
-    cost_report: JSON.stringify({}),
     get_roi_report: JSON.stringify([]),
-    task_report: JSON.stringify({}),
   });
 
   const result = await handleWebviewMessage({ type: "refresh", tab: "budget" }, client);
@@ -67,4 +65,40 @@ test("scanText calls the named tool and returns a scanResult", async () => {
   );
 
   assert.strictEqual(result.type, "scanResult");
+});
+
+test("PendingMessageQueue buffers messages sent before markReady()", () => {
+  const queue = new PendingMessageQueue();
+
+  const result = queue.enqueueOrPass({ type: "connectionError", message: "not ready yet" });
+
+  assert.deepStrictEqual(result, []);
+});
+
+test("PendingMessageQueue.markReady() flushes buffered messages in order", () => {
+  const queue = new PendingMessageQueue();
+  const first = { type: "connectionError", message: "first" } as const;
+  const second = { type: "scanResult", text: "second" } as const;
+
+  queue.enqueueOrPass(first);
+  queue.enqueueOrPass(second);
+  const flushed = queue.markReady();
+
+  assert.deepStrictEqual(flushed, [first, second]);
+});
+
+test("PendingMessageQueue passes messages straight through after markReady()", () => {
+  const queue = new PendingMessageQueue();
+  queue.markReady();
+
+  const message = { type: "scanResult", text: "live" } as const;
+  const result = queue.enqueueOrPass(message);
+
+  assert.deepStrictEqual(result, [message]);
+});
+
+test("PendingMessageQueue.markReady() called with an empty queue returns an empty array", () => {
+  const queue = new PendingMessageQueue();
+
+  assert.deepStrictEqual(queue.markReady(), []);
 });

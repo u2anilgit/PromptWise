@@ -5,6 +5,8 @@
 // PanelProvider.show() below does a runtime `await import("vscode")` instead,
 // which only ever executes inside the real extension host.
 import type * as vscode from "vscode";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { McpClient } from "./mcpClient.ts";
 import { buildBudgetTile, buildSecurityTile, buildGovernanceTile } from "./viewModel.ts";
 
@@ -18,14 +20,40 @@ export type HostToWebviewMessage =
 
 export type WebviewToHostMessage =
   | { type: "refresh"; tab: Tab }
-  | { type: "scanText"; kind: "security_check" | "owasp_scan" | "prompt_injection"; text: string };
+  | { type: "scanText"; kind: "security_check"; text: string }
+  | { type: "ready" };
+
+/**
+ * Buffers HostToWebviewMessages until the webview signals it is ready to
+ * receive them (via an incoming `{ type: "ready" }` message), so a message
+ * sent immediately after `panel.webview.html = ...` can't race the
+ * webview's `window.addEventListener("message", ...)` registration.
+ * Deliberately has no `vscode` dependency so it's directly unit-testable.
+ */
+export class PendingMessageQueue {
+  private ready = false;
+  private queue: HostToWebviewMessage[] = [];
+
+  markReady(): HostToWebviewMessage[] {
+    this.ready = true;
+    const flushed = this.queue;
+    this.queue = [];
+    return flushed;
+  }
+
+  enqueueOrPass(message: HostToWebviewMessage): HostToWebviewMessage[] {
+    if (this.ready) return [message];
+    this.queue.push(message);
+    return [];
+  }
+}
 
 interface ToolCaller {
   callTool(name: string, args?: Record<string, unknown>): Promise<string>;
 }
 
 export async function handleWebviewMessage(
-  message: WebviewToHostMessage,
+  message: Exclude<WebviewToHostMessage, { type: "ready" }>,
   client: ToolCaller
 ): Promise<HostToWebviewMessage> {
   if (message.type === "scanText") {
@@ -40,15 +68,11 @@ export async function handleWebviewMessage(
   const tab = message.tab;
   try {
     if (tab === "budget") {
-      const [status, report, cost, roi, task] = await Promise.all([
+      const [status, report, roi] = await Promise.all([
         client.callTool("get_budget_status"),
         client.callTool("budget_report"),
-        client.callTool("cost_report"),
         client.callTool("get_roi_report"),
-        client.callTool("task_report"),
       ]);
-      void cost;
-      void task;
       return { type: "tileUpdate", tab, data: buildBudgetTile(status, report, roi) };
     }
     if (tab === "security") {
@@ -70,6 +94,7 @@ export class PanelProvider {
   private panel: vscode.WebviewPanel | undefined;
   private client: McpClient | undefined;
   private readonly extensionUri: vscode.Uri;
+  private readonly pending = new PendingMessageQueue();
 
   constructor(extensionUri: vscode.Uri) {
     this.extensionUri = extensionUri;
@@ -101,17 +126,20 @@ export class PanelProvider {
       vscodeApi.Uri.joinPath(this.extensionUri, "dist", "webview", "main.js")
     );
 
-    this.client = new McpClient();
-    try {
-      await this.client.connect(pythonPath, cwd);
-    } catch (err) {
-      this.panel.webview.html = this.renderHtml(webviewUri.toString());
-      this.postMessage({ type: "connectionError", message: (err as Error).message });
-      return;
-    }
+    const srcPromptwise = path.join(cwd, "src", "promptwise");
+    const pythonPathEnv = fs.existsSync(srcPromptwise) ? path.join(cwd, "src") : undefined;
 
-    this.panel.webview.html = this.renderHtml(webviewUri.toString());
+    // Register the message listener (and its "ready" handshake handling)
+    // before doing anything else that might post a message, so a
+    // connectionError posted below is never lost: it's buffered in
+    // `this.pending` until the webview's "ready" ping flushes it.
     this.panel.webview.onDidReceiveMessage(async (message: WebviewToHostMessage) => {
+      if (message.type === "ready") {
+        for (const flushed of this.pending.markReady()) {
+          void this.panel?.webview.postMessage(flushed);
+        }
+        return;
+      }
       if (!this.client) return;
       const response = await handleWebviewMessage(message, this.client);
       this.postMessage(response);
@@ -122,10 +150,23 @@ export class PanelProvider {
       this.client = undefined;
       this.panel = undefined;
     });
+
+    this.client = new McpClient();
+    try {
+      await this.client.connect(pythonPath, cwd, pythonPathEnv);
+    } catch (err) {
+      this.panel.webview.html = this.renderHtml(webviewUri.toString());
+      this.postMessage({ type: "connectionError", message: (err as Error).message });
+      return;
+    }
+
+    this.panel.webview.html = this.renderHtml(webviewUri.toString());
   }
 
   private postMessage(message: HostToWebviewMessage): void {
-    void this.panel?.webview.postMessage(message);
+    for (const toSend of this.pending.enqueueOrPass(message)) {
+      void this.panel?.webview.postMessage(toSend);
+    }
   }
 
   private renderHtml(webviewUri: string): string {

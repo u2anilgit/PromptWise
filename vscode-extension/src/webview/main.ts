@@ -5,6 +5,15 @@ type Tab = "budget" | "security" | "governance";
 const vscodeApi = acquireVsCodeApi();
 let activeTab: Tab = "budget";
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function render(): void {
   const app = document.getElementById("app");
   if (!app) return;
@@ -48,21 +57,22 @@ window.addEventListener("message", (event: MessageEvent) => {
   const content = document.getElementById("tile-content");
   if (!content) return;
   if (message.type === "connectionError") {
-    content.innerHTML = `<p class="error">Connection error: ${message.message}. Check the "promptwise.pythonPath" setting, and confirm pip install -e . has been run in this workspace.</p>`;
+    content.innerHTML = `<p class="error">Connection error: ${escapeHtml(message.message)}. Check the "promptwise.pythonPath" setting, and confirm pip install -e . has been run in this workspace.</p>`;
     return;
   }
   if (message.type === "tileError" && message.tab === activeTab) {
-    content.innerHTML = `<p class="error">${message.message}</p>`;
+    content.innerHTML = `<p class="error">${escapeHtml(message.message)}</p>`;
     return;
   }
   if (message.type === "tileUpdate" && message.tab === activeTab) {
-    content.innerHTML = `<pre>${JSON.stringify(message.data, null, 2)}</pre>`;
+    content.innerHTML = `<pre>${escapeHtml(JSON.stringify(message.data, null, 2))}</pre>`;
     return;
   }
   if (message.type === "scanResult") {
-    content.innerHTML = `<pre>${message.text}</pre>`;
+    content.innerHTML = `<pre>${escapeHtml(message.text)}</pre>`;
   }
 });
 
+vscodeApi.postMessage({ type: "ready" });
 render();
 refresh();
