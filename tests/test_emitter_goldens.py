@@ -18,7 +18,7 @@ GOLDEN_BUNDLE = GovernanceBundle(
     rules=["No secrets in code"],
 )
 
-TARGETS = ["claude", "agents", "cursor", "copilot", "gemini", "cline"]
+TARGETS = ["claude", "agents", "cursor", "copilot", "gemini", "cline", "windsurf"]
 
 
 def _golden_path(target: str) -> Path:

@@ -22,6 +22,7 @@ The portability check covers exactly the hosts PromptWise can emit a config for
 | `copilot` | `.github/copilot-instructions.md` |
 | `cline` | `.clinerules` |
 | `gemini` | `GEMINI.md` |
+| `windsurf` | `.windsurfrules` |
 
 These are config-file conventions, not model ids. Routing stays host-neutral —
 tiers/families only (`fast` / `balanced` / `powerful`).
