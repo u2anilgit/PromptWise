@@ -14,8 +14,8 @@ AGENTS = sorted((ROOT / "agents").glob("*.md"))
 
 
 def _server_tool_names() -> set[str]:
-    src = (ROOT / "src" / "promptwise" / "server.py").read_text(encoding="utf-8")
-    return set(re.findall(r'Tool\(name="([a-z_]+)"', src))
+    import promptwise.server as s
+    return {t.name for t in s._TOOL_DEFS}
 
 
 def _frontmatter(path):
