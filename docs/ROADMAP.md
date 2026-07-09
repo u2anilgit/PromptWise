@@ -86,10 +86,19 @@ Detail: `PHASE12_ROADMAP.md`.
   and deliberately left alone in both Phase 11 and Phase 12.
 
 ### Feature candidates
-None currently queued. Both candidates named in the previous revision of this file
-(continuous red-team harness, context/RAG intelligence) are done — Phase 11 and
-Phase 12 respectively. The next phase has no pre-set direction; brainstorm fresh when
-new work is scoped.
+Both candidates named in the previous revision of this file (continuous red-team
+harness, context/RAG intelligence) are done — Phase 11 and Phase 12 respectively.
+
+A competitive gap analysis (2026-07-08, `docs/GAP_ANALYSIS_2026-07.md`) against the
+LLM-ops/security/memory tooling market plus adjacent Claude Code plugins (caveman,
+BMAD-METHOD) produced 8 ranked phase candidates (A–H): security-detector benchmarking,
+cost-tracking correctness + enforcement, exact-match caching, an opt-in local-embeddings
+decision (semantic cache + hybrid memory), non-technical/org UX (alerting, scheduled
+reports, installer, statusline), an extensible MCP tool registry, additional platform
+emitters, and a VS Code panel. See that doc for the full analysis, priority read, and
+explicit non-goals (fairness-metric parity, bi-temporal memory). Brainstorm before
+opening any of these as a `PHASE<N>_ROADMAP.md` — the table there is priority, not a
+commitment.
 
 Each future phase: brainstorm → its own `PHASE<N>_ROADMAP.md` → implement (parallel wave
 of isolated worktrees where files are disjoint; safety-critical/core work lands alone) →
