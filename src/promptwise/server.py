@@ -347,6 +347,14 @@ _TOOL_DEFS = [
              "control_families": {"type": "array", "items": {"type": "string"}, "description": "generic control-family tags; inferred from the trace when omitted"},
              "out_path": {"type": "string", "description": "optional path to write a .zip evidence archive"}}}),
 
+    # ── Scheduled org/compliance report export (Phase 16, additive · offline, stdlib only) ──
+    Tool(name="export_org_report", description="Build a periodic summary (spend, security-scan verdicts, governance/governor actions) for a stakeholder who doesn't touch a CLI. Markdown or self-contained HTML; no PDF dependency. Pass out_path to write it; omit to just return the report data. Offline; no network.",
+         inputSchema={"type": "object", "properties": {
+             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365},
+             "format": {"type": "string", "enum": ["markdown", "html"], "default": "markdown"},
+             "out_path": {"type": "string", "description": "optional path to write the report"},
+             "repo_root": {"type": "string", "default": "."}}}),
+
     # ── Autonomous governor (Phase 9, additive · policy-gated, reversible, default advise-only) ──
     Tool(name="run_governor", description="Turn local insights recommendations into typed, policy-gated, REVERSIBLE governance actions. Default advise-only: proposes actions + policy verdicts and reports what would/did apply for the current mode (env PROMPTWISE_AUTONOMY in {advise,dry_run,apply}). Only allowlisted 'safe' actions (AdjustBudgetGuard, WriteRoutingPreferenceNote) can ever move state, and only in apply; each writes a local undo-ledger entry. Everything else is advisory-only. Offline; fully audited.",
          inputSchema={"type": "object", "properties": {
@@ -1186,6 +1194,16 @@ async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) 
         out_path=arguments.get("out_path")))
 
 
+# ── Scheduled org/compliance report export (Phase 16) ────────────────
+async def _handle_export_org_report(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.report_export import export_report
+    return json.dumps(export_report(
+        repo_root=arguments.get("repo_root", "."),
+        window_days=int(arguments.get("window_days", 30)),
+        out_path=arguments.get("out_path"),
+        fmt=arguments.get("format", "markdown")))
+
+
 # ── Autonomous governor (Phase 9) ────────────────────────────────────
 async def _handle_run_governor(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.governor import Governor
@@ -1287,6 +1305,7 @@ _HANDLERS = {
     "rank_context": _handle_rank_context,
     "optimize_skill_pack": _handle_optimize_skill_pack,
     "export_compliance_bundle": _handle_export_compliance_bundle,
+    "export_org_report": _handle_export_org_report,
     "run_governor": _handle_run_governor,
     "governor_undo": _handle_governor_undo,
 }

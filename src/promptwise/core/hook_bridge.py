@@ -327,6 +327,21 @@ def sessionstart_replay(payload: dict) -> HookDecision:
         return HookDecision(action="allow", event="SessionStart", extra={"hook_error": f"{type(e).__name__}: {e}"})
 
 
+# ── WP16: scheduled org/compliance report export (pull-based, opt-in) ────────
+def scheduled_report_check(payload: dict) -> HookDecision:
+    """On session start, ask the Phase 16 scheduler whether a periodic report
+    (config/reports.yaml) is due and generate it if so. Off by default (the
+    scheduler config ships disabled); no background process, just a
+    due-check against a local marker. Never blocks."""
+    try:
+        from promptwise.core.scheduler import run_if_due
+        cwd = payload.get("cwd") or "."
+        result = run_if_due(state_dir=_state_dir(payload), repo_root=cwd)
+        return HookDecision(action="allow", event="SessionStart", extra=result)
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="SessionStart", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
 def precompact_guard(payload: dict) -> HookDecision:
     """Before the context is compacted, inject a note that preserves the governance
     state — audit-chain status and the files under audit — so it survives the
@@ -500,6 +515,7 @@ _HANDLERS = {
     "stop_quality_gate": stop_quality_gate,
     "permissiondenied_log": permissiondenied_log,
     "sessionstart_replay": sessionstart_replay,
+    "scheduled_report_check": scheduled_report_check,
     "precompact_guard": precompact_guard,
     "pretooluse_bash_guard": pretooluse_bash_guard,
     "subagentstop_gate": subagentstop_gate,
