@@ -4,10 +4,11 @@ Single index over the phased roadmaps. Each phase has its own detailed doc
 (`docs/PHASE<N>_ROADMAP.md`). This file is the resume point: what is done, what is
 open, and where to pick up next.
 
-**Status as of the last session:** Phases 6–12 complete and merged to `main`
-(PRs #5–#12). Working tree clean. **439 tests pass.** No planned finale — the series is
-open-ended and continues when new work is scoped. No feature candidates currently
-queued — see "Open items" below.
+**Status as of the last session:** Phases 6–17 complete and merged to `main`
+(PRs #5–#12; 13–17 merged locally, not yet PR'd). Working tree clean. **599 tests
+pass.** No planned finale — the series is open-ended and continues when new work is
+scoped. Remaining feature candidates: D (local-embeddings, needs dependency sign-off)
+and H (VS Code panel, likely needs dependency sign-off) — see "Open items" below.
 
 Standing guardrails (all phases): local-first, air-gap-safe, no new infrastructure, no
 new pip dependencies, no branded/competitor model ids (tiers/families only), hooks &
@@ -76,6 +77,82 @@ Detail: `PHASE11_ROADMAP.md`.
   new persistence, no new dependency. Wired as `rank_context` (84th tool).
 Detail: `PHASE12_ROADMAP.md`.
 
+### Wave 1 (gap-analysis candidates A, B, C, E, G) — 5 phases run in parallel worktrees,
+merged sequentially to main (2026-07-09) — 431 → 599 tests, 84 → 90 MCP tools. Built
+from `docs/GAP_ANALYSIS_2026-07.md`'s 8 ranked candidates; D and H excluded from this
+wave (both need explicit new-dependency sign-off, not silent inclusion).
+
+### Phase 13 — security hardening (candidate A, merged locally) — 431 → 462 tests
+- `security/injection_benchmark.py`: offline benchmark harness (bundled 30-case
+  attack+benign corpus) against the real `detect_injection`; measured baseline
+  precision 0.80/recall 0.27/F1 0.40. Replaced the 4 flat regexes with a weighted,
+  family-grouped pattern set — F1 rose to 1.00 on the bundled corpus. Optional live
+  PINT-dataset fetch gated behind `allow_network=False` (matches the Phase 11 OSV
+  convention). Wired as `benchmark_injection`.
+- Indirect-injection canary (`scanner.py`): `issue_canary`/`embed_canary`/
+  `check_canary_leak`, wired into `scan_response` as an optional signal.
+- OWASP coverage 5 → 10 categories (added crypto failures, insecure deserialization,
+  SSRF, path traversal, debug-mode).
+- PII: Luhn checksum validation on credit-card matches before counting/redacting.
+- SBOM: `poetry.lock` + `package-lock.json` (v1-v3) transitive parsing, tagged
+  direct/transitive, de-duplicated by purl.
+Detail: `PHASE13_ROADMAP.md`.
+
+### Phase 14 — cost correctness + enforcement (candidate B, merged locally) — 431 → 452 tests
+- Fixed `predict_cost`'s pricing-dict drift bug (`plugins/budget.py`): it hardcoded its
+  own price table, independent of `config/models.yaml`, and had already drifted
+  (hardcoded haiku was stale vs. the live registry). Now reads pricing through the same
+  registry-first chain `core/router.py` uses.
+- Provider-level hard budget cap at routing time: `ProviderConfig.daily_cap_usd` +
+  `Router.route(provider_spend_usd=...)` forces the `fast` tier once a provider's cap is
+  hit, before the call — not just after-the-fact reporting. Fail-open when no cap/spend
+  is supplied.
+- Workflow-level cost attribution: `BudgetGuardian.check(tool_cost_usd=...)` — tool/API
+  costs now count alongside LLM cost toward limit/alert/burn-rate, surfaced via
+  `BudgetStatus.cost_breakdown`.
+Detail: `PHASE14_ROADMAP.md`.
+
+### Phase 15 — exact-match cache (candidate C, merged locally) — 431 → 464 tests
+- `core/exact_cache.py`: real hash-based (SHA-256 over canonical normalized request)
+  result cache for repeated tool/skill invocations — additive sibling to
+  `core/cache_planner.py`'s breakpoint-planning simulator, which stays untouched. SQLite
+  store on the shared local state DB, default 1h TTL (0 = never-expire opt-out), lazy +
+  swept expiry, hit/miss counters.
+- Never-cache guard: category substring-match (medical/legal/financial/personalized/
+  health) plus a read-only call into the `SecurityScanner` detectors for PII and
+  credential leaks on both request and result — blocks caching either.
+- Wired as `cache_lookup`/`cache_store`/`cache_stats`.
+Detail: `PHASE15_ROADMAP.md`.
+
+### Phase 16 — non-technical/org UX (candidate E, merged locally) — 431 → 499 tests
+- `core/alerts.py`: opt-in (default off) Slack/email/webhook alerting via stdlib
+  `urllib`/`smtplib` only — a pure subscriber over `BudgetStatus`/security-scan results,
+  no edits needed to `plugins/budget.py` or `security/scanner.py`.
+- `core/report_export.py` + `core/scheduler.py`: scheduled spend/security/governance
+  summary export (Markdown or self-contained HTML, no PDF dependency), pull-based
+  `run_if_due()` checked from a `SessionStart` hook. Wired as `export_org_report`.
+- `install.sh`/`install.ps1`: one-line installer (pip install -e ., then Claude Code
+  CLI marketplace/plugin install if present), backed by an idempotent, non-clobbering
+  `.mcp.json` merge (`core/installer_support.py`).
+- `core/statusline.py`: at-a-glance budget/security statusline, reusing existing budget
+  and security-scan state (no new state store). `promptwise statusline` CLI subcommand
+  + `hooks/promptwise-statusline.sh`/`.ps1`.
+Detail: `PHASE16_ROADMAP.md`.
+
+### Phase 17 — multi-platform emitters (candidate G, merged locally) — 431 → 446 tests
+- Windsurf (`.windsurfrules`) and JetBrains AI Assistant
+  (`.aiassistant/rules/promptwise.md`) emitters added to `core/config_emitter.py`,
+  matching the existing flat-body `cline` pattern (no `AgentProfile` entry needed) —
+  picked up automatically by `sync`/`diff`/`check`/`check_portability`.
+- `core/web_bundle.py`: web-agent single-file bundle (BMAD-derived) for ChatGPT/Gemini/
+  Claude.ai web chat — flattens governance bundle + active skill packs into one
+  pasteable file. Deliberately a separate code path from the managed-block IDE
+  emitters (no host config file, full-overwrite semantics). Wired as
+  `export_web_bundle`.
+- README's "multi-platform" claim corrected: 8 IDE/CLI emitters + the web bundle, tool
+  count 84 → 90.
+Detail: `PHASE17_ROADMAP.md`.
+
 ---
 
 ## Open items (resume here)
@@ -86,19 +163,27 @@ Detail: `PHASE12_ROADMAP.md`.
   and deliberately left alone in both Phase 11 and Phase 12.
 
 ### Feature candidates
-Both candidates named in the previous revision of this file (continuous red-team
-harness, context/RAG intelligence) are done — Phase 11 and Phase 12 respectively.
+Both candidates named in two revisions ago (continuous red-team harness, context/RAG
+intelligence) are done — Phase 11 and Phase 12 respectively.
 
-A competitive gap analysis (2026-07-08, `docs/GAP_ANALYSIS_2026-07.md`) against the
-LLM-ops/security/memory tooling market plus adjacent Claude Code plugins (caveman,
-BMAD-METHOD) produced 8 ranked phase candidates (A–H): security-detector benchmarking,
-cost-tracking correctness + enforcement, exact-match caching, an opt-in local-embeddings
-decision (semantic cache + hybrid memory), non-technical/org UX (alerting, scheduled
-reports, installer, statusline), an extensible MCP tool registry, additional platform
-emitters, and a VS Code panel. See that doc for the full analysis, priority read, and
-explicit non-goals (fairness-metric parity, bi-temporal memory). Brainstorm before
-opening any of these as a `PHASE<N>_ROADMAP.md` — the table there is priority, not a
-commitment.
+The 2026-07-08 gap analysis (`docs/GAP_ANALYSIS_2026-07.md`) produced 8 ranked phase
+candidates (A–H). **A, B, C, E, G are done** (Phases 13–17 above, merged locally
+2026-07-09 as wave 1). Remaining:
+- **D — local-embeddings decision** (semantic cache + hybrid BM25/vector memory +
+  fact-supersession, 6-8d, Opus) — needs a new pip dependency, **explicit sign-off
+  required** before starting, breaks the standing no-new-deps guardrail. Sequenced
+  after C (done) since it extends the exact-match cache.
+- **F — extensible MCP tool registry** (decorator/manifest pattern replacing the now
+  90 hardcoded `Tool()` entries in `server.py`, 4-5d, Opus) — deliberately deferred
+  until last so it refactors registration against the final tool count once, instead
+  of conflicting with each wave-1 phase's additive `server.py` edits mid-flight (same
+  reasoning as Phase 10's `call_tool` registry refactor).
+- **H — VS Code/IDE panel** (6-8d, Opus lead) — biggest differentiation bet, likely
+  needs a new dependency (extension tooling), same sign-off requirement as D.
+
+See `docs/GAP_ANALYSIS_2026-07.md` for full analysis, and non-goals (fairness-metric
+parity, bi-temporal memory). Brainstorm before opening D, F, or H as a
+`PHASE<N>_ROADMAP.md`.
 
 Each future phase: brainstorm → its own `PHASE<N>_ROADMAP.md` → implement (parallel wave
 of isolated worktrees where files are disjoint; safety-critical/core work lands alone) →

@@ -15,7 +15,7 @@ packs — emitted in the formats every agent already reads.
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Skill packs](https://img.shields.io/badge/skill%20packs-81-7C5BD4.svg)
-![MCP tools](https://img.shields.io/badge/MCP%20tools-85-4C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-90-4C5BD4.svg)
 
 📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -42,7 +42,7 @@ them have:
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (85)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (90)
         ├─▶ SKILL.md packs → 81 portable packs in skill_packs/
         ├─▶ Lifecycle hooks→ enforce security/policy/audit at runtime (hooks/)
         └─▶ AGENTS.md      → project context + active constitution
