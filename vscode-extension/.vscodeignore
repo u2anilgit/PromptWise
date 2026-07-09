@@ -1,7 +1,8 @@
 node_modules/**
 src/**
 test/**
-*.map
+**/*.map
 .gitignore
 tsconfig.json
 esbuild.js
+.promptwise/**
