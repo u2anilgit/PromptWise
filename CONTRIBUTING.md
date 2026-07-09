@@ -16,9 +16,12 @@ The MCP server runs with `python -m promptwise.server` (needs `PYTHONPATH=src`, 
 
 ## Project layout
 
-- `src/promptwise/` — engine. New MCP tools: add a `Tool(...)` to `_TOOL_DEFS`, an
-  `elif name == "..."` branch in `call_tool`, and (if stateful) a field on
-  `ServerContext`. Keep core logic in `core/` modules that return small dataclasses.
+- `src/promptwise/` — engine. New MCP tools: add an `async def _handle_<name>(ctx, arguments)`
+  decorated with `@tool(name=..., description=..., schema={...})` in `server.py`, and
+  (if stateful) a field on `ServerContext`. The decorator auto-registers the tool into
+  `_TOOL_DEFS`/`_HANDLERS` and `call_tool` dispatches it automatically — no separate
+  list or dict edit needed. Keep core logic in `core/` modules that return small
+  dataclasses.
 - `skill_packs/` — portable `SKILL.md` packs. Frontmatter must include `name`,
   `description`, `triggers`; optionally `roles`, `model_tier`, `output_schema`.
 - `config/` — YAML config; hot-reloadable via `reload_config`.

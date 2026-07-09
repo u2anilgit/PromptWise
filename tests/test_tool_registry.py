@@ -1,9 +1,10 @@
-"""Handler-registry coverage (Phase 10 WP10.1).
+"""Handler-registry coverage (Phase F decorator registry, extending Phase 10 WP10.1).
 
-Guards the call_tool refactor from a dispatch gap: every advertised tool name
+Guards the tool registry from a dispatch gap: every advertised tool name
 (_TOOL_DEFS) must have a handler in _HANDLERS, and every handler must map to an
-advertised tool (no orphan handler). Also verifies an unknown name preserves the
-exact legacy fallback behavior.
+advertised tool (no orphan handler). Both are now derived from ToolRegistry's
+@tool-decorated entries rather than hand-synced literals. Also verifies an
+unknown name preserves the exact legacy fallback behavior.
 """
 import asyncio
 import inspect
