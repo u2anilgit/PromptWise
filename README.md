@@ -37,6 +37,7 @@ them have:
 - **Continuous learning** — corrections become durable, searchable rules (FTS5) replayed before relevant work; packs self-optimize offline. Local-first, air-gapped safe.
 - **Workflow planning** — classify a task → an ordered chain of PromptWise's *own* skill packs (PRD → design → stories → TDD → review). Fully self-contained, no external tools.
 - **Governed agile method** — analyst→pm→architect→po planning then per-story sm→dev→qa loop, with context-engineered stories, advisory quality gates, policy-as-code, and a hash-chained audit trail. See [docs/AGILE_METHOD.md](docs/AGILE_METHOD.md).
+- **In-editor dashboard** — an optional local VS Code panel surfaces budget, security posture, and governance proposals at a glance, over the same MCP server. No external services, no daemon, no marketplace install required. See [vscode-extension/](vscode-extension/).
 
 ## Architecture — one source, three emitters
 
@@ -86,6 +87,7 @@ Restart your agent, run `/mcp` — PromptWise tools appear. Then just `/promptwi
 | `config/` | Pricing, providers, roles, security, compliance config |
 | `AGENTS.md` | Universal project-context emitter |
 | `docs/` | Integration guides (configuration reference, multi-platform setup) |
+| `vscode-extension/` | Optional local VS Code panel — Budget/Security/Governance dashboard, TypeScript, builds to a local `.vsix`, zero external services |
 
 ## Workflow planner (self-contained)
 
@@ -99,6 +101,23 @@ frameworks, CLIs, or network:
 | Brownfield change | `systematic-debugging` → `refactoring` → `test-generator` → `code-review` → `verify` |
 | Docs / spec only | `prd-generator` → `user-story-generator` → `adr` |
 | Regulated (any of the above) | + `security-architecture` + `owasp_scan` + `get_sbom`, compliance-gate flag set |
+
+## VS Code panel (optional)
+
+A local Budget/Security/Governance dashboard, in-editor. Spawns the same MCP
+server over stdio (via the official `@modelcontextprotocol/sdk`) — no
+external services, no daemon, no network calls, no marketplace publish.
+
+```bash
+cd vscode-extension
+npm install
+npm run package
+code --install-extension promptwise-panel-0.1.0.vsix
+```
+
+Run **PromptWise: Open Panel**. See
+[vscode-extension/README.md](vscode-extension/README.md) for settings and
+development notes.
 
 ## Documentation
 
@@ -116,6 +135,12 @@ pip install -e ".[dev]"
 python -m pytest tests -q        # packs, planner, agile method, governance, enforcement hooks, learning loop, policy intel, tracker, tools
 ```
 
+VS Code panel (optional, separate package):
+
+```bash
+cd vscode-extension && npm install && node --test test/*.test.ts
+```
+
 ## Status
 
 **Early-stage, building in public.** v1.2 ships the engine, eight native IDE/CLI
@@ -128,7 +153,11 @@ enforcement hooks layer, a continuous learning loop with offline skill auto-opti
 an autonomous governor (policy-gated, reversible, advise-by-default) with a budget-guardian
 overlay, a durable eval + red-team regression harness (offline, baseline-diffed, pass/fail
 gated), MCP supply-chain auditing, a searchable trace, diagram generators, and a
-task/effort/token tracker. Everything runs directly from PromptWise — local-first, no
+task/effort/token tracker. The 90 MCP tools are registered through a decorator-based
+tool registry (one source of truth per tool — no hand-synced definition/handler
+pair to drift), and an optional local VS Code panel (`vscode-extension/`) surfaces
+budget, security, and governance at a glance over the same MCP server, zero external
+services. Everything runs directly from PromptWise — local-first, no
 third-party integrations, air-gapped by default.
 
 ## License
