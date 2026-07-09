@@ -15,7 +15,7 @@ packs — emitted in the formats every agent already reads.
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Skill packs](https://img.shields.io/badge/skill%20packs-81-7C5BD4.svg)
-![MCP tools](https://img.shields.io/badge/MCP%20tools-84-4C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-90-4C5BD4.svg)
 
 📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -42,7 +42,7 @@ them have:
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (84)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (90)
         ├─▶ SKILL.md packs → 81 portable packs in skill_packs/
         ├─▶ Lifecycle hooks→ enforce security/policy/audit at runtime (hooks/)
         └─▶ AGENTS.md      → project context + active constitution
@@ -118,7 +118,10 @@ python -m pytest tests -q        # packs, planner, agile method, governance, enf
 
 ## Status
 
-**Early-stage, building in public.** v1.2 ships the engine, the five emitters, the 81
+**Early-stage, building in public.** v1.2 ships the engine, eight native IDE/CLI
+config emitters (Claude, Codex/AGENTS.md, Cursor, Copilot, Cline, Gemini, Windsurf,
+JetBrains AI Assistant) plus a single-file web-agent bundle for ChatGPT/Gemini/
+Claude.ai web chat, the 81
 skill packs (incl. the `agile/` method personas), the self-contained workflow planner, the
 governed agile method (quality gates, policy-as-code, hash-chained audit trail), the runtime
 enforcement hooks layer, a continuous learning loop with offline skill auto-optimization,

@@ -39,6 +39,9 @@ class ProviderConfig:
     fast: str = "claude-haiku-4-5-20251001"
     balanced: str = "claude-sonnet-4-6"
     powerful: str = "claude-opus-4-7"
+    # Optional hard spend cap for this provider (e.g. daily). ``None`` (the
+    # default) means unlimited -- opt-in, no behavior change unless configured.
+    daily_cap_usd: float | None = None
 
 
 @dataclass
@@ -180,12 +183,14 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
     providers_data = raw.get("providers", {}) or {}
     for name, p in providers_data.items():
         tiers = p.get("tiers", {})
+        cap = p.get("daily_cap_usd")
         cfg.providers[name] = ProviderConfig(
             display_name=p.get("display_name", name),
             aliases=p.get("aliases", []),
             fast=tiers.get("fast", cfg.default_model),
             balanced=tiers.get("balanced", cfg.default_model),
             powerful=tiers.get("powerful", cfg.default_model),
+            daily_cap_usd=float(cap) if cap is not None else None,
         )
 
     roles_data = raw.get("roles", {}) or {}

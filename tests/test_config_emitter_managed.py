@@ -136,6 +136,34 @@ def test_codex_aliases_to_agents(tmp_path):
     assert "AGENTS.md" in res  # codex -> AGENTS.md
 
 
+def test_windsurf_is_a_real_target(tmp_path):
+    b = GovernanceBundle(project="acme", policy_summary=["Budget cap $5/day"])
+    res = ConfigEmitter().sync(b, tmp_path, targets=["windsurf"])
+    assert res == {".windsurfrules": "written"}
+    assert "Budget cap $5/day" in (tmp_path / ".windsurfrules").read_text(encoding="utf-8")
+
+
+def test_jetbrains_is_a_real_target(tmp_path):
+    b = GovernanceBundle(project="acme", policy_summary=["Budget cap $5/day"])
+    res = ConfigEmitter().sync(b, tmp_path, targets=["jetbrains"])
+    assert res == {".aiassistant/rules/promptwise.md": "written"}
+    text = (tmp_path / ".aiassistant" / "rules" / "promptwise.md").read_text(encoding="utf-8")
+    assert "Budget cap $5/day" in text
+
+
+def test_windsurf_sync_is_non_destructive(tmp_path):
+    b = GovernanceBundle(project="acme", policy_summary=["Budget cap $5/day"])
+    e = ConfigEmitter()
+    e.sync(b, tmp_path, targets=["windsurf"])
+    rules = tmp_path / ".windsurfrules"
+    rules.write_text(rules.read_text(encoding="utf-8") + "\n- my note\n", encoding="utf-8")
+    b2 = GovernanceBundle(project="acme", policy_summary=["Budget cap $9/day"])
+    e.sync(b2, tmp_path, targets=["windsurf"])
+    text = rules.read_text(encoding="utf-8")
+    assert "Budget cap $9/day" in text
+    assert "my note" in text
+
+
 def test_cursor_frontmatter_is_profile_driven():
     cur = ConfigEmitter().render(GovernanceBundle(project="acme"), "cursor")
     assert cur.startswith("---\n")
