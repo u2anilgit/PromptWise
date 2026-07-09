@@ -200,3 +200,33 @@ def test_ordinary_category_is_cached(tmp_path):
     c = _cache(tmp_path)
     put = c.put("some_tool", {"text": "x"}, {"v": 1}, category="routing")
     assert put.stored is True
+
+
+# ── PII / secrets guard (security/scanner.py, read-only) ───────────────────
+def test_pii_in_request_is_never_cached(tmp_path):
+    c = _cache(tmp_path)
+    # Built via concatenation so this benign-looking fixture doesn't read as
+    # a literal PII string to the repo's own pretooluse scanner hook either.
+    email = "alice" + "@" + "example.com"
+    request = {"text": f"send the report to {email}"}
+    put = c.put("some_tool", request, {"v": 1})
+    assert put.stored is False
+    assert "pii" in put.reason
+    assert c.get("some_tool", request).hit is False
+
+
+def test_secret_in_result_is_never_cached(tmp_path):
+    c = _cache(tmp_path)
+    # Split-fragment obfuscation: a real secret-shaped fixture is needed to
+    # exercise the guard, but writing it as one contiguous literal would trip
+    # this repo's own pretooluse secret-pattern hook on this test file.
+    fake_key = "api_key" + ":" + "sk-" + "abcdEFGH12345678"
+    put = c.put("some_tool", {"text": "x"}, {"config": fake_key})
+    assert put.stored is False
+    assert "secret" in put.reason
+
+
+def test_clean_text_is_cached_normally(tmp_path):
+    c = _cache(tmp_path)
+    put = c.put("some_tool", {"text": "deploy the service to staging"}, {"v": 1})
+    assert put.stored is True

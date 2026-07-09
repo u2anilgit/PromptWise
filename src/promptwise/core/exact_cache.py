@@ -16,6 +16,13 @@ normalized difference is a different cache key, so false-positive hits are
 structurally near-impossible. Normalization is deliberately narrow --
 whitespace only -- so it never collapses two requests that differ in actual
 content (see ``_normalize_value``).
+
+``ExactCache.put`` also guards against two never-cache failure modes named
+in the gap analysis: a caller-declared category exclusion list
+(medical/legal/financial/personalized advice) and a read-only call into
+``security.scanner.SecurityScanner`` to refuse writes whose request or
+result contains PII or secrets. That file is not modified by this module --
+only its existing ``detect_pii``/``check`` entry points are called.
 """
 from __future__ import annotations
 
@@ -131,6 +138,7 @@ class ExactCache:
         if str(self.db_path) != ":memory:":
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.default_ttl_seconds = default_ttl_seconds
+        self._scanner = None  # lazy SecurityScanner -- see _security_scanner()
         self._ensure()
 
     def _connect(self) -> sqlite3.Connection:
@@ -164,10 +172,36 @@ class ExactCache:
         finally:
             conn.close()
 
-    # ── guard hook (category exclusion; security-scanner guard layers on in put()) ──
+    # ── never-cache guards ──────────────────────────────────────────────────
     def _blocked_reason(self, category: str) -> str | None:
         if is_never_cache_category(category):
             return f"never_cache_category:{category}"
+        return None
+
+    def _security_scanner(self):
+        if self._scanner is None:
+            # Read-only use of the existing detector; security/scanner.py is
+            # not modified by this module.
+            from promptwise.security.scanner import SecurityScanner
+            self._scanner = SecurityScanner()
+        return self._scanner
+
+    def _blocked_by_content(self, *texts: str) -> str | None:
+        """PII/secrets guard: refuse to persist a write whose request or
+        result contains either. Runs unconditionally (not gated on
+        SecurityConfig toggles) -- a cache write is a durable-storage
+        decision, not an advisory scan."""
+        scanner = self._security_scanner()
+        for text in texts:
+            if not text:
+                continue
+            pii_items, _ = scanner.detect_pii(text)
+            if pii_items:
+                types = ",".join(sorted({item["type"] for item in pii_items}))
+                return f"pii_detected:{types}"
+            result = scanner.check(text)
+            if any(v.get("check") == "secrets" for v in result.violations):
+                return "secret_detected"
         return None
 
     # ── write ────────────────────────────────────────────────────────────────
@@ -183,6 +217,10 @@ class ExactCache:
             result_json = json.dumps(result)
         except (TypeError, ValueError):
             result_json = json.dumps(str(result))
+
+        content_reason = self._blocked_by_content(normalize_request(tool, request), result_json)
+        if content_reason:
+            return CachePutResult(stored=False, reason=content_reason, key=key)
 
         now = time.time() if ts is None else ts
         ttl = self.default_ttl_seconds if ttl_seconds is None else ttl_seconds
