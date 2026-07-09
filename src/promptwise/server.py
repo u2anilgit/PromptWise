@@ -373,6 +373,14 @@ _TOOL_DEFS = [
              "control_families": {"type": "array", "items": {"type": "string"}, "description": "generic control-family tags; inferred from the trace when omitted"},
              "out_path": {"type": "string", "description": "optional path to write a .zip evidence archive"}}}),
 
+    # ── Scheduled org/compliance report export (Phase 16, additive · offline, stdlib only) ──
+    Tool(name="export_org_report", description="Build a periodic summary (spend, security-scan verdicts, governance/governor actions) for a stakeholder who doesn't touch a CLI. Markdown or self-contained HTML; no PDF dependency. Pass out_path to write it; omit to just return the report data. Offline; no network.",
+         inputSchema={"type": "object", "properties": {
+             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365},
+             "format": {"type": "string", "enum": ["markdown", "html"], "default": "markdown"},
+             "out_path": {"type": "string", "description": "optional path to write the report"},
+             "repo_root": {"type": "string", "default": "."}}}),
+
     # ── Autonomous governor (Phase 9, additive · policy-gated, reversible, default advise-only) ──
     Tool(name="run_governor", description="Turn local insights recommendations into typed, policy-gated, REVERSIBLE governance actions. Default advise-only: proposes actions + policy verdicts and reports what would/did apply for the current mode (env PROMPTWISE_AUTONOMY in {advise,dry_run,apply}). Only allowlisted 'safe' actions (AdjustBudgetGuard, WriteRoutingPreferenceNote) can ever move state, and only in apply; each writes a local undo-ledger entry. Everything else is advisory-only. Offline; fully audited.",
          inputSchema={"type": "object", "properties": {
@@ -513,8 +521,29 @@ async def _handle_compare_providers(ctx: ServerContext, arguments: dict) -> str:
 
 
 # ── Security ─────────────────────────────────────────────────────────
+def _maybe_alert_security(result) -> None:
+    """Best-effort, opt-in notification hook (Phase 16). Subscribes to an
+    ALREADY-COMPUTED SecurityResult; never touches security/scanner.py."""
+    try:
+        from promptwise.core import alerts
+        alerts.notify_security(result)
+    except Exception:
+        pass
+
+
+def _maybe_alert_budget(status) -> None:
+    """Best-effort, opt-in notification hook (Phase 16). Subscribes to an
+    ALREADY-COMPUTED BudgetStatus; never touches plugins/budget.py."""
+    try:
+        from promptwise.core import alerts
+        alerts.notify_budget(status)
+    except Exception:
+        pass
+
+
 async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.security.check(arguments.get("text", ""), allow_network=bool(arguments.get("allow_network", False)))
+    _maybe_alert_security(r)
     return json.dumps({"passed": r.passed, "risk_score": r.risk_score, "violations": r.violations, "blocked": r.blocked, "details": r.details})
 
 
@@ -647,6 +676,7 @@ async def _handle_run_autonomous(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_monitor_budget(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.budget.check(used_usd=float(arguments.get("used_usd", 0)), days_elapsed=int(arguments.get("days_elapsed", 1)),
                          project_id=arguments.get("project_id"), tool_cost_usd=float(arguments.get("tool_cost_usd", 0) or 0))
+    _maybe_alert_budget(r)
     return json.dumps({"used_usd": r.used_usd, "limit_usd": r.limit_usd, "pct_used": r.pct_used,
                        "daily_burn_usd": r.daily_burn_usd, "projected_monthly_usd": r.projected_monthly_usd,
                        "alert_level": r.alert_level, "project_id": r.project_id, "cost_breakdown": r.cost_breakdown})
@@ -992,6 +1022,7 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
             severity_breakdown=severity_breakdown, passed=sec.passed and not owasp)
     except Exception:
         pass  # storage is best-effort; a full disk must not sink the suite
+    _maybe_alert_security(sec)
     return json.dumps({"security": {"passed": sec.passed, "violations": sec.violations, "risk_score": sec.risk_score},
                        "owasp": owasp,
                        "injection": {"detected": inj_detected, "confidence": round(inj_confidence, 2), "patterns_found": inj_patterns},
@@ -1244,6 +1275,16 @@ async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) 
         out_path=arguments.get("out_path")))
 
 
+# ── Scheduled org/compliance report export (Phase 16) ────────────────
+async def _handle_export_org_report(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.report_export import export_report
+    return json.dumps(export_report(
+        repo_root=arguments.get("repo_root", "."),
+        window_days=int(arguments.get("window_days", 30)),
+        out_path=arguments.get("out_path"),
+        fmt=arguments.get("format", "markdown")))
+
+
 # ── Autonomous governor (Phase 9) ────────────────────────────────────
 async def _handle_run_governor(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.governor import Governor
@@ -1350,6 +1391,7 @@ _HANDLERS = {
     "rank_context": _handle_rank_context,
     "optimize_skill_pack": _handle_optimize_skill_pack,
     "export_compliance_bundle": _handle_export_compliance_bundle,
+    "export_org_report": _handle_export_org_report,
     "run_governor": _handle_run_governor,
     "governor_undo": _handle_governor_undo,
 }
