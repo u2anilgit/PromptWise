@@ -77,6 +77,22 @@ _TOOL_DEFS = [
              "messages": {"type": "array", "items": {"type": "object", "properties": {"role": {"type": "string", "enum": ["system", "user", "assistant"]}, "content": {"type": "string"}, "label": {"type": "string"}}, "required": ["role", "content"]}},
              "expected_reuse_count": {"type": "integer", "default": 2, "minimum": 1}, "model": {"type": "string", "default": "claude-sonnet-4-6"}},
          "required": ["messages"]}),
+    Tool(name="cache_lookup", description="Exact-match lookup in the local result cache (ExactCache): given identical (tool, request) input to a prior cache_store call, return the stored result instead of recomputing. Hash-based only, no embeddings/similarity threshold. Offline.",
+         inputSchema={"type": "object", "properties": {
+             "tool": {"type": "string", "description": "name of the tool/skill this result belongs to"},
+             "request": {"description": "the request payload to hash (string or object)"}},
+         "required": ["tool", "request"]}),
+    Tool(name="cache_store", description="Store a result in the local exact-match cache (ExactCache) for later cache_lookup hits. Refuses to store (reports why) if category is medical/legal/financial/personalized/health, or if the request/result contains PII or secrets per security.scanner. Offline.",
+         inputSchema={"type": "object", "properties": {
+             "tool": {"type": "string", "description": "name of the tool/skill this result belongs to"},
+             "request": {"description": "the request payload to hash (string or object)"},
+             "result": {"description": "the result to cache (any JSON-serializable value)"},
+             "category": {"type": "string", "default": "", "description": "e.g. 'medical'/'legal'/'financial'/'personalized'/'health' are never cached"},
+             "ttl_seconds": {"type": "integer", "description": "override the default 1h TTL; 0 means no expiry"}},
+         "required": ["tool", "request", "result"]}),
+    Tool(name="cache_stats", description="Hit/miss/entry-count/hit-rate report for the local exact-match cache (ExactCache), broken down by category. Purges expired entries first by default.",
+         inputSchema={"type": "object", "properties": {
+             "purge_expired": {"type": "boolean", "default": True}}}),
     Tool(name="batch_prompts", description="Batch multiple tasks into one prompt to reduce overhead",
          inputSchema={"type": "object", "properties": {
              "tasks": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 5},
@@ -447,6 +463,28 @@ async def _handle_compress_prompt(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_plan_cache(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.cache_planner.plan(arguments.get("messages", []), expected_reuse_count=arguments.get("expected_reuse_count", 2), model=arguments.get("model", "claude-sonnet-4-6"))
     return json.dumps({"breakpoints": r.breakpoints, "savings_pct": r.savings_pct})
+
+
+async def _handle_cache_lookup(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.exact_cache import ExactCache
+    r = ExactCache().get(arguments.get("tool", ""), arguments.get("request"))
+    return json.dumps(r.to_dict())
+
+
+async def _handle_cache_store(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.exact_cache import ExactCache
+    r = ExactCache().put(
+        arguments.get("tool", ""), arguments.get("request"), arguments.get("result"),
+        category=arguments.get("category", ""), ttl_seconds=arguments.get("ttl_seconds"))
+    return json.dumps(r.to_dict())
+
+
+async def _handle_cache_stats(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.exact_cache import ExactCache
+    cache = ExactCache()
+    if arguments.get("purge_expired", True):
+        cache.purge_expired()
+    return json.dumps(cache.stats())
 
 
 async def _handle_batch_prompts(ctx: ServerContext, arguments: dict) -> str:
@@ -1187,6 +1225,9 @@ _HANDLERS = {
     "optimize_context": _handle_optimize_context,
     "compress_prompt": _handle_compress_prompt,
     "plan_cache": _handle_plan_cache,
+    "cache_lookup": _handle_cache_lookup,
+    "cache_store": _handle_cache_store,
+    "cache_stats": _handle_cache_stats,
     "batch_prompts": _handle_batch_prompts,
     "summarize_thread": _handle_summarize_thread,
     "compare_providers": _handle_compare_providers,
