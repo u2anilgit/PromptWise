@@ -128,6 +128,11 @@ def _run_scaffold(text: str, out: str, repo: str) -> None:
     print("Mermaid diagram:\n" + r["mermaid"])
 
 
+def _run_statusline() -> None:
+    from promptwise.core.statusline import render_status
+    print(render_status())
+
+
 def _run_bootstrap() -> None:
     from promptwise.core.doctor import bootstrap
     res = bootstrap()
@@ -166,6 +171,8 @@ def main() -> None:
 
     sub.add_parser("bootstrap", help="Create local state (.promptwise/ + learning DB) on first run")
 
+    sub.add_parser("statusline", help="Print an at-a-glance status line (budget %% used, last scan)")
+
     lo = sub.add_parser("local", help="Probe device, list local models, recommend token config")
     lo.add_argument("--url", help="Local runtime base URL", default="http://localhost:11434")
 
@@ -186,6 +193,8 @@ def main() -> None:
         _run_doctor(getattr(args, "json", False))
     elif args.command == "bootstrap":
         _run_bootstrap()
+    elif args.command == "statusline":
+        _run_statusline()
     elif args.command == "scaffold":
         _run_scaffold(args.text, args.out, args.repo)
     elif args.command == "local":
