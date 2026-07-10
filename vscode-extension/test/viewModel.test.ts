@@ -5,7 +5,7 @@ import { buildBudgetTile, buildSecurityTile, buildGovernanceTile } from "../src/
 test("buildBudgetTile shapes a normal response", () => {
   const budgetStatus = JSON.stringify({ spend_usd: 12.4, limit_usd: 50 });
   const budgetReport = JSON.stringify({ anomalies: ["spike on 2026-07-08"] });
-  const roiReport = JSON.stringify([{ hours_saved: 2.5 }, { hours_saved: 1.7 }]);
+  const roiReport = JSON.stringify({ period: "weekly", total_hours_saved: 4.2, total_cost_usd: 1.1, total_tokens_saved: 900, records: [] });
 
   const tile = buildBudgetTile(budgetStatus, budgetReport, roiReport);
 
@@ -20,7 +20,7 @@ test("buildBudgetTile shapes a normal response", () => {
 test("buildBudgetTile handles a missing limit", () => {
   const budgetStatus = JSON.stringify({ spend_usd: 12.4, limit_usd: null });
   const budgetReport = JSON.stringify({ anomalies: [] });
-  const roiReport = JSON.stringify([]);
+  const roiReport = JSON.stringify({ period: "weekly", total_hours_saved: 0, total_cost_usd: 0, total_tokens_saved: 0, records: [] });
 
   const tile = buildBudgetTile(budgetStatus, budgetReport, roiReport);
 

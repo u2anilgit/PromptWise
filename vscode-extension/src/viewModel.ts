@@ -15,13 +15,15 @@ export function buildBudgetTile(
   try {
     const status = JSON.parse(budgetStatusJson);
     const report = JSON.parse(budgetReportJson);
-    const roi = JSON.parse(roiReportJson) as Array<{ hours_saved: number }>;
+    // get_roi_report returns a pre-aggregated object (see
+    // server.py:_handle_get_roi_report), not a bare array of records.
+    const roi = JSON.parse(roiReportJson) as { total_hours_saved?: number };
 
     const spendUsd = Number(status.spend_usd ?? 0);
     const limitUsd = status.limit_usd === null || status.limit_usd === undefined ? null : Number(status.limit_usd);
     const percentUsed = limitUsd ? Math.round((spendUsd / limitUsd) * 1000) / 10 : null;
     const anomalies = Array.isArray(report.anomalies) ? report.anomalies : [];
-    const roiHoursSaved = roi.reduce((sum, r) => sum + (Number(r.hours_saved) || 0), 0);
+    const roiHoursSaved = Number(roi.total_hours_saved) || 0;
 
     return { spendUsd, limitUsd, percentUsed, anomalies, roiHoursSaved };
   } catch (err) {
