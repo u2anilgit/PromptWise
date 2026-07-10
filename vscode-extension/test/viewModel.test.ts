@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { buildBudgetTile, buildSecurityTile, buildGovernanceTile } from "../src/viewModel.ts";
+import {
+  buildBudgetTile,
+  buildSecurityTile,
+  buildGovernanceTile,
+  renderBudgetTile,
+  renderSecurityTile,
+  renderGovernanceTile,
+  escapeHtml,
+} from "../src/viewModel.ts";
 
 test("buildBudgetTile shapes a normal response", () => {
   const budgetStatus = JSON.stringify({ spend_usd: 12.4, limit_usd: 50 });
@@ -67,4 +75,57 @@ test("buildGovernanceTile shapes a normal response", () => {
 test("buildGovernanceTile reports malformed JSON as an error, not a throw", () => {
   const tile = buildGovernanceTile("not json");
   assert.strictEqual(typeof tile.error, "string");
+});
+
+test("escapeHtml escapes all five reserved characters", () => {
+  assert.strictEqual(escapeHtml(`<a href="x">'&'</a>`), "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;");
+});
+
+test("renderBudgetTile shows spend, limit, and progress bar for a normal tile", () => {
+  const html = renderBudgetTile({
+    spendUsd: 12.4, limitUsd: 50, percentUsed: 24.8, anomalies: ["spike"], roiHoursSaved: 4.2,
+  });
+  assert.match(html, /\$12\.40/);
+  assert.match(html, /\$50\.00/);
+  assert.match(html, /24\.8% used/);
+  assert.match(html, /<li>spike<\/li>/);
+  assert.doesNotMatch(html, /class="error"/);
+});
+
+test("renderBudgetTile shows 'no limit set' and no progress bar when limit is null", () => {
+  const html = renderBudgetTile({ spendUsd: 0, limitUsd: null, percentUsed: null, anomalies: [], roiHoursSaved: 0 });
+  assert.match(html, /no limit set/);
+  assert.doesNotMatch(html, /class="progress"/);
+  assert.match(html, /No anomalies detected\./);
+});
+
+test("renderBudgetTile renders the error state instead of stats", () => {
+  const html = renderBudgetTile({
+    spendUsd: 0, limitUsd: null, percentUsed: null, anomalies: [], roiHoursSaved: 0, error: "boom",
+  });
+  assert.strictEqual(html, '<p class="error">boom</p>');
+});
+
+test("renderSecurityTile shapes F1 and flags known CVEs", () => {
+  const html = renderSecurityTile({ detectorF1: 0.913, sbomDependencyCount: 12, sbomKnownCves: 2 });
+  assert.match(html, /0\.91/);
+  assert.match(html, /class="stat-value warn">2</);
+});
+
+test("renderSecurityTile shows n/a for a null F1 score", () => {
+  const html = renderSecurityTile({ detectorF1: null, sbomDependencyCount: null, sbomKnownCves: 0 });
+  assert.match(html, /n\/a/);
+});
+
+test("renderGovernanceTile shows the mode badge and proposed actions", () => {
+  const html = renderGovernanceTile({
+    mode: "advise", proposedActions: [{ action: "AdjustBudgetGuard", verdict: "allow" }],
+  });
+  assert.match(html, /badge-advise/);
+  assert.match(html, /<strong>AdjustBudgetGuard<\/strong> — allow/);
+});
+
+test("renderGovernanceTile shows a placeholder when no actions are proposed", () => {
+  const html = renderGovernanceTile({ mode: "advise", proposedActions: [] });
+  assert.match(html, /No actions proposed\./);
 });

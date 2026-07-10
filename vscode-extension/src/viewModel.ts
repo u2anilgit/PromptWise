@@ -1,3 +1,12 @@
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export interface BudgetTileViewModel {
   spendUsd: number;
   limitUsd: number | null;
@@ -38,6 +47,35 @@ export function buildBudgetTile(
   }
 }
 
+export function renderBudgetTile(data: BudgetTileViewModel): string {
+  if (data.error) return `<p class="error">${escapeHtml(data.error)}</p>`;
+
+  const limitText = data.limitUsd === null ? "no limit set" : `$${data.limitUsd.toFixed(2)}`;
+  const progress =
+    data.percentUsed === null
+      ? ""
+      : `<div class="progress"><div class="progress-bar${data.percentUsed >= 100 ? " over" : ""}" style="width:${Math.min(data.percentUsed, 100)}%"></div></div>
+         <p class="stat-sub">${data.percentUsed}% used</p>`;
+  const anomalies = data.anomalies.length
+    ? `<ul>${data.anomalies.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul>`
+    : `<p class="muted">No anomalies detected.</p>`;
+
+  return `
+    <div class="tile">
+      <div class="stat"><span class="stat-label">Spend</span><span class="stat-value">$${data.spendUsd.toFixed(2)}</span></div>
+      <div class="stat"><span class="stat-label">Limit</span><span class="stat-value">${limitText}</span></div>
+      ${progress}
+    </div>
+    <div class="tile">
+      <div class="stat"><span class="stat-label">ROI hours saved</span><span class="stat-value">${data.roiHoursSaved}</span></div>
+    </div>
+    <div class="tile">
+      <h4>Anomalies</h4>
+      ${anomalies}
+    </div>
+  `;
+}
+
 export interface SecurityTileViewModel {
   detectorF1: number | null;
   sbomDependencyCount: number | null;
@@ -69,6 +107,23 @@ export function buildSecurityTile(benchmarkJson: string, sbomJson: string): Secu
   }
 }
 
+export function renderSecurityTile(data: SecurityTileViewModel): string {
+  if (data.error) return `<p class="error">${escapeHtml(data.error)}</p>`;
+
+  const f1Text = data.detectorF1 === null ? "n/a" : data.detectorF1.toFixed(2);
+  const cveClass = data.sbomKnownCves > 0 ? " warn" : "";
+
+  return `
+    <div class="tile">
+      <div class="stat"><span class="stat-label">Injection detector F1</span><span class="stat-value">${f1Text}</span></div>
+    </div>
+    <div class="tile">
+      <div class="stat"><span class="stat-label">SBOM dependencies</span><span class="stat-value">${data.sbomDependencyCount ?? "n/a"}</span></div>
+      <div class="stat"><span class="stat-label">Known CVEs</span><span class="stat-value${cveClass}">${data.sbomKnownCves}</span></div>
+    </div>
+  `;
+}
+
 export interface GovernanceTileViewModel {
   mode: "advise" | "dry_run" | "apply";
   proposedActions: Array<{ action: string; verdict: string }>;
@@ -92,4 +147,24 @@ export function buildGovernanceTile(runGovernorJson: string): GovernanceTileView
       error: `failed to parse governance data: ${(err as Error).message}`,
     };
   }
+}
+
+export function renderGovernanceTile(data: GovernanceTileViewModel): string {
+  if (data.error) return `<p class="error">${escapeHtml(data.error)}</p>`;
+
+  const actions = data.proposedActions.length
+    ? `<ul>${data.proposedActions
+        .map((a) => `<li><strong>${escapeHtml(a.action)}</strong> — ${escapeHtml(a.verdict)}</li>`)
+        .join("")}</ul>`
+    : `<p class="muted">No actions proposed.</p>`;
+
+  return `
+    <div class="tile">
+      <div class="stat"><span class="stat-label">Mode</span><span class="badge badge-${data.mode}">${escapeHtml(data.mode)}</span></div>
+    </div>
+    <div class="tile">
+      <h4>Proposed actions</h4>
+      ${actions}
+    </div>
+  `;
 }

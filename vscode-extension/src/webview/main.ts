@@ -1,18 +1,19 @@
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 
+import {
+  escapeHtml,
+  renderBudgetTile,
+  renderSecurityTile,
+  renderGovernanceTile,
+  type BudgetTileViewModel,
+  type SecurityTileViewModel,
+  type GovernanceTileViewModel,
+} from "../viewModel.ts";
+
 type Tab = "budget" | "security" | "governance";
 
 const vscodeApi = acquireVsCodeApi();
 let activeTab: Tab = "budget";
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function render(): void {
   const app = document.getElementById("app");
@@ -65,7 +66,9 @@ window.addEventListener("message", (event: MessageEvent) => {
     return;
   }
   if (message.type === "tileUpdate" && message.tab === activeTab) {
-    content.innerHTML = `<pre>${escapeHtml(JSON.stringify(message.data, null, 2))}</pre>`;
+    if (activeTab === "budget") content.innerHTML = renderBudgetTile(message.data as BudgetTileViewModel);
+    else if (activeTab === "security") content.innerHTML = renderSecurityTile(message.data as SecurityTileViewModel);
+    else content.innerHTML = renderGovernanceTile(message.data as GovernanceTileViewModel);
     return;
   }
   if (message.type === "scanResult") {

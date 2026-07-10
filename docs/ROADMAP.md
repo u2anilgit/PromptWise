@@ -4,11 +4,13 @@ Single index over the phased roadmaps. Each phase has its own detailed doc
 (`docs/PHASE<N>_ROADMAP.md`). This file is the resume point: what is done, what is
 open, and where to pick up next.
 
-**Status as of the last session:** Phases 6–17 complete and merged to `main`
-(PRs #5–#12; 13–17 merged locally, not yet PR'd). Working tree clean. **599 tests
-pass.** No planned finale — the series is open-ended and continues when new work is
-scoped. Remaining feature candidates: D (local-embeddings, needs dependency sign-off)
-and H (VS Code panel, likely needs dependency sign-off) — see "Open items" below.
+**Status as of 2026-07-10:** Phases 6–18 complete and merged to `main` (PRs
+#5–#15, plus direct commits for Phase 18's debt/bugfix work). Working tree
+clean, **605 Python tests + 26 TypeScript tests pass**, pyright clean (0
+errors). No planned finale — the series is open-ended and continues when new
+work is scoped. Only one feature candidate remains: **D** (local-embeddings,
+needs dependency sign-off) — explicitly deferred/skipped by the user, pick up
+only if asked. See "Open items" below.
 
 Standing guardrails (all phases): local-first, air-gap-safe, no new infrastructure, no
 new pip dependencies, no branded/competitor model ids (tiers/families only), hooks &
@@ -153,37 +155,78 @@ Detail: `PHASE16_ROADMAP.md`.
   count 84 → 90.
 Detail: `PHASE17_ROADMAP.md`.
 
+### Phase F — decorator-based MCP tool registry (candidate F, merged, PR #14) — 599 → 605 tests
+- Replaced the hand-synced `_TOOL_DEFS` list / `_HANDLERS` dict pair with a `@tool(...)`
+  decorator (`ToolRegistry`) — one source of truth per tool, physically adjacent to its
+  handler. Guards duplicate names, non-coroutine handlers, and malformed schemas at
+  decoration time instead of only at test time.
+- One critical bug found and fixed mid-implementation, structurally uncatchable by the
+  test suite: a `__main__`-guard ordering issue in how decorators registered at import
+  time vs. server startup. Same class of blind spot documented again in Phase H below —
+  worth remembering for any future refactor of import-time registration/decoration.
+- Deliberately sequenced last among wave-1-adjacent work so it refactors registration
+  against the final tool count once, instead of conflicting with each wave-1 phase's
+  additive `server.py` edits mid-flight (same reasoning as Phase 10's `call_tool`
+  registry refactor).
+
+### Phase H — VS Code/IDE panel (candidate H, merged, PR #15) — 605 Python + 18 TS tests
+- New standalone `vscode-extension/` package (the repo's first non-Python code) — a
+  local Budget/Security/Governance dashboard. Spawns `python -m promptwise.server` as a
+  child process, talks to it via the official `@modelcontextprotocol/sdk`'s
+  `StdioClientTransport` over the same MCP-over-stdio interface Claude Desktop already
+  uses — zero backend changes, zero external services, zero daemon.
+- New deps are local/no-runtime-network only: `@modelcontextprotocol/sdk`, `typescript`,
+  `esbuild`, `@types/vscode`, `@types/node`, `@vscode/vsce` (packaging only). Testing
+  uses Node's built-in `node:test`/`node:assert` (Node ≥20 native `.ts` execution) —
+  deliberately no `tsx`/`ts-node`/Jest/Mocha, no `@vscode/test-electron`.
+- Two real bugs found during review, not by the test suite (same structural-blind-spot
+  class as Phase F's bug above): a `postMessage` race before the webview's message
+  listener existed (fixed with a `PendingMessageQueue` + ready handshake), and a
+  data-leakage-shaped bug where this repo's own dogfooding audit artifacts
+  (`.promptwise/audit.jsonl`) leaked into the shipped `.vsix` (fixed via
+  `.gitignore`/`.vscodeignore`).
+- v1 dashboard scope deliberately limited to zero-required-argument MCP tools (many of
+  PromptWise's 90 tools need input text/code and can't be auto-refreshed status tiles).
+
+### Phase 18 — pyright debt clear + audit-chain race fix + VS Code panel bug fixes (direct commits, 2026-07-10) — 605 tests, 0 pyright errors
+- Cleared all pyright debt: 115 → 0 errors across 32 files, via 6 parallel per-file-
+  cluster agents (no worktree isolation needed — file-disjoint). Root-cause fixes, not
+  suppressions: migrated `db/models.py`/`core/task_tracker.py` off classic
+  `Column(...)` to SQLAlchemy 2.0 `Mapped[]`/`mapped_column()` (also fixed a real bug —
+  a sync `sessionmaker` bound to an `AsyncEngine`, replaced with `async_sessionmaker`);
+  `isinstance`-narrowed the Anthropic content-block union in `core/orchestrator.py`;
+  fixed a real `float(None)` crash risk in `core/router.py`/`plugins/budget.py` from
+  malformed price rows; Windows platform guards for POSIX-only `os`/`asyncio` calls;
+  `typing.cast` for test-double `ServerContext` stand-ins.
+- Fixed a hash-chain race condition in `AuditLog.append()`: concurrent subagent
+  processes (this session's own 6 parallel pyright-fix agents) raced on the same
+  `audit.jsonl`, corrupting the chain (duplicate/missing index). Added a stdlib-only
+  cross-process file lock with a Windows-specific `PermissionError`-vs-`FileExistsError`
+  retry (verified with an 8-process × 15-append stress test).
+- Live-verified the VS Code panel for the first time (screen capture + `SendKeys`
+  automation, not just backend calls) and found two more real bugs the mocked unit
+  tests couldn't catch: `get_roi_report`'s real shape (a pre-aggregated object, not the
+  array `buildBudgetTile` assumed) crashed the Budget tab; `style.css` was never
+  bundled into `dist/` or linked in the generated HTML, so the panel rendered as
+  unstyled plain text. Both fixed; the raw-`JSON.stringify` tile content was also
+  replaced with formatted stat tiles (progress bar, badges, placeholders) reusing the
+  existing `viewModel.ts` data shapes.
+
 ---
 
 ## Open items (resume here)
 
-### Debt (cosmetic — pyright only, suite green)
-- `Column[str]` vs `str` pyright noise in `db/models.py` (~19 errors) — a declarative
-  SQLAlchemy typing limitation, unrelated to the Phase 11 async-Session fix. Flagged
-  and deliberately left alone in both Phase 11 and Phase 12.
-
 ### Feature candidates
-Both candidates named in two revisions ago (continuous red-team harness, context/RAG
-intelligence) are done — Phase 11 and Phase 12 respectively.
-
 The 2026-07-08 gap analysis (`docs/GAP_ANALYSIS_2026-07.md`) produced 8 ranked phase
-candidates (A–H). **A, B, C, E, G are done** (Phases 13–17 above, merged locally
-2026-07-09 as wave 1). Remaining:
+candidates (A–H). **A, B, C, E, F, G, H are all done** (Phases 13–17 above as wave 1,
+plus F and H documented above). Only one remains:
 - **D — local-embeddings decision** (semantic cache + hybrid BM25/vector memory +
   fact-supersession, 6-8d, Opus) — needs a new pip dependency, **explicit sign-off
-  required** before starting, breaks the standing no-new-deps guardrail. Sequenced
-  after C (done) since it extends the exact-match cache.
-- **F — extensible MCP tool registry** (decorator/manifest pattern replacing the now
-  90 hardcoded `Tool()` entries in `server.py`, 4-5d, Opus) — deliberately deferred
-  until last so it refactors registration against the final tool count once, instead
-  of conflicting with each wave-1 phase's additive `server.py` edits mid-flight (same
-  reasoning as Phase 10's `call_tool` registry refactor).
-- **H — VS Code/IDE panel** (6-8d, Opus lead) — biggest differentiation bet, likely
-  needs a new dependency (extension tooling), same sign-off requirement as D.
+  required** before starting, breaks the standing no-new-deps guardrail. User
+  explicitly deferred/skipped this candidate (2026-07-10) — pick up only if asked.
 
 See `docs/GAP_ANALYSIS_2026-07.md` for full analysis, and non-goals (fairness-metric
-parity, bi-temporal memory). Brainstorm before opening D, F, or H as a
-`PHASE<N>_ROADMAP.md`.
+parity, bi-temporal memory). Brainstorm before opening D as a `PHASE<N>_ROADMAP.md`.
 
 Each future phase: brainstorm → its own `PHASE<N>_ROADMAP.md` → implement (parallel wave
 of isolated worktrees where files are disjoint; safety-critical/core work lands alone) →

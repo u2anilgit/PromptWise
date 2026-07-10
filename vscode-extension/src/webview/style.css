@@ -2,6 +2,44 @@ body { font-family: var(--vscode-font-family); padding: 0 12px; }
 .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
 .tab { padding: 6px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
 .tab.active { border-bottom-color: var(--vscode-focusBorder); }
-.tile { margin-bottom: 8px; }
+.tile {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-radius: 4px;
+}
+.tile h4 { margin: 0 0 6px; font-size: 0.95em; opacity: 0.85; }
 .error { color: var(--vscode-errorForeground); }
+.muted { opacity: 0.65; margin: 0; }
 textarea { width: 100%; min-height: 80px; }
+
+.stat { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 0; }
+.stat-label { opacity: 0.75; }
+.stat-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat-value.warn { color: var(--vscode-errorForeground); }
+.stat-sub { margin: 4px 0 0; font-size: 0.85em; opacity: 0.7; }
+
+.progress {
+  margin-top: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--vscode-progressBar-background, rgba(128, 128, 128, 0.3));
+  overflow: hidden;
+}
+.progress-bar { height: 100%; background: var(--vscode-focusBorder); }
+.progress-bar.over { background: var(--vscode-errorForeground); }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: 600;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+.badge-apply { background: var(--vscode-errorForeground); color: var(--vscode-editor-background); }
+.badge-dry_run { background: var(--vscode-focusBorder); color: var(--vscode-editor-background); }
+
+.tile ul { margin: 0; padding-left: 18px; }
+.tile li { margin: 2px 0; }
