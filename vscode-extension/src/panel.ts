@@ -125,6 +125,9 @@ export class PanelProvider {
     const webviewUri = this.panel.webview.asWebviewUri(
       vscodeApi.Uri.joinPath(this.extensionUri, "dist", "webview", "main.js")
     );
+    const styleUri = this.panel.webview.asWebviewUri(
+      vscodeApi.Uri.joinPath(this.extensionUri, "dist", "webview", "style.css")
+    );
 
     const srcPromptwise = path.join(cwd, "src", "promptwise");
     const pythonPathEnv = fs.existsSync(srcPromptwise) ? path.join(cwd, "src") : undefined;
@@ -155,12 +158,12 @@ export class PanelProvider {
     try {
       await this.client.connect(pythonPath, cwd, pythonPathEnv);
     } catch (err) {
-      this.panel.webview.html = this.renderHtml(webviewUri.toString());
+      this.panel.webview.html = this.renderHtml(webviewUri.toString(), styleUri.toString());
       this.postMessage({ type: "connectionError", message: (err as Error).message });
       return;
     }
 
-    this.panel.webview.html = this.renderHtml(webviewUri.toString());
+    this.panel.webview.html = this.renderHtml(webviewUri.toString(), styleUri.toString());
   }
 
   private postMessage(message: HostToWebviewMessage): void {
@@ -169,12 +172,13 @@ export class PanelProvider {
     }
   }
 
-  private renderHtml(webviewUri: string): string {
+  private renderHtml(webviewUri: string, styleUri: string): string {
     return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${this.panel!.webview.cspSource}; style-src ${this.panel!.webview.cspSource} 'unsafe-inline';" />
+  <link rel="stylesheet" href="${styleUri}" />
 </head>
 <body>
   <div id="app"></div>

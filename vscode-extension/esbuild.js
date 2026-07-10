@@ -1,4 +1,6 @@
 const esbuild = require("esbuild");
+const fs = require("fs");
+const path = require("path");
 
 const shared = {
   bundle: true,
@@ -24,6 +26,14 @@ async function build() {
     platform: "browser",
     format: "iife",
   });
+
+  // esbuild only bundles JS entry points above; style.css is a static asset
+  // the webview loads via a <link>, so it needs a plain copy into dist/.
+  fs.mkdirSync(path.join(__dirname, "dist", "webview"), { recursive: true });
+  fs.copyFileSync(
+    path.join(__dirname, "src", "webview", "style.css"),
+    path.join(__dirname, "dist", "webview", "style.css")
+  );
 }
 
 build().catch((err) => {
