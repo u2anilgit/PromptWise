@@ -1,10 +1,16 @@
 """Server tool registry: expected tools present, no duplicates, schemas well-formed."""
 import asyncio
 import json
+import typing
 
 import promptwise.server as s
 
 NAMES = [t.name for t in s._TOOL_DEFS]
+
+# None is a valid stand-in for ctx in these dispatch tests: the tools exercised
+# here (detect_agents, orchestrate_tasks, shard_doc, ...) never read ctx. Cast
+# documents that gap instead of building a real 23-field ServerContext.
+_CTX = typing.cast(s.ServerContext, None)
 
 AGILE_TOOLS = [
     "shard_doc", "draft_story", "run_quality_gate", "check_policy",
@@ -58,12 +64,12 @@ def test_config_compiler_tools_registered():
 
 def test_detect_agents_dispatch(tmp_path):
     (tmp_path / "CLAUDE.md").write_text("# x", encoding="utf-8")
-    out = asyncio.run(s.call_tool(None, "detect_agents", {"repo_root": str(tmp_path)}))
+    out = asyncio.run(s.call_tool(_CTX, "detect_agents", {"repo_root": str(tmp_path)}))
     assert "claude" in json.loads(out)["targets"]
 
 
 def test_propose_agent_config_writes_nothing(tmp_path):
-    out = asyncio.run(s.call_tool(None, "propose_agent_config",
+    out = asyncio.run(s.call_tool(_CTX, "propose_agent_config",
                                   {"project": "acme", "policy_summary": ["x"],
                                    "repo_root": str(tmp_path), "targets": ["claude"]}))
     res = json.loads(out)
@@ -78,7 +84,7 @@ def test_orchestrate_emits_wave_plan_for_structured_tasks():
         {"id": "c", "depends_on": ["a"]},
         {"id": "d", "depends_on": ["b", "c"]},
     ]
-    out = json.loads(asyncio.run(s.call_tool(None, "orchestrate_tasks", {"text": "", "tasks": tasks})))
+    out = json.loads(asyncio.run(s.call_tool(_CTX, "orchestrate_tasks", {"text": "", "tasks": tasks})))
     assert out["mode"] == "plan"
     assert out["waves"][0] == ["a"]
     assert set(out["waves"][1]) == {"b", "c"}
@@ -87,25 +93,25 @@ def test_orchestrate_emits_wave_plan_for_structured_tasks():
 
 def test_orchestrate_plan_flags_cycle():
     tasks = [{"id": "a", "depends_on": ["b"]}, {"id": "b", "depends_on": ["a"]}]
-    out = json.loads(asyncio.run(s.call_tool(None, "orchestrate_tasks", {"text": "", "tasks": tasks})))
+    out = json.loads(asyncio.run(s.call_tool(_CTX, "orchestrate_tasks", {"text": "", "tasks": tasks})))
     assert out["has_cycle"] and out["cycle"] == ["a", "b"]
 
 
 def test_shard_doc_dispatch():
     # these tools ignore ctx -> safe to dispatch with ctx=None
-    out = asyncio.run(s.call_tool(None, "shard_doc", {"markdown": "# A\nx\n## B\ny\n"}))
+    out = asyncio.run(s.call_tool(_CTX, "shard_doc", {"markdown": "# A\nx\n## B\ny\n"}))
     shards = json.loads(out)
     assert [sh["title"] for sh in shards] == ["A", "B"]
 
 
 def test_quality_gate_dispatch():
-    out = asyncio.run(s.call_tool(None, "run_quality_gate",
+    out = asyncio.run(s.call_tool(_CTX, "run_quality_gate",
                                   {"story_id": "S1", "findings": [{"severity": "high"}]}))
     assert json.loads(out)["decision"] == "FAIL"
 
 
 def test_sync_agent_config_dispatch(tmp_path):
-    out = asyncio.run(s.call_tool(None, "sync_agent_config",
+    out = asyncio.run(s.call_tool(_CTX, "sync_agent_config",
                                   {"project": "acme", "policy_summary": ["Budget $5/day"],
                                    "packs": ["agile-sm"], "repo_root": str(tmp_path),
                                    "targets": ["claude", "cursor"]}))

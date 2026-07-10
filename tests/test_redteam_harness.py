@@ -88,6 +88,7 @@ def test_baseline_round_trip(tmp_path):
     assert store.get_baseline("c1", "pii") is None
     store.save_baseline("c1", "pii", "met", suite="default", ts="2026-07-04T00:00:00Z")
     base = store.get_baseline("c1", "pii")
+    assert base is not None
     assert base["verdict"] == "met"
 
 

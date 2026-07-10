@@ -1,6 +1,7 @@
 import asyncio
 import json
 import subprocess
+import sys
 import time
 from typing import Any
 
@@ -50,8 +51,9 @@ class CLIAdapter(TransportAdapter):
     async def _send_stdio(self, payload: str) -> str:
         if not self.process:
             self.process = subprocess.Popen(self.target, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
+        process = self.process
         stdout, stderr = await asyncio.wait_for(
-            asyncio.get_event_loop().run_in_executor(None, lambda: self.process.communicate(input=payload + "\n")),
+            asyncio.get_event_loop().run_in_executor(None, lambda: process.communicate(input=payload + "\n")),
             timeout=self.timeout_s,
         )
         if stderr:
@@ -60,6 +62,11 @@ class CLIAdapter(TransportAdapter):
 
     async def _send_socket(self, payload: str) -> str:
         if self.target.startswith("/"):
+            if sys.platform == "win32":
+                raise RuntimeError(
+                    "Unix domain socket transport ('/path') is not supported on Windows; "
+                    "use a TCP endpoint (host:port) instead."
+                )
             reader, writer = await asyncio.wait_for(asyncio.open_unix_connection(self.target), timeout=self.timeout_s)
         else:
             parts = self.target.split(":")

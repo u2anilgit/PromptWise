@@ -160,6 +160,7 @@ def test_ollama_client_builds_generate_body():
 
     c = L.OllamaClient(http_post=post)
     out = c.generate("llama3", "hi", num_ctx=4096, context=[9, 9])
+    assert out is not None
     assert seen["url"].endswith("/api/generate")
     assert seen["body"]["model"] == "llama3" and seen["body"]["stream"] is False
     assert seen["body"]["options"]["num_ctx"] == 4096

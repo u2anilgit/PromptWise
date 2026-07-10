@@ -52,7 +52,7 @@ def _run_eval(config_dir: str | None, prompt: str, model: str | None) -> None:
 
     cfg = load_config(config_dir)
     router = Router(cfg)
-    quality = QualityGuard(cfg)
+    quality = QualityGuard(confidence_threshold=cfg.skills.confidence_threshold)
 
     t0 = time.perf_counter()
     stakes = "high" if model == "powerful" else "medium"
@@ -72,8 +72,22 @@ def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> No
 
     if cli_only or not cfg.dashboard.web_enabled:
         from promptwise.dashboard.cli import CLIDashboard
-        dash = CLIDashboard(cfg)
-        dash.render_all()
+        from promptwise.plugins.budget import BudgetGuardian
+
+        guardian = BudgetGuardian(limit_usd=cfg.policies.budget_hard_stop_usd)
+        budget = guardian.get_budget_status()
+        pct = budget["pct_used"]
+        alert = "hard_stop" if pct >= 100 else "critical" if pct >= 90 else "warn" if pct >= 75 else "ok"
+        daily_burn = budget["current_spend_usd"] / 30 if budget["current_spend_usd"] else 0.0
+
+        dash = CLIDashboard()
+        print(dash.render_budget(
+            used_usd=budget["current_spend_usd"],
+            limit_usd=budget["limit_usd"],
+            daily_burn=daily_burn,
+            projected=budget["current_spend_usd"],
+            alert=alert,
+        ))
         return
 
     port = port or cfg.dashboard.web_port

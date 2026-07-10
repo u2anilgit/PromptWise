@@ -11,8 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.future import select
 
 from promptwise.db.models import Base, TaskModel
@@ -40,7 +39,7 @@ class TaskTracker:
         if not db_url.startswith(("sqlite", "postgresql")):
             db_url = f"sqlite+aiosqlite:///{db_path}"
         self.engine = create_async_engine(db_url, echo=False)
-        self.async_session = sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
+        self.async_session = async_sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
 
     async def init(self) -> None:
         async with self.engine.begin() as conn:

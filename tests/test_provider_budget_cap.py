@@ -11,6 +11,7 @@ its own. No cap configured (the default) means no behavior change at all.
 """
 import asyncio
 import json
+import typing
 
 import promptwise.server as s
 from promptwise.config import AppConfig, ProviderConfig
@@ -90,7 +91,10 @@ class _FakeCtx:
 
 
 def test_route_request_handler_surfaces_provider_capped():
-    ctx = _FakeCtx(router=Router(_config_with_cap(1.0)))
+    # _FakeCtx only carries the attrs _handle_route_request reads (router/
+    # budget/memory); cast documents the deliberate shortfall against the
+    # full ServerContext instead of building a real 23-field one.
+    ctx = typing.cast(s.ServerContext, _FakeCtx(router=Router(_config_with_cap(1.0))))
     out = asyncio.run(s._handle_route_request(ctx, {
         "text": "write a function", "intent": "code", "stakes": "high",
         "provider": "claude", "provider_spend_usd": 5.0}))

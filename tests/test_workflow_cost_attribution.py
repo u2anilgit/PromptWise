@@ -12,6 +12,7 @@ identical behavior.
 """
 import asyncio
 import json
+import typing
 
 import promptwise.server as s
 from promptwise.plugins.budget import BudgetGuardian
@@ -62,7 +63,10 @@ def test_monitor_budget_handler_surfaces_cost_breakdown():
     class _FakeCtx:
         budget = BudgetGuardian(limit_usd=10.0)
 
-    out = asyncio.run(s._handle_monitor_budget(_FakeCtx(), {"used_usd": 3.0, "tool_cost_usd": 2.0}))
+    # _FakeCtx only carries .budget, the only attr _handle_monitor_budget reads;
+    # cast documents the deliberate shortfall against the full ServerContext.
+    ctx = typing.cast(s.ServerContext, _FakeCtx())
+    out = asyncio.run(s._handle_monitor_budget(ctx, {"used_usd": 3.0, "tool_cost_usd": 2.0}))
     body = json.loads(out)
     assert body["cost_breakdown"] == {"llm_usd": 3.0, "tool_usd": 2.0}
     assert body["used_usd"] == 5.0
@@ -72,7 +76,8 @@ def test_monitor_budget_handler_backward_compatible_without_tool_cost():
     class _FakeCtx:
         budget = BudgetGuardian(limit_usd=10.0)
 
-    out = asyncio.run(s._handle_monitor_budget(_FakeCtx(), {"used_usd": 3.0}))
+    ctx = typing.cast(s.ServerContext, _FakeCtx())
+    out = asyncio.run(s._handle_monitor_budget(ctx, {"used_usd": 3.0}))
     body = json.loads(out)
     assert body["cost_breakdown"] is None
     assert body["used_usd"] == 3.0

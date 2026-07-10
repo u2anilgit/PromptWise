@@ -131,8 +131,12 @@ class BudgetGuardian:
         Router._input_rate exactly so the two engines never drift again."""
         pr = self._registry.price(alias)
         cfg = self._config.get_model(alias)
-        in_rate = pr.get("input_per_mtok") if pr and "input_per_mtok" in pr else cfg.rates.input_per_mtok
-        out_rate = pr.get("output_per_mtok") if pr and "output_per_mtok" in pr else cfg.rates.output_per_mtok
+        # See Router._input_rate: a present-but-null price field in models.yaml
+        # must fall back to config pricing rather than reach float() as None.
+        pr_in = pr.get("input_per_mtok") if pr else None
+        pr_out = pr.get("output_per_mtok") if pr else None
+        in_rate = pr_in if pr_in is not None else cfg.rates.input_per_mtok
+        out_rate = pr_out if pr_out is not None else cfg.rates.output_per_mtok
         return float(in_rate), float(out_rate)
 
     def predict_cost(self, prompt: str, model: str = "claude-sonnet-4-6") -> dict:

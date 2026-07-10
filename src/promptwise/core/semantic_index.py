@@ -100,7 +100,7 @@ def search_trace(query: str, k: int = 5, repo_root: str | Path = ".",
 def _embed_rank(docs: list[dict], query: str) -> str:
     """Best-effort local embedding rank. Raises if unavailable so the caller
     falls back to keyword. No network: uses a locally-installed model only."""
-    from sentence_transformers import SentenceTransformer, util  # optional dep
+    from sentence_transformers import SentenceTransformer, util  # type: ignore[import-not-found]  # optional dep, not installed — see Phase D
     model = SentenceTransformer("all-MiniLM-L6-v2")
     if not docs:
         return "embeddings"

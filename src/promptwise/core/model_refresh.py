@@ -95,7 +95,7 @@ def _default_fetch() -> list[dict]:
     return []  # no host call enumerates a build's models; provider fetch is injected
 
 
-def refresh(*, registry_path=None, state_dir=".promptwise", ttl_hours: float = 24.0,
+def refresh(*, registry_path=None, state_dir: str | Path = ".promptwise", ttl_hours: float = 24.0,
             fetch_fn=None, force: bool = False) -> dict:
     """Refresh the registry if enabled and stale. Returns a small status dict;
     never raises."""
@@ -122,6 +122,6 @@ def refresh(*, registry_path=None, state_dir=".promptwise", ttl_hours: float = 2
         return {"refreshed": False, "error": f"{type(e).__name__}: {e}"}
 
 
-def maybe_refresh(state_dir=".promptwise") -> dict:
+def maybe_refresh(state_dir: str | Path = ".promptwise") -> dict:
     """Convenience entry for the SessionStart hook: gated, cached, fail-open."""
     return refresh(state_dir=state_dir)

@@ -95,6 +95,7 @@ class Orchestrator:
 
         try:
             import anthropic
+            from anthropic.types import TextBlock
             client = anthropic.Anthropic(api_key=api_key)
             response = client.messages.create(
                 model=model,
@@ -105,8 +106,12 @@ class Orchestrator:
             input_tokens = response.usage.input_tokens
             output_tokens = response.usage.output_tokens
             cost_usd = input_tokens * 0.000003 + output_tokens * 0.000015
+            # This call passes neither `tools=` nor `thinking=`, so per the Anthropic API
+            # response.content can only ever contain TextBlock entries here. Join any text
+            # blocks defensively rather than assuming a single block at index 0.
+            result_text = "".join(block.text for block in response.content if isinstance(block, TextBlock))
             return {"status": "success", "skill": skill.name, "model_used": response.model,
-                    "result": response.content[0].text, "input_tokens": input_tokens, "output_tokens": output_tokens, "cost_usd": cost_usd}
+                    "result": result_text, "input_tokens": input_tokens, "output_tokens": output_tokens, "cost_usd": cost_usd}
         except ImportError:
             return {"error": "anthropic package not installed", "status": "error", "skill": skill.name}
         except Exception as e:

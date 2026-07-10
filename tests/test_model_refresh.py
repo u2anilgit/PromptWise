@@ -54,7 +54,9 @@ def test_existing_model_price_updated_in_place(tmp_path):
     fetched = [{"alias": "a-1", "family": "fam-a", "status": "current",
                 "release_date": "2025-01-01", "price": {"input_per_mtok": 99.0}}]
     MR.refresh(registry_path=reg, state_dir=tmp_path, force=True, fetch_fn=lambda: fetched)
-    assert ModelRegistry(reg).price("a-1")["input_per_mtok"] == 99.0
+    price = ModelRegistry(reg).price("a-1")
+    assert price is not None
+    assert price["input_per_mtok"] == 99.0
 
 
 # ── TTL cache ────────────────────────────────────────────────────────────────

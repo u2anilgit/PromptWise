@@ -51,6 +51,8 @@ class AuditLog:
             self._load()
 
     def _load(self) -> None:
+        if not self.path:
+            return
         for line in self.path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:

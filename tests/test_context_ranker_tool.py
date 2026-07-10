@@ -1,6 +1,7 @@
 """Phase 12 — rank_context tool wiring."""
 import asyncio
 import json
+import typing
 
 from promptwise import server as srv
 
@@ -10,7 +11,13 @@ class _Ctx:
 
 
 def _call(name, arguments):
-    return asyncio.run(srv._HANDLERS[name](_Ctx(), arguments))
+    # _Ctx is a lightweight stand-in: this handler doesn't read ctx at all.
+    # Cast documents the intentional gap instead of hiding it.
+    ctx = typing.cast(srv.ServerContext, _Ctx())
+    coro = typing.cast(
+        "typing.Coroutine[typing.Any, typing.Any, str]", srv._HANDLERS[name](ctx, arguments)
+    )
+    return asyncio.run(coro)
 
 
 def test_tool_registered():

@@ -1,6 +1,7 @@
 """Phase 2 — continuous learning loop: capture, FTS/LIKE retrieval, insights."""
 import asyncio
 import json
+import typing
 
 from promptwise.core.learning_store import LearningStore, _tokenize
 from promptwise.core.learning_replay import replay
@@ -91,14 +92,18 @@ def test_server_dispatch_capture_replay_insights(tmp_path, monkeypatch):
     monkeypatch.setattr(ls, "default_db_path", lambda: db)
     import promptwise.server as srv
 
-    cap = json.loads(asyncio.run(srv.call_tool(None, "capture_learning", {
+    # None is a valid stand-in: none of these handlers read ctx. Cast documents
+    # the intentional gap instead of building a real 23-field ServerContext.
+    ctx = typing.cast(srv.ServerContext, None)
+
+    cap = json.loads(asyncio.run(srv.call_tool(ctx, "capture_learning", {
         "category": "security", "mistake": "logged a password",
         "correction": "redact secrets before logging", "project": "acme"})))
     assert cap["captured"]["id"] >= 1
 
-    rep = json.loads(asyncio.run(srv.call_tool(None, "replay_learnings",
+    rep = json.loads(asyncio.run(srv.call_tool(ctx, "replay_learnings",
                                                {"task": "add logging to auth", "k": 3})))
     assert rep["matched"] >= 1
 
-    ins = json.loads(asyncio.run(srv.call_tool(None, "learning_insights", {})))
+    ins = json.loads(asyncio.run(srv.call_tool(ctx, "learning_insights", {})))
     assert ins["total_learnings"] >= 1

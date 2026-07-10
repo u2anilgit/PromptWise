@@ -17,17 +17,19 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 
 
 # ── device probe ─────────────────────────────────────────────────────────────
 def _ram_gb():
-    try:
-        if hasattr(os, "sysconf") and "SC_PHYS_PAGES" in os.sysconf_names:  # unix
-            return round(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9, 1)
-    except Exception:
-        pass
+    if sys.platform != "win32":
+        try:
+            if hasattr(os, "sysconf") and "SC_PHYS_PAGES" in os.sysconf_names:  # unix
+                return round(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9, 1)
+        except Exception:
+            pass
     try:  # windows
         import ctypes
 

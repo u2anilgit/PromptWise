@@ -91,7 +91,12 @@ class Router:
         (the live source), then config pricing, then defaults."""
         pr = self.registry.price(model_alias)
         cfg = self.config.get_model(model_alias)
-        rate = pr.get("input_per_mtok") if pr and "input_per_mtok" in pr else cfg.rates.input_per_mtok
+        # `pr` is a raw dict parsed from user-editable models.yaml with no schema
+        # validation, so a present-but-blank/null price field (e.g. an
+        # `input_per_mtok:` row left empty) is reachable at runtime -- fall back to
+        # config pricing in that case exactly as we would if the key were absent.
+        pr_rate = pr.get("input_per_mtok") if pr else None
+        rate = pr_rate if pr_rate is not None else cfg.rates.input_per_mtok
         return float(rate), int(cfg.context_window)
 
     def route(self, text: str, intent: str = "auto", stakes: str = "auto", provider: str = "claude",
@@ -145,8 +150,12 @@ class Router:
         output_tokens = tokens * 2
         m = self.config.get_model(model)
         pr = self.registry.price(model)
-        in_rate = pr.get("input_per_mtok") if pr and "input_per_mtok" in pr else m.rates.input_per_mtok
-        out_rate = pr.get("output_per_mtok") if pr and "output_per_mtok" in pr else m.rates.output_per_mtok
+        # See _input_rate: a present-but-null price field in models.yaml must fall
+        # back to config pricing rather than reach float() as None.
+        pr_in = pr.get("input_per_mtok") if pr else None
+        pr_out = pr.get("output_per_mtok") if pr else None
+        in_rate = pr_in if pr_in is not None else m.rates.input_per_mtok
+        out_rate = pr_out if pr_out is not None else m.rates.output_per_mtok
         cost = tokens * float(in_rate) / 1_000_000 + output_tokens * float(out_rate) / 1_000_000
         return [{"provider": m.provider, "model": model, "total_cost_usd": round(cost, 8)}]
 

@@ -6,6 +6,7 @@ out (an indirect-injection / exfiltration signal). Wired into scan_response.
 """
 import asyncio
 import json
+import typing
 
 from promptwise.security.scanner import SecurityScanner
 from promptwise import server as srv
@@ -17,7 +18,13 @@ class _Ctx:
 
 
 def _call(name, arguments):
-    return asyncio.run(srv._HANDLERS[name](_Ctx(), arguments))
+    # _Ctx is a lightweight stand-in: this handler only reads ctx.security,
+    # not the full ServerContext shape. Cast documents the intentional gap.
+    ctx = typing.cast(srv.ServerContext, _Ctx())
+    coro = typing.cast(
+        "typing.Coroutine[typing.Any, typing.Any, str]", srv._HANDLERS[name](ctx, arguments)
+    )
+    return asyncio.run(coro)
 
 
 def test_issue_canary_is_unique_and_nonempty():

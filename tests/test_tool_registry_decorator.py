@@ -4,6 +4,8 @@ Each test builds a throwaway ToolRegistry() instance so guard behavior is
 verified in isolation from the module-level registry that (after Task 3)
 holds all 90 production tools.
 """
+import typing
+
 import pytest
 
 from promptwise.server import ToolRegistry
@@ -59,6 +61,8 @@ def test_non_dict_schema_raises():
     registry = ToolRegistry()
 
     with pytest.raises(TypeError, match="object-type inputSchema"):
-        @registry.tool(name="not_a_dict", description="x", schema="oops")
+        # Intentional bad input: verifies the decorator's isinstance guard
+        # rejects a non-dict schema at registration time.
+        @registry.tool(name="not_a_dict", description="x", schema=typing.cast(dict, "oops"))
         async def _handle_not_dict(ctx, arguments):
             return "nope"

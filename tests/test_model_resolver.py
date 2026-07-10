@@ -48,8 +48,11 @@ def test_resolver_never_selects_deprecated_even_if_newest(tmp_path):
 # ── acceptance: point-in-time price is per-model, never shared ───────────────
 def test_price_is_point_in_time_per_model(tmp_path):
     r = _registry(tmp_path)
-    assert r.price("x-1")["input_per_mtok"] == 8.0
-    assert r.price("x-2")["input_per_mtok"] == 10.0  # a newer model never rewrites x-1's price
+    price_x1 = r.price("x-1")
+    price_x2 = r.price("x-2")
+    assert price_x1 is not None and price_x2 is not None
+    assert price_x1["input_per_mtok"] == 8.0
+    assert price_x2["input_per_mtok"] == 10.0  # a newer model never rewrites x-1's price
 
 
 # ── acceptance: offline / missing registry falls back cleanly ────────────────

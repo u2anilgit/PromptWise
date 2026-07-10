@@ -7,6 +7,7 @@ contiguous attack-pattern substring.
 """
 import asyncio
 import json
+import typing
 
 from promptwise.core.redteam_harness import builtin_cases
 from promptwise.security.scanner import SecurityScanner
@@ -21,7 +22,13 @@ class _Ctx:
 
 
 def _call(name, arguments):
-    return asyncio.run(srv._HANDLERS[name](_Ctx(), arguments))
+    # _Ctx is a lightweight stand-in: this handler only reads ctx.security,
+    # not the full ServerContext shape. Cast documents the intentional gap.
+    ctx = typing.cast(srv.ServerContext, _Ctx())
+    coro = typing.cast(
+        "typing.Coroutine[typing.Any, typing.Any, str]", srv._HANDLERS[name](ctx, arguments)
+    )
+    return asyncio.run(coro)
 
 
 def test_prompt_injection_handler_shape_unchanged():

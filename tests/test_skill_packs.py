@@ -37,6 +37,7 @@ def test_names_unique():
     names = []
     for f in PACKS:
         m = re.match(r"^---\s*\n(.*?)\n---", f.read_text(encoding="utf-8"), re.DOTALL)
+        assert m is not None, f"{f.name}: no frontmatter"
         names.append((yaml.safe_load(m.group(1)) or {}).get("name"))
     dups = {n for n in names if names.count(n) > 1}
     assert not dups, f"duplicate skill names: {dups}"

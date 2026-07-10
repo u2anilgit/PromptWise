@@ -4,9 +4,9 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from sqlalchemy import Column, String, Float, Text, create_engine
+from sqlalchemy import String, Float, Text, create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.future import select
 
 from promptwise.types import MemoryEntry
@@ -16,82 +16,82 @@ Base = declarative_base()
 
 class SessionModel(Base):
     __tablename__ = "sessions"
-    session_id = Column(String(50), primary_key=True)
-    started_ts = Column(String(50), nullable=False)
-    last_ping_ts = Column(String(50), nullable=False)
-    is_active = Column(String(10), default="true")
+    session_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    started_ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    last_ping_ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_active: Mapped[str] = mapped_column(String(10), default="true")
 
 
 class CostLogModel(Base):
     __tablename__ = "cost_logs"
-    log_id = Column(String(50), primary_key=True)
-    session_id = Column(String(50), nullable=False, index=True)
-    ts = Column(String(50), nullable=False)
-    tool = Column(String(100), nullable=False)
-    model = Column(String(100), nullable=False)
-    input_tokens = Column(Float, default=0.0)
-    output_tokens = Column(Float, default=0.0)
-    cost_usd = Column(Float, default=0.0)
-    saving_pct = Column(Float, default=0.0)
-    lines = Column(Float, default=0.0)
+    log_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    tool: Mapped[str] = mapped_column(String(100), nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    input_tokens: Mapped[float] = mapped_column(Float, default=0.0)
+    output_tokens: Mapped[float] = mapped_column(Float, default=0.0)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    saving_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    lines: Mapped[float] = mapped_column(Float, default=0.0)
 
 
 class MemoryEntryModel(Base):
     __tablename__ = "memory_entries"
-    entry_id = Column(String(50), primary_key=True)
-    session_id = Column(String(50), nullable=False, index=True)
-    ts = Column(String(50), nullable=False)
-    tool = Column(String(100), nullable=False)
-    summary = Column(Text, nullable=False)
-    cost_usd = Column(Float, default=0.0)
-    tags = Column(Text, default="[]")
+    entry_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    tool: Mapped[str] = mapped_column(String(100), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    tags: Mapped[str] = mapped_column(Text, default="[]")
 
 
 class SemanticFactModel(Base):
     __tablename__ = "semantic_facts"
-    fact_id = Column(String(50), primary_key=True)
-    key = Column(String(100), nullable=False, index=True)
-    value = Column(Text, nullable=False)
-    ts = Column(String(50), nullable=False)
-    scope = Column(String(50), default="org")
+    fact_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    scope: Mapped[str] = mapped_column(String(50), default="org")
 
 
 class PromptModel(Base):
     __tablename__ = "prompts"
-    prompt_id = Column(String(50), primary_key=True)
-    name = Column(String(100), nullable=False, index=True)
-    content = Column(Text, nullable=False)
-    version = Column(String(20), nullable=False)
-    description = Column(Text, default="")
-    tags = Column(Text, default="[]")
-    ts = Column(String(50), nullable=False)
+    prompt_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[str] = mapped_column(String(20), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    tags: Mapped[str] = mapped_column(Text, default="[]")
+    ts: Mapped[str] = mapped_column(String(50), nullable=False)
 
 
 class ROIStatModel(Base):
     __tablename__ = "roi_stats"
-    stat_id = Column(String(50), primary_key=True)
-    developer = Column(String(100), nullable=False)
-    role = Column(String(50), nullable=False)
-    skill = Column(String(100), default="")
-    project_id = Column(String(100), default="")
-    tokens_saved = Column(Float, default=0.0)
-    cost_usd = Column(Float, default=0.0)
-    hours_saved = Column(Float, default=0.0)
-    ts = Column(String(50), nullable=False)
+    stat_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    developer: Mapped[str] = mapped_column(String(100), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    skill: Mapped[str] = mapped_column(String(100), default="")
+    project_id: Mapped[str] = mapped_column(String(100), default="")
+    tokens_saved: Mapped[float] = mapped_column(Float, default=0.0)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    hours_saved: Mapped[float] = mapped_column(Float, default=0.0)
+    ts: Mapped[str] = mapped_column(String(50), nullable=False)
 
 
 class TaskModel(Base):
     __tablename__ = "tasks"
-    task_id = Column(String(50), primary_key=True)
-    title = Column(Text, nullable=False)
-    status = Column(String(20), default="todo", index=True)  # todo|in_progress|blocked|done
-    estimate_hours = Column(Float, default=0.0)
-    actual_hours = Column(Float, default=0.0)
-    tokens = Column(Float, default=0.0)
-    cost_usd = Column(Float, default=0.0)
-    tags = Column(Text, default="[]")
-    created_ts = Column(String(50), nullable=False)
-    updated_ts = Column(String(50), nullable=False)
+    task_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="todo", index=True)  # todo|in_progress|blocked|done
+    estimate_hours: Mapped[float] = mapped_column(Float, default=0.0)
+    actual_hours: Mapped[float] = mapped_column(Float, default=0.0)
+    tokens: Mapped[float] = mapped_column(Float, default=0.0)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    tags: Mapped[str] = mapped_column(Text, default="[]")
+    created_ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    updated_ts: Mapped[str] = mapped_column(String(50), nullable=False)
 
 
 class RouteOutcomeModel(Base):
@@ -103,13 +103,13 @@ class RouteOutcomeModel(Base):
     same ``route_outcomes`` table for the routing hot path.
     """
     __tablename__ = "route_outcomes"
-    outcome_id = Column(String(50), primary_key=True)
-    ts = Column(String(50), nullable=False)
-    task_class = Column(String(100), nullable=False, index=True)
-    tier = Column(String(20), nullable=False, default="")
-    model_family = Column(String(100), default="")
-    cost = Column(Float, default=0.0)
-    quality_signal = Column(String(20), default="neutral")
+    outcome_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    task_class: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    tier: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    model_family: Mapped[str] = mapped_column(String(100), default="")
+    cost: Mapped[float] = mapped_column(Float, default=0.0)
+    quality_signal: Mapped[str] = mapped_column(String(20), default="neutral")
 
 
 class EvalResultModel(Base):
@@ -121,16 +121,16 @@ class EvalResultModel(Base):
     (ran on an on-device runtime) or ``record`` (offline dry-run).
     """
     __tablename__ = "eval_results"
-    result_id = Column(String(50), primary_key=True)
-    ts = Column(String(50), nullable=False)
-    suite = Column(String(100), nullable=False, default="default", index=True)
-    case_id = Column(String(100), nullable=False, default="")
-    task_class = Column(String(100), nullable=False, default="")
-    tier = Column(String(20), nullable=False, default="")
-    score = Column(Float, default=0.0)
-    verdict = Column(String(20), default="not_met")
-    mode = Column(String(20), default="record")
-    signals = Column(Text, default="[]")
+    result_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    ts: Mapped[str] = mapped_column(String(50), nullable=False)
+    suite: Mapped[str] = mapped_column(String(100), nullable=False, default="default", index=True)
+    case_id: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    task_class: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    tier: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    verdict: Mapped[str] = mapped_column(String(20), default="not_met")
+    mode: Mapped[str] = mapped_column(String(20), default="record")
+    signals: Mapped[str] = mapped_column(Text, default="[]")
 
 
 class EvalBaselineModel(Base):
@@ -140,12 +140,12 @@ class EvalBaselineModel(Base):
     sync ``EvalResultStore`` on the same ``eval_baselines`` table.
     """
     __tablename__ = "eval_baselines"
-    suite = Column(String(100), primary_key=True, default="default")
-    case_id = Column(String(100), primary_key=True, default="")
-    tier = Column(String(20), primary_key=True, default="")
-    score = Column(Float, default=0.0)
-    verdict = Column(String(20), default="not_met")
-    ts = Column(String(50), nullable=False)
+    suite: Mapped[str] = mapped_column(String(100), primary_key=True, default="default")
+    case_id: Mapped[str] = mapped_column(String(100), primary_key=True, default="")
+    tier: Mapped[str] = mapped_column(String(20), primary_key=True, default="")
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    verdict: Mapped[str] = mapped_column(String(20), default="not_met")
+    ts: Mapped[str] = mapped_column(String(50), nullable=False)
 
 
 def get_db_path() -> Path:

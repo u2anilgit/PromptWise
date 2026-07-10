@@ -127,7 +127,7 @@ class AppConfig:
         return self.models.get(name, ModelPricing())
 
 
-def _find_config_dir(start: Path) -> Path | None:
+def _find_config_dir(start: Path) -> Path:
     for hint in _CONFIG_DIR_HINTS:
         candidate = (start / hint).resolve()
         if candidate.exists():

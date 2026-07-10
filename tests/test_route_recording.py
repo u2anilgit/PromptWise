@@ -14,6 +14,7 @@ import asyncio
 import json
 import sqlite3
 import textwrap
+import typing
 from types import SimpleNamespace
 
 import pytest
@@ -53,8 +54,11 @@ class _Mem:
 
 
 def _ctx(registry):
-    return SimpleNamespace(router=Router(registry=registry), memory=_Mem(),
-                           code_validator=CodeValidator())
+    # SimpleNamespace only carries the three attrs route_request/validate_output/
+    # run_quality_gate actually read; cast documents the deliberate shortfall
+    # against the full 23-field ServerContext instead of building a real one.
+    return typing.cast(server.ServerContext, SimpleNamespace(
+        router=Router(registry=registry), memory=_Mem(), code_validator=CodeValidator()))
 
 
 def _rows(db_path):

@@ -1,6 +1,7 @@
 """Phase 3 — offline skill auto-optimization: scorer + reflect/patch/validate/accept."""
 import asyncio
 import json
+import typing
 
 from promptwise.core.optimizer_validate import score_skill, validate_skill, parse_skill
 from promptwise.core.skill_optimizer import optimize_skill_pack, _merge_skill_block
@@ -124,6 +125,8 @@ def test_server_dispatch_optimize(tmp_path, monkeypatch):
     orig = so.LearningStore
     monkeypatch.setattr(so, "LearningStore", lambda p=None: orig(db))
     import promptwise.server as srv
+    # None stands in for ctx: optimize_skill_pack's handler never reads it.
+    ctx = typing.cast(srv.ServerContext, None)
     out = json.loads(asyncio.run(srv.call_tool(
-        None, "optimize_skill_pack", {"skill_path": str(skill), "project": "demo", "dry_run": True})))
+        ctx, "optimize_skill_pack", {"skill_path": str(skill), "project": "demo", "dry_run": True})))
     assert out["accepted"] and out["score_after"] > out["score_before"]

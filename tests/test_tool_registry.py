@@ -9,6 +9,7 @@ unknown name preserves the exact legacy fallback behavior.
 import asyncio
 import inspect
 import json
+import typing
 
 import promptwise.server as s
 
@@ -36,6 +37,8 @@ def test_handlers_are_coroutine_functions():
 
 
 def test_unknown_tool_preserves_legacy_fallback():
-    out = json.loads(asyncio.run(s.call_tool(None, "does_not_exist", {})))
+    # None stands in for ctx: the unknown-tool fallback path never reads it.
+    ctx = typing.cast(s.ServerContext, None)
+    out = json.loads(asyncio.run(s.call_tool(ctx, "does_not_exist", {})))
     assert out == {"error": "Unknown tool: does_not_exist",
                    "type": "UnknownTool", "tool": "does_not_exist"}

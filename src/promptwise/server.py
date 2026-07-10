@@ -768,7 +768,7 @@ async def _handle_audit_system_prompt(ctx: ServerContext, arguments: dict) -> st
 @tool(name="save_prompt", description="Save a prompt to the versioned prompt registry",
          schema={"type": "object", "properties": {"name": {"type": "string"}, "content": {"type": "string"}, "version": {"type": "string", "default": "1.0.0"}, "description": {"type": "string", "default": ""}, "tags": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["name", "content"]})
 async def _handle_save_prompt(ctx: ServerContext, arguments: dict) -> str:
-    await ctx.memory.save_prompt(arguments.get("name"), arguments.get("content"), arguments.get("version", "1.0.0"),
+    await ctx.memory.save_prompt(arguments.get("name", ""), arguments.get("content", ""), arguments.get("version", "1.0.0"),
                                   arguments.get("description", ""), arguments.get("tags", []))
     return json.dumps({"status": "saved", "name": arguments.get("name"), "version": arguments.get("version", "1.0.0")})
 
@@ -783,7 +783,7 @@ async def _handle_search_prompts(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="compare_prompts", description="Diff two versions of a registered prompt",
          schema={"type": "object", "properties": {"name": {"type": "string"}, "version_a": {"type": "string"}, "version_b": {"type": "string"}}, "required": ["name", "version_a", "version_b"]})
 async def _handle_compare_prompts(ctx: ServerContext, arguments: dict) -> str:
-    name_val = arguments.get("name")
+    name_val = arguments.get("name", "")
     va, vb = arguments.get("version_a"), arguments.get("version_b")
     all_p = await ctx.memory.search_prompts(name_val)
     exact = [p for p in all_p if p["name"] == name_val]

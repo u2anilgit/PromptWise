@@ -1,6 +1,7 @@
 """Phase 15 — ExactCache MCP tool wiring: cache_lookup / cache_store / cache_stats."""
 import asyncio
 import json
+import typing
 
 from promptwise import server as srv
 from promptwise.core.exact_cache import ExactCache
@@ -11,7 +12,13 @@ class _Ctx:
 
 
 def _call(name, arguments):
-    return asyncio.run(srv._HANDLERS[name](_Ctx(), arguments))
+    # _Ctx is a lightweight stand-in: this handler doesn't read ctx at all.
+    # Cast documents the intentional gap instead of hiding it.
+    ctx = typing.cast(srv.ServerContext, _Ctx())
+    coro = typing.cast(
+        "typing.Coroutine[typing.Any, typing.Any, str]", srv._HANDLERS[name](ctx, arguments)
+    )
+    return asyncio.run(coro)
 
 
 def test_tools_registered():
@@ -68,7 +75,11 @@ def test_stats_purges_expired_by_default(tmp_path):
     try:
         # purge_expired() with the real clock will see this timestamp as long
         # past its 1s TTL (ts is 1970-relative, real "now" is decades later).
-        out = json.loads(asyncio.run(srv._HANDLERS["cache_stats"](_Ctx(), {"purge_expired": True})))
+        stats_coro = typing.cast(
+            "typing.Coroutine[typing.Any, typing.Any, str]",
+            srv._HANDLERS["cache_stats"](typing.cast(srv.ServerContext, _Ctx()), {"purge_expired": True}),
+        )
+        out = json.loads(asyncio.run(stats_coro))
     finally:
         ec_module._default_db = orig
     assert out["entries"] == 0
