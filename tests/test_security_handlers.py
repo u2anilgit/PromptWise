@@ -74,3 +74,20 @@ def test_run_security_suite_aggregates_all_checks_and_persists(tmp_path, monkeyp
     rows = security_log.SecurityScanStore(tmp_path / "sec.db").results()
     assert len(rows) == 1
     assert rows[0]["findings_count"] > 0
+
+
+def test_run_security_suite_findings_count_not_compounded(tmp_path, monkeypatch):
+    """findings_count used to re-add +1 for injection and +len(pii_items) on
+    top of sec.violations, which already contained those same findings --
+    double/triple-counting the same signal. It must equal exactly
+    len(sec.violations) + len(owasp)."""
+    from promptwise.core import security_log
+    monkeypatch.setattr(security_log, "_default_db", lambda: tmp_path / "sec2.db")
+
+    text = _CASES["rt-injection-attack"].input_text + " " + _CASES["rt-pii-attack"].input_text
+    out = json.loads(_call("run_security_suite", {"targets": [text]}))
+    sec = SecurityScanner()
+    expected = len(sec.check(text).violations) + len(out["owasp"])
+
+    rows = security_log.SecurityScanStore(tmp_path / "sec2.db").results()
+    assert rows[0]["findings_count"] == expected

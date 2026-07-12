@@ -301,8 +301,12 @@ class MemoryManager:
                 session.add(ROIStatModel(stat_id=str(uuid.uuid4()), developer=developer, role=role, skill=skill, project_id=project_id, tokens_saved=tokens_saved, cost_usd=cost_usd, hours_saved=hours_saved, ts=datetime.now(timezone.utc).isoformat()))
 
     async def get_roi_stats(self, period: str = "all") -> list[dict]:
+        window_days = {"daily": 1, "weekly": 7, "monthly": 30}.get(period)
         async with self.async_session() as session:
             stmt = select(ROIStatModel).order_by(ROIStatModel.ts.desc())
+            if window_days is not None:
+                since = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat()
+                stmt = stmt.where(ROIStatModel.ts >= since)
             result = await session.execute(stmt)
             stats = result.scalars().all()
         return [{"developer": s.developer, "role": s.role, "skill": s.skill, "project_id": s.project_id, "tokens_saved": s.tokens_saved, "cost_usd": s.cost_usd, "hours_saved": s.hours_saved, "ts": s.ts} for s in stats]

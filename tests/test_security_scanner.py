@@ -60,6 +60,35 @@ def test_check_still_flags_secrets_and_destructive():
     assert "secrets" in checks
 
 
+def test_check_does_not_double_count_injection_matches():
+    """check() used to report every injection match under both "syntax" and
+    "injection" (flat +0.4 and +0.6 for the same match) -- each match must now
+    surface exactly once, weighted by detect_injection's own confidence."""
+    s = SecurityScanner()
+    text = _CASES["rt-injection-attack"].input_text
+    r = s.check(text)
+    assert not any(v["check"] == "syntax" for v in r.violations)
+    inj_violations = [v for v in r.violations if v["check"] == "injection"]
+    assert inj_violations
+    _, confidence, patterns = s.detect_injection(text)
+    assert len(inj_violations) == len(patterns)
+    assert r.risk_score == round(min(1.0, confidence), 3)
+
+
+def test_check_weak_single_injection_signal_does_not_force_block():
+    """A single low-weight injection family (e.g. "developer mode", weight 0.5)
+    must not alone push risk_score past the injection_threshold/block bar --
+    that was only happening because of the flat 0.4+0.6 double-count."""
+    s = SecurityScanner()
+    text = "Let's put the app in developer mode for testing."
+    detected, confidence, _ = s.detect_injection(text)
+    assert detected is True
+    assert confidence < s.config.injection_threshold
+    r = s.check(text)
+    assert r.blocked is False
+    assert not any(v["check"] == "injection" for v in r.violations)
+
+
 def test_check_never_touches_network_by_default():
     def _boom(*a, **k):
         raise AssertionError("network access attempted with allow_network=False")

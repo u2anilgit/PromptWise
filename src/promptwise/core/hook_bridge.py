@@ -374,13 +374,79 @@ def precompact_guard(payload: dict) -> HookDecision:
         return HookDecision(action="allow", event="PreCompact", extra={"hook_error": f"{type(e).__name__}: {e}"})
 
 
+def _log_session_roi(payload: dict) -> dict:
+    """Best-effort ROI rollup for this session, written via plain sqlite3 —
+    hooks stay stdlib-only and synchronous, no async engine at hook time.
+
+    Reads real numbers only: the per-session tool-call count already tracked
+    by ``tool_call_budget`` (tool_call_counts.json), and any cost_logs rows
+    that happen to carry this same session_id (today, only PromptWise's own
+    MCP tool calls log there — native Claude Code tool calls aren't visible
+    to this process, so cost_usd/tokens_saved are honest lower bounds, not a
+    full-session total, until that gap is closed separately). Never raises —
+    every failure path returns a dict describing why, for HookDecision.extra.
+    """
+    try:
+        import sqlite3
+        import uuid
+        from datetime import datetime, timezone
+
+        session_id = str(payload.get("session_id") or "")
+        if not session_id:
+            return {"roi_logged": False, "reason": "no session_id in payload"}
+
+        db_path = Path.home() / ".promptwise" / "promptwise.db"
+        if not db_path.exists():
+            return {"roi_logged": False, "reason": "promptwise.db not found"}
+
+        calls = 0
+        counts_file = _state_dir(payload) / "tool_call_counts.json"
+        if counts_file.exists():
+            try:
+                counts = json.loads(counts_file.read_text(encoding="utf-8") or "{}")
+                calls = int(counts.get(session_id, 0))
+            except Exception:
+                calls = 0
+
+        con = sqlite3.connect(str(db_path), timeout=2.0)
+        try:
+            cur = con.cursor()
+            cur.execute(
+                "SELECT COALESCE(SUM(cost_usd),0), COALESCE(SUM(input_tokens+output_tokens),0), "
+                "COALESCE(AVG(saving_pct),0) FROM cost_logs WHERE session_id = ?",
+                (session_id,),
+            )
+            cost_usd, total_tokens, avg_saving_pct = cur.fetchone()
+            tokens_saved = round(total_tokens * avg_saving_pct)
+            hours_saved = round((tokens_saved / 300.0) / 60.0, 4)  # matches ROITracker._TOKENS_PER_MIN
+
+            cur.execute(
+                "INSERT INTO roi_stats (stat_id, developer, role, skill, project_id, "
+                "tokens_saved, cost_usd, hours_saved, ts) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    str(uuid.uuid4()), "Anonymous", "Dev", "", _project_name(payload),
+                    tokens_saved, cost_usd, hours_saved,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+            con.commit()
+        finally:
+            con.close()
+        return {"roi_logged": True, "calls": calls, "cost_usd": round(cost_usd, 6), "tokens_saved": tokens_saved}
+    except Exception as e:
+        return {"roi_logged": False, "hook_error": f"{type(e).__name__}: {e}"}
+
+
 def sessionend_export(payload: dict) -> HookDecision:
-    """Emit the portable trace for the session on the way out."""
+    """Emit the portable trace for the session on the way out, and log a
+    best-effort ROI rollup (see _log_session_roi) — additive, never affects
+    the audit-export outcome below even if it fails."""
+    roi_extra = _log_session_roi(payload)
     try:
         from promptwise.core.audit_log import AuditLog
         audit_file = _state_dir(payload) / "audit.jsonl"
         if not audit_file.exists():
-            return HookDecision(action="allow", event="SessionEnd")
+            return HookDecision(action="allow", event="SessionEnd", extra=roi_extra)
         log = AuditLog(audit_file)
         ok, msg = log.verify()
         out = _state_dir(payload) / "audit_export.json"
@@ -388,10 +454,13 @@ def sessionend_export(payload: dict) -> HookDecision:
             out.write_text(log.export_json(), encoding="utf-8")
         except Exception:
             pass
-        return HookDecision(action="allow", event="SessionEnd",
-                            extra={"records": len(log.records), "chain_ok": ok, "chain_msg": msg, "export": str(out)})
+        extra = {"records": len(log.records), "chain_ok": ok, "chain_msg": msg, "export": str(out)}
+        extra.update(roi_extra)
+        return HookDecision(action="allow", event="SessionEnd", extra=extra)
     except Exception as e:
-        return HookDecision(action="allow", event="SessionEnd", extra={"hook_error": f"{type(e).__name__}: {e}"})
+        extra = {"hook_error": f"{type(e).__name__}: {e}"}
+        extra.update(roi_extra)
+        return HookDecision(action="allow", event="SessionEnd", extra=extra)
 
 
 # ── WP2: extend enforcement coverage ─────────────────────────────────────────

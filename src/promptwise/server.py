@@ -6,6 +6,7 @@ import inspect
 import json
 import sys
 import re as _re
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Callable
@@ -512,10 +513,18 @@ async def _handle_get_budget_status(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="budget_report", description="Get detailed budget report with cost anomaly detection",
          schema={"type": "object", "properties": {"period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"}, "project_id": {"type": "string"}}})
 async def _handle_budget_report(ctx: ServerContext, arguments: dict) -> str:
-    costs = [0.01, 0.02, 0.015, 0.03, 0.025, 0.01, 0.04, 0.02, 0.015, 0.035]
-    anomaly = ctx.budget.cost_anomaly_detect(costs)
-    return json.dumps({"period": arguments.get("period", "weekly"), "project_id": arguments.get("project_id"),
-                       "total_cost_usd": round(sum(costs), 4), "anomaly": anomaly})
+    period = arguments.get("period", "weekly")
+    window_days = {"daily": 1, "weekly": 7, "monthly": 30}.get(period, 7)
+    since = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat()
+    logs = await ctx.memory.raw_cost_logs(since=since)
+    by_day: dict[str, float] = {}
+    for row in logs:
+        day = row["ts"][:10]
+        by_day[day] = by_day.get(day, 0.0) + row["cost_usd"]
+    daily_costs = [round(v, 6) for _, v in sorted(by_day.items())]
+    anomaly = ctx.budget.cost_anomaly_detect(daily_costs)
+    return json.dumps({"period": period, "project_id": arguments.get("project_id"),
+                       "total_cost_usd": round(sum(daily_costs), 6), "anomaly": anomaly})
 
 
 # ── Code Validation ──────────────────────────────────────────────────
@@ -535,6 +544,14 @@ async def _handle_validate_output(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_track_roi(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.roi.calculate(session_id=arguments.get("session_id", ""), total_cost_usd=float(arguments.get("total_cost_usd", 0)),
                           tokens_saved=int(arguments.get("tokens_saved", 0)), calls=int(arguments.get("calls", 1)))
+    # NOTE: calculate() only returns a snapshot, it never persisted — roi_stats
+    # stayed empty forever regardless of how many times this tool was called.
+    # Persist so cost_report / get_roi_report have something to read.
+    try:
+        await ctx.memory.log_roi_stat(developer="Anonymous", role="Dev", tokens_saved=r.tokens_saved,
+                                      cost_usd=r.total_cost_usd, hours_saved=round(r.estimated_time_saved_min / 60, 4))
+    except Exception:
+        pass  # never fail the tool call over a persistence hiccup
     return json.dumps({"roi_ratio": r.roi_ratio, "estimated_time_saved_min": r.estimated_time_saved_min,
                        "productivity_score": r.productivity_score, "total_cost_usd": r.total_cost_usd})
 
@@ -542,7 +559,7 @@ async def _handle_track_roi(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="get_roi_report", description="Generate team ROI report based on cumulative stats",
          schema={"type": "object", "properties": {"period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "weekly"}}})
 async def _handle_get_roi_report(ctx: ServerContext, arguments: dict) -> str:
-    stats = await ctx.memory.get_roi_stats()
+    stats = await ctx.memory.get_roi_stats(period=arguments.get("period", "weekly"))
     total_hours = sum(s["hours_saved"] for s in stats)
     total_cost = sum(s["cost_usd"] for s in stats)
     total_tokens = sum(s["tokens_saved"] for s in stats)
@@ -553,7 +570,7 @@ async def _handle_get_roi_report(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="cost_report", description="Get cost breakdown by project/period",
          schema={"type": "object", "properties": {"project_id": {"type": "string"}, "period": {"type": "string", "default": "weekly"}, "format": {"type": "string", "default": "json"}}})
 async def _handle_cost_report(ctx: ServerContext, arguments: dict) -> str:
-    stats = await ctx.memory.get_roi_stats()
+    stats = await ctx.memory.get_roi_stats(period=arguments.get("period", "weekly"))
     pid = arguments.get("project_id")
     if pid:
         stats = [s for s in stats if s.get("project_id") == pid]
@@ -843,12 +860,10 @@ async def _handle_route_for_plugin(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="run_eval", description="A/B test a prompt across multiple models",
          schema={"type": "object", "properties": {"prompt": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}, "default": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]}}, "required": ["prompt"]})
 async def _handle_run_eval(ctx: ServerContext, arguments: dict) -> str:
-    scores = {}
-    for m in arguments.get("models", []):
-        if "opus" in m: scores[m] = {"quality_score": 92, "latency_ms": 2500, "cost_usd": 0.075}
-        elif "sonnet" in m: scores[m] = {"quality_score": 85, "latency_ms": 1200, "cost_usd": 0.015}
-        else: scores[m] = {"quality_score": 74, "latency_ms": 350, "cost_usd": 0.003}
-    return json.dumps({"prompt": arguments.get("prompt"), "eval": scores})
+    prompt = arguments.get("prompt", "")
+    default_models = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]
+    scores = {m: ctx.budget.predict_cost(prompt, model=m) for m in arguments.get("models", default_models)}
+    return json.dumps({"prompt": prompt, "eval": scores})
 
 
 @tool(name="run_eval_harness", description="Run a durable eval + regression suite (prompt+rubric cases) offline; score with the quality gate, diff against a stored baseline to flag regressions, expose a pass/fail gate, and feed outcomes back into adaptive routing. Offline default is a record/dry-run mode (no cloud). Set save_baseline=true to bless this run as the new baseline.",
@@ -891,7 +906,9 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
     owasp = ctx.security.check_owasp(text)
     inj_detected, inj_confidence, inj_patterns = ctx.security.detect_injection(text)
     pii_items, _ = ctx.security.detect_pii(text)
-    findings_count = len(sec.violations) + len(owasp) + (1 if inj_detected else 0) + len(pii_items)
+    # sec.violations (from check()) already carries the injection and PII
+    # findings reported below -- don't count them a second time here.
+    findings_count = len(sec.violations) + len(owasp)
     severity_breakdown = {
         "critical": sum(1 for v in owasp if v["severity"] == "critical"),
         "high": sum(1 for v in owasp if v["severity"] == "high"),

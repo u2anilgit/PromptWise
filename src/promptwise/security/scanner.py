@@ -165,11 +165,11 @@ class SecurityScanner:
         risk_score = 0.0
         redacted = text
 
-        detected, _, inj_patterns = self.detect_injection(redacted)
-        if detected:
+        detected, inj_confidence, inj_patterns = self.detect_injection(redacted)
+        if self.config.injection_detection and detected and inj_confidence >= self.config.injection_threshold:
             for p in inj_patterns:
-                violations.append({"check": "syntax", "detail": p})
-                risk_score += 0.4
+                violations.append({"check": "injection", "detail": f"Injection: {p}"})
+            risk_score += inj_confidence
 
         for pattern in _SECRET_PATTERNS:
             if pattern.search(redacted):
@@ -203,11 +203,6 @@ class SecurityScanner:
             for item in pii_items:
                 violations.append({"check": "pii", "detail": f"Found PII: {item['type']}"})
                 risk_score += 0.5
-
-        if self.config.injection_detection:
-            for p in inj_patterns:
-                violations.append({"check": "injection", "detail": f"Injection: {p}"})
-                risk_score += 0.6
 
         risk_score = min(1.0, risk_score)
         return SecurityResult(
