@@ -167,7 +167,7 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
                        "stakes_detected": r.stakes_detected, "estimated_input_cost_usd": r.estimated_input_cost_usd,
                        "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
                        "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
-                       "provider_capped": r.provider_capped, "route_id": route_id})
+                       "provider_capped": r.provider_capped, "monthly_budget_capped": r.monthly_budget_capped, "route_id": route_id})
 
 
 @tool(name="rewrite_prompt", description="Rewrite prompt with role framing and filler removal",
@@ -832,7 +832,19 @@ async def _handle_clear_history(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="export_stats", description="Export usage history as JSON",
          schema={"type": "object", "properties": {"since": {"type": "string"}, "format": {"type": "string", "enum": ["json", "csv"], "default": "json"}}})
 async def _handle_export_stats(ctx: ServerContext, arguments: dict) -> str:
-    return await ctx.memory.export_json()
+    raw = await ctx.memory.export_json(since=arguments.get("since"))
+    if arguments.get("format", "json") != "csv":
+        return raw
+    import csv
+    import io
+    entries = json.loads(raw)
+    buf = io.StringIO()
+    fieldnames = ["entry_id", "session_id", "ts", "tool", "summary", "cost_usd", "tags"]
+    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for e in entries:
+        writer.writerow({**e, "tags": json.dumps(e["tags"])})
+    return buf.getvalue()
 
 
 @tool(name="reload_config", description="Reload configuration without restarting server",

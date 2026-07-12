@@ -323,9 +323,11 @@ class MemoryManager:
                     await session.delete(entry)
         return count
 
-    async def export_json(self) -> str:
+    async def export_json(self, since: str | None = None) -> str:
         async with self.async_session() as session:
             stmt = select(MemoryEntryModel).order_by(MemoryEntryModel.ts)
+            if since:
+                stmt = stmt.where(MemoryEntryModel.ts >= since)
             result = await session.execute(stmt)
             entries = result.scalars().all()
         return json.dumps([{"entry_id": e.entry_id, "session_id": e.session_id, "ts": e.ts, "tool": e.tool, "summary": e.summary, "cost_usd": e.cost_usd, "tags": json.loads(e.tags)} for e in entries], indent=2)

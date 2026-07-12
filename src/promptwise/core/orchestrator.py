@@ -166,24 +166,22 @@ class Orchestrator:
         return order
 
     def execute_autonomous(self, task: str, max_iterations: int = 5) -> dict:
+        """Decompose ``task`` into its real sub-steps (the same parser
+        ``execute()`` uses) and walk through them one per iteration, capped at
+        ``max_iterations``. This does not actually run code or tests -- it
+        never fabricates a pass/fail verdict for work it didn't perform;
+        each step is reported as "planned", not "success"."""
+        subtasks = self.parse_tasks(task)
         history = []
-        current_state = "plan"
-        for i in range(1, max_iterations + 1):
-            step = {"iteration": i, "action": current_state, "details": f"Running autonomous step: {current_state}", "status": "success"}
-            history.append(step)
-            if current_state == "plan":
-                current_state = "execute"
-            elif current_state == "execute":
-                current_state = "test"
-            elif current_state == "test":
-                step["details"] = "Tests passed successfully" if i >= 3 else "Tests failed: SyntaxError on line 12"
-                if i < 3:
-                    current_state = "fix"
-                else:
-                    break
-            elif current_state == "fix":
-                current_state = "execute"
-        return {"status": "completed", "iterations_run": len(history), "history": history, "success": True}
+        for i, t in enumerate(subtasks, start=1):
+            if i > max_iterations:
+                break
+            history.append({"iteration": i, "action": t["action"],
+                            "details": f"[{t['action']}] {t['text'][:80]}", "status": "planned"})
+        completed = len(history) == len(subtasks)
+        return {"status": "completed" if completed else "partial",
+                "iterations_run": len(history), "steps_total": len(subtasks),
+                "history": history, "success": completed}
 
     def _detect_action(self, text: str) -> str:
         text_lower = text.lower()

@@ -18,6 +18,7 @@ class RouteResult:
     batch_recommended: bool = False
     batch_recommendation_note: str | None = None
     provider_capped: bool = False
+    monthly_budget_capped: bool = False
 
 
 @dataclass(frozen=True)

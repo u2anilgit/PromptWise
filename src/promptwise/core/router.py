@@ -119,6 +119,19 @@ class Router:
         if provider_capped:
             tier = "fast"
 
+        # Monthly-budget pace projection (BudgetGuardian.check() uses the same
+        # daily_burn -> projected_monthly formula): if the caller reports
+        # month-to-date spend (provider_spend_usd) against a monthly_budget_usd
+        # over days_elapsed_in_month, and the projected full-month spend at that
+        # burn rate would exceed the budget, reroute to the cheapest tier before
+        # the call is made. Fail-open: any param missing -> no enforcement.
+        monthly_capped = False
+        if monthly_budget_usd is not None and days_elapsed_in_month and provider_spend_usd is not None:
+            projected_monthly = provider_spend_usd / max(days_elapsed_in_month, 1) * 30
+            if projected_monthly >= monthly_budget_usd:
+                monthly_capped = True
+                tier = "fast"
+
         recommended = self._resolve_current(tier, provider)
         input_tokens = max(1, len(text) // 4)
         in_rate, ctx_window = self._input_rate(recommended)
@@ -131,6 +144,10 @@ class Router:
         if provider_capped:
             reason += (f" | provider '{provider}' hard budget cap reached "
                        f"(${provider_spend_usd:.2f} >= ${cap:.2f}) -- rerouted to fast tier")
+        if monthly_capped:
+            reason += (f" | projected monthly spend at current pace "
+                       f"(${projected_monthly:.2f}) >= monthly_budget_usd (${monthly_budget_usd:.2f}) "
+                       f"-- rerouted to fast tier")
 
         return RouteResult(
             recommended_model=recommended,
@@ -142,6 +159,7 @@ class Router:
             alternatives=alt,
             batch_recommended=intent in ("extract", "classify", "summarize"),
             provider_capped=provider_capped,
+            monthly_budget_capped=monthly_capped,
         )
 
     def compare_providers(self, text: str, model: str | None = None) -> list[dict]:
@@ -225,11 +243,6 @@ class Router:
         if intent in ("extract", "classify", "summarize", "question"):
             return "fast"
         return "balanced"
-
-    def _pick_model(self, intent: str, stakes: str, provider: str,
-                    monthly_budget_usd: float | None, days_elapsed: int | None) -> str:
-        # Retained for backward compatibility: pure static pick, no history.
-        return self._tier_model(self._static_tier(intent, stakes), provider)
 
     def _resolve_current(self, tier: str, provider: str) -> str:
         """Resolve a tier to a concrete alias, never a deprecated one. The
