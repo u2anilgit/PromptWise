@@ -44,6 +44,8 @@ logs/
 
 # ── Agent / IDE caches & local context (NEVER ship) ─────────────────────
 .claude/
+!.claude/settings.json
+!.claude/CLAUDE.md
 .cursor/
 .gemini/
 .idea/
