@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from promptwise.security.scanner import SecurityScanner
+
 
 @dataclass
 class LintIssue:
@@ -25,6 +27,13 @@ FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", re.DOTALL)
 BLOAT_PHRASES = ("the architecture is", "this project is a", "directory structure")
 LONG_LINE = 600
 DUP_MIN_LEN = 40
+
+# Trojan Source-style bidi override/isolate controls (CVE-2021-42574).
+# Rarely legitimate in a plain-text agent rules file; zero-width chars are
+# deliberately NOT flagged here (common in legitimate emoji ZWJ sequences,
+# high false-positive rate) -- only the reordering control characters are.
+_BIDI_CONTROL = re.compile("[‪-‮⁦-⁩]")
+_INJECTION_CONFIDENCE_THRESHOLD = 0.5
 
 
 class ConfigLinter:
@@ -71,6 +80,10 @@ class ConfigLinter:
         # 4. Inferable bloat
         issues.extend(self._check_bloat(content))
 
+        # 5. Rules-file injection / hidden bidi-control attack
+        issues.extend(self._check_bidi_control(content))
+        issues.extend(self._check_injection(content))
+
         valid = not any(i.severity == "error" for i in issues)
         return LintResult(valid=valid, issues=issues)
 
@@ -103,6 +116,25 @@ class ConfigLinter:
                     severity="info",
                     message=f"line duplicated across {len(fset)} files"))
         return issues
+
+    def _check_bidi_control(self, content: str) -> list[LintIssue]:
+        m = _BIDI_CONTROL.search(content)
+        if not m:
+            return []
+        line = content.count("\n", 0, m.start()) + 1
+        return [LintIssue(
+            severity="error",
+            message="hidden bidi-control characters detected (Trojan Source-style attack)",
+            line=line)]
+
+    def _check_injection(self, content: str) -> list[LintIssue]:
+        detected, confidence, families = SecurityScanner().detect_injection(content)
+        if not detected or confidence < _INJECTION_CONFIDENCE_THRESHOLD:
+            return []
+        return [LintIssue(
+            severity="error",
+            message=(f"possible instruction injection in rules file "
+                     f"(confidence {confidence}, families: {', '.join(families)})"))]
 
     def _frontmatter(self, content: str) -> str | None:
         m = FRONTMATTER.match(content)
