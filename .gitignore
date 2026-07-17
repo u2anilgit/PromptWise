@@ -61,6 +61,9 @@ plans/
 memory/
 MEMORY.md
 
+# ── Local dev worktrees (subagent-driven-development isolation) ─────────
+.worktrees/
+
 # ── OS / cloud temp ─────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
