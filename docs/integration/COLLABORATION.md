@@ -263,7 +263,7 @@ All 51 PromptWise tools work in collaboration context:
 - get_roi_report
 - monitor_budget
 
-And 40+ more. See `MULTI_PLATFORM.md` for full list.
+And 40+ more. See `PORTABILITY.md` for full list.
 
 ---
 
@@ -325,7 +325,7 @@ if not context["shared"]:
 
 ## Learn More
 
-- [Multi-Platform Guide](./MULTI_PLATFORM.md)
+- [Multi-Platform Guide](./PORTABILITY.md)
 - [Claude Chat Integration](./CLAUDE_CHAT.md)
 - [Anthropic API Docs](https://docs.anthropic.com)
 - [Team Management](https://console.anthropic.com/account/team)

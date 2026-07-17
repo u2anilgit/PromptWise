@@ -786,5 +786,5 @@ For issues or questions:
 
 - **Connection problems?** See [Troubleshooting](#troubleshooting)
 - **Protocol questions?** Check [Request/Response Format](#requestresponse-protocol)
-- **General setup?** See [Multi-Platform Guide](MULTI_PLATFORM.md)
+- **General setup?** See [Multi-Platform Guide](PORTABILITY.md)
 - **Architecture?** See [READINESS_REVIEW.md](../../READINESS_REVIEW.md)

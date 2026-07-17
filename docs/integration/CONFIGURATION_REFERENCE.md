@@ -619,7 +619,7 @@ config = load_config()
 | **Validation** | Run health check or test request |
 
 For detailed information on each platform, see:
-- [MULTI_PLATFORM.md](MULTI_PLATFORM.md) — All platforms overview
+- [PORTABILITY.md](PORTABILITY.md) — All platforms overview
 - [CODEX.md](CODEX.md) — Codex-specific setup
 - [ANTIGRAVITY.md](ANTIGRAVITY.md) — Antigravity setup
 - [OTHER_TOOLS.md](OTHER_TOOLS.md) — Custom tool integration
