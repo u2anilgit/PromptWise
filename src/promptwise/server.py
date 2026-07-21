@@ -875,7 +875,7 @@ async def _handle_route_for_plugin(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"plugin": plugin})
 
 
-@tool(name="run_eval", description="A/B test a prompt across multiple models",
+@tool(name="run_eval", description="Estimate and compare per-model cost for a prompt across multiple models (cost only -- for a real quality comparison, use run_eval_harness)",
          schema={"type": "object", "properties": {"prompt": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}, "default": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]}}, "required": ["prompt"]})
 async def _handle_run_eval(ctx: ServerContext, arguments: dict) -> str:
     prompt = arguments.get("prompt", "")
