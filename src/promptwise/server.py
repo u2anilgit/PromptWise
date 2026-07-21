@@ -21,7 +21,7 @@ from promptwise.config import load_config
 from promptwise.core import (
     Router, Rewriter, Optimizer, CompressionEngine, CachePlanner,
     Batcher, Summarizer, RoleDetector, Orchestrator, QualityGuard,
-    SkillLoader, CodexOutputValidator, WorkflowPlanner, TaskTracker, validate_mermaid,
+    SkillLoader, WorkflowPlanner, TaskTracker, validate_mermaid,
 )
 from promptwise.security import SecurityScanner, ComplianceEngine
 from promptwise.plugins import BudgetGuardian, CodeValidator, CostMonitor, ROITracker
@@ -44,7 +44,6 @@ class ServerContext:
     security: SecurityScanner
     compliance: ComplianceEngine
     code_validator: CodeValidator
-    codex_validator: CodexOutputValidator
     budget: BudgetGuardian
     cost_monitor: CostMonitor
     roi: ROITracker
@@ -1370,7 +1369,6 @@ async def main() -> None:
         security=SecurityScanner(config.security),
         compliance=ComplianceEngine(config_dir / "config" / "compliance" if (config_dir / "config").exists() else None),
         code_validator=CodeValidator(),
-        codex_validator=CodexOutputValidator(),
         budget=BudgetGuardian(limit_usd=config.policies.budget_hard_stop_usd, team_budget_usd=config.policies.team_budget_usd, config=config),
         cost_monitor=CostMonitor(),
         roi=ROITracker(),
