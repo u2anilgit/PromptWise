@@ -11,6 +11,13 @@ model_tiers:
   planning: opus
   execution: sonnet
 
+# Reasoning-effort level per phase (independent of model_tiers -- a planning
+# step gets both the expensive tier AND high effort by default; the dev loop
+# gets the cheap tier AND medium effort).
+effort_tiers:
+  planning: high
+  execution: medium
+
 # Quality-gate thresholds (consumed by core/quality_gate.py).
 gate:
   concerns_risk_threshold: 40
