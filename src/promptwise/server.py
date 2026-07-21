@@ -507,7 +507,13 @@ async def _handle_set_budget_limit(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="get_budget_status", description="Check current spend vs configured budget limits",
          schema={"type": "object", "properties": {}})
 async def _handle_get_budget_status(ctx: ServerContext, arguments: dict) -> str:
-    return json.dumps(ctx.budget.get_budget_status())
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    logs = await ctx.memory.raw_cost_logs(since=month_start)
+    current_spend = round(sum(float(row.get("cost_usd", 0) or 0) for row in logs), 6)
+    days_elapsed = max(1, now.day)
+    daily_burn = round(current_spend / days_elapsed, 6)
+    return json.dumps(ctx.budget.get_budget_status(current_spend_usd=current_spend, daily_burn_usd=daily_burn))
 
 
 @tool(name="budget_report", description="Get detailed budget report with cost anomaly detection",
