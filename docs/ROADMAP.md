@@ -4,12 +4,15 @@ Single index over the phased roadmaps. Each phase has its own detailed doc
 (`docs/PHASE<N>_ROADMAP.md`). This file is the resume point: what is done, what is
 open, and where to pick up next.
 
-**Status as of 2026-07-10:** Phases 6–18 complete and merged to `main` (PRs
-#5–#15, plus direct commits for Phase 18's debt/bugfix work). Working tree
-clean, **605 Python tests + 26 TypeScript tests pass**, pyright clean (0
-errors). No planned finale — the series is open-ended and continues when new
-work is scoped. Only one feature candidate remains: **D** (local-embeddings,
-needs dependency sign-off) — explicitly deferred/skipped by the user, pick up
+**Status as of 2026-07-22:** Phases 6–18 complete and merged to `main`, plus
+subsequent direct-commit debt sweeps (fabricated/double-counted stats fixes,
+VS Code panel stat-card formatting) bringing `main` to **623 Python tests**.
+An in-progress branch, `p0-p1-bugfix-effort-axis` (pushed to origin, not yet
+merged), is mid-flight on a governance/FinOps deep-dive: see "In progress"
+below. No planned finale — the series is open-ended and continues when new
+work is scoped. Only one older feature candidate remains: **D**
+(local-embeddings, needs dependency sign-off) — explicitly deferred/skipped
+by the user, pick up
 only if asked. See "Open items" below.
 
 Standing guardrails (all phases): local-first, air-gap-safe, no new infrastructure, no
@@ -211,6 +214,50 @@ Detail: `PHASE17_ROADMAP.md`.
   unstyled plain text. Both fixed; the raw-`JSON.stringify` tile content was also
   replaced with formatted stat tiles (progress bar, badges, placeholders) reusing the
   existing `viewModel.ts` data shapes.
+
+### In progress — governance/FinOps deep-dive: bug fixes + effort-axis routing (branch `p0-p1-bugfix-effort-axis`, pushed 2026-07-22, NOT yet merged) — 623 → 643 tests on the branch
+A 5-agent parallel research pass across Coding Intelligence, AI FinOps/ROI, Governance/
+Compliance, AI Risk Management, and Model/Effort+Context-optimization produced a spec
+(`docs/superpowers/specs/2026-07-21-governance-finops-dashboard-design.md`, gitignored)
+and a phased implementation plan
+(`docs/superpowers/plans/2026-07-21-governance-finops-p0-p1.md`, gitignored) covering
+Phases P0 (bug fixes) and P1 (effort-axis routing + response-size cap); P2 (executive
+dashboard) and P3 (competitive-depth features) are separate follow-on plans, not started.
+
+**Done on the branch (9 of 13 tasks, each reviewed clean):**
+- `get_budget_status` fixed — was a permanent-zero stub (`_current_spend`/`_daily_burn`
+  set once in `__init__`, never written); now reads real month-to-date `cost_logs`.
+- Dashboard wiring bug fixed — `cli.py`'s `_start_serve` called
+  `create_web_app(cfg)` (wrong param, `memory_manager` never passed), so the web
+  dashboard always showed $0/empty regardless of real usage; both the web and CLI
+  paths now read real spend via new `_memory_manager`/`_real_budget_status` helpers.
+- Deleted `docs/integration/MULTI_PLATFORM.md` — fabricated doc (nonexistent
+  `adapters`/`role_detector.RoleDetector`/`auto_role_applier` modules), flagged in the
+  2026-07-16 gap-closure plan and never actually removed until now. (5 other docs still
+  link to it — pre-existing, out-of-scope debt, not yet cleaned up.)
+- Fixed `run_eval`'s misleading description (claimed A/B quality testing; it only
+  estimates cost) — caught and fixed a knock-on golden-snapshot-test regression this
+  introduced, since the description fix wasn't covered by a full-suite run at the time.
+- Deleted dead `core/codex_validator.py` — unwired to any `@tool`, duplicated
+  `code_validator.py`'s job with weaker regex checks vs AST.
+- New reasoning-**effort** axis (low/medium/high), independent of model tier — a gap
+  the research found totally unaddressed: `core/effort_router.py` (static heuristic,
+  mirrors `router.py._static_tier`), `core/effort_map.py` + `config/effort_map.yaml`
+  (per-provider label→param resolution), `task_graph.py`'s `plan_waves` and
+  `agile_planner.AgileStep` both now carry a per-task effort label.
+
+**Still pending (4 of 13 tasks):**
+- `core/effort_adapter.py` — the outcome-learning loop over effort (mirrors
+  `adaptive_router.py`'s `OutcomeStore`/Bayesian blend), the largest remaining task.
+- Wire the effort axis into `route_request`'s response — depends on the adapter above.
+- Response-size cap at the `call_tool` choke point (`core/response_budget.py`) — no
+  PromptWise tool response was ever size-bounded before.
+- Wire `invoke_skill`/`skill_chain` into `cost_logs` + the audit trail — both already
+  return real per-call cost/model data that was never persisted.
+
+Resume via `superpowers:subagent-driven-development` against the plan file above,
+starting at Task 7; progress ledger at
+`.worktrees/p0-p1-bugfix-effort-axis/.superpowers/sdd/progress.md`.
 
 ---
 
