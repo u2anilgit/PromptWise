@@ -29,7 +29,14 @@ it compiles its intelligence **down to those three formats** and adds the layer 
 them have:
 
 - **Model routing** — right tier (Haiku/Sonnet/Opus) per task, with budget awareness.
+- **Reasoning-effort routing** — low/medium/high, independent of model tier — plus an
+  outcome-learning adapter (mirrors the model-tier router's design) that blends in past
+  results once there's enough evidence, fail-open to the static pick otherwise.
 - **Context-budget engineering** — compression, caching, batching, thread handoff.
+- **Response-size governance** — every tool response passes through one size cap at the
+  `call_tool` choke point before reaching the caller; a generic recursive walker bounds
+  any over-limit list at any nesting depth, exempting the handful of tools (exports) where
+  the full payload is the point.
 - **Role intelligence** — 81 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
 - **Compliance gating** — auditable PRD→architecture→story→commit chain for regulated teams.
 - **Runtime enforcement** — Claude Code lifecycle hooks auto-run security/policy/audit checks and can *block* (secret writes, runaway loops), turning advisory governance into enforced governance. Fail-open: a hook error never wedges the session. See `hooks/`.
@@ -143,7 +150,7 @@ cd vscode-extension && npm install && node --test test/*.test.ts
 
 ## Status
 
-**Early-stage, building in public.** v1.2 ships the engine, eight native IDE/CLI
+**Early-stage, building in public.** v1.3 ships the engine, eight native IDE/CLI
 config emitters (Claude, Codex/AGENTS.md, Cursor, Copilot, Cline, Gemini, Windsurf,
 JetBrains AI Assistant) plus a single-file web-agent bundle for ChatGPT/Gemini/
 Claude.ai web chat, the 81
@@ -153,12 +160,17 @@ enforcement hooks layer, a continuous learning loop with offline skill auto-opti
 an autonomous governor (policy-gated, reversible, advise-by-default) with a budget-guardian
 overlay, a durable eval + red-team regression harness (offline, baseline-diffed, pass/fail
 gated), MCP supply-chain auditing, a searchable trace, diagram generators, and a
-task/effort/token tracker. The 90 MCP tools are registered through a decorator-based
-tool registry (one source of truth per tool — no hand-synced definition/handler
-pair to drift), and an optional local VS Code panel (`vscode-extension/`) surfaces
-budget, security, and governance at a glance over the same MCP server, zero external
-services. Everything runs directly from PromptWise — local-first, no
-third-party integrations, air-gapped by default.
+task/effort/usage tracker. New in v1.3: a **reasoning-effort axis** (low/medium/high,
+independent of model tier, with its own outcome-learning adapter mirroring the model-tier
+router), a **response-size cap** at the `call_tool` choke point so no tool response is
+ever unbounded, and **cost + audit logging for skill invocations** (`invoke_skill`/
+`skill_chain` results were computed but never persisted before — now every successful
+execution shows up in cost reports and the audit trail). The 90 MCP tools are registered
+through a decorator-based tool registry (one source of truth per tool — no hand-synced
+definition/handler pair to drift), and an optional local VS Code panel
+(`vscode-extension/`) surfaces budget, security, and governance at a glance over the same
+MCP server, zero external services. Everything runs directly from PromptWise — local-first,
+no third-party integrations, air-gapped by default.
 
 ## License
 

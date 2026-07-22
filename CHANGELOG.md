@@ -4,6 +4,36 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## [1.3.0] — Governance/FinOps hardening: effort axis, response cap, skill audit
+
+### Added
+- **Reasoning-effort axis** (`core/effort_router.py`, `core/effort_adapter.py`,
+  `core/effort_map.py` + `config/effort_map.yaml`) — low/medium/high, independent of
+  model-tier routing. `effort_adapter.EffortAdapter` mirrors `adaptive_router.py`'s
+  outcome-learning design (Beta-posterior, minimum-sample threshold, fail-open to the
+  static pick) over its own ladder. Wired into `route_request`'s response, `task_graph.py`
+  waves, and `agile_planner.AgileStep`.
+- **Response-size cap** (`core/response_budget.py`) at the `server.call_tool` choke point —
+  a single generic recursive walker bounds any over-limit list at any nesting depth
+  (top-level document, dict value, or list item), with a small exempt set
+  (`export_audit`, `get_sbom`, `export_compliance_bundle`, `export_web_bundle`) where the
+  full payload is the point. No PromptWise tool response was size-bounded before this.
+- **Skill-invocation cost + audit logging** — `invoke_skill`/`skill_chain` already computed
+  real per-call cost/model data; it was never persisted. Now every successful execution
+  writes a cost-log entry and an audit record, fail-open, without changing either
+  handler's return shape.
+
+### Fixed
+- `get_budget_status` was a permanent-zero stub (`_current_spend`/`_daily_burn` set once
+  in `BudgetGuardian.__init__`, never updated) — now reads real month-to-date `cost_logs`.
+- Dashboard wiring bug: `cli.py`'s `_start_serve` called `create_web_app(cfg)` with the
+  wrong parameter, so `memory_manager` was never passed and both the web dashboard and
+  CLI budget paths always showed zero/empty regardless of real usage.
+- `run_eval`'s tool description claimed A/B quality testing across models; it only
+  estimates cost — description corrected to match actual behavior.
+- Deleted fabricated `docs/integration/MULTI_PLATFORM.md` and dead
+  `core/codex_validator.py` (unwired, duplicated `code_validator.py` with weaker checks).
+
 ## [1.2.0] — Enforcement layer & feature-gap build
 
 Turns governance from something the agent *opts into* into something it *can't avoid*,
