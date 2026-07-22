@@ -43,6 +43,16 @@ def cap_response(name: str, raw_json: str) -> str:
     except Exception:
         return raw_json
     limit = _max_items()
+    if isinstance(data, list):
+        # A bare top-level list has no dict to hang a "{key}_truncated_count"
+        # sibling off of, unlike the dict-value case below. Wrap it in an
+        # {"items": ..., "items_truncated_count": N} envelope so the marker
+        # survives JSON round-tripping -- this only changes the top-level
+        # JSON type callers see in the rare case truncation actually fires.
+        if len(data) > limit:
+            dropped = len(data) - limit
+            return json.dumps({"items": data[:limit], "items_truncated_count": dropped})
+        return raw_json
     changed = _cap_lists(data, limit)
     if not changed:
         return raw_json

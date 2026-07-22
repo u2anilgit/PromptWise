@@ -39,3 +39,28 @@ def test_nested_lists_are_capped_too(monkeypatch):
     out = json.loads(cap_response("some_tool", raw))
     assert out["breakdowns"]["by_skill"] == [0, 1]
     assert out["breakdowns"]["by_skill_truncated_count"] == 3
+
+
+def test_top_level_list_over_limit_gets_wrapped_and_capped(monkeypatch):
+    # get_memory_context / shard_doc return a bare JSON array at the top
+    # level, not a dict -- there's no key to hang a sibling
+    # "{key}_truncated_count" marker off of, so an over-limit top-level list
+    # must be wrapped in an envelope instead of silently passing through.
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "3")
+    raw = json.dumps(list(range(10)))
+    out = json.loads(cap_response("get_memory_context", raw))
+    assert out == {"items": [0, 1, 2], "items_truncated_count": 7}
+
+
+def test_top_level_list_under_limit_is_unchanged(monkeypatch):
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "200")
+    raw = json.dumps([1, 2, 3])
+    assert json.loads(cap_response("shard_doc", raw)) == [1, 2, 3]
+
+
+def test_dict_value_list_of_dicts_is_capped(monkeypatch):
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "2")
+    raw = json.dumps({"tasks": [{"id": i, "name": f"task-{i}"} for i in range(5)]})
+    out = json.loads(cap_response("list_tasks", raw))
+    assert out["tasks"] == [{"id": 0, "name": "task-0"}, {"id": 1, "name": "task-1"}]
+    assert out["tasks_truncated_count"] == 3
