@@ -49,19 +49,11 @@ def cap_response(name: str, raw_json: str) -> str:
         # {"items": ..., "items_truncated_count": N} envelope so the marker
         # survives JSON round-tripping -- this only changes the top-level
         # JSON type callers see in the rare case truncation actually fires.
-        if len(data) > limit:
-            dropped = len(data) - limit
-            kept = data[:limit]
-            for item in kept:
-                if isinstance(item, (dict, list)):
-                    _cap_lists(item, limit)
+        kept, dropped, item_changed = _trim_list(data, limit)
+        if dropped:
             return json.dumps({"items": kept, "items_truncated_count": dropped})
-        changed = False
-        for item in data:
-            if isinstance(item, (dict, list)):
-                changed = _cap_lists(item, limit) or changed
-        if changed:
-            return json.dumps(data)
+        if item_changed:
+            return json.dumps(kept)
         return raw_json
     changed = _cap_lists(data, limit)
     if not changed:
@@ -69,19 +61,57 @@ def cap_response(name: str, raw_json: str) -> str:
     return json.dumps(data)
 
 
+def _trim_list(value: list, limit: int) -> tuple[list, int, bool]:
+    """Trim `value` to `limit` items, then recurse into every surviving item
+    to cap ITS own nested lists too.
+
+    Trimming and recursing into the survivors are done together, in this one
+    function, on purpose: every list truncation in this module -- top-level,
+    dict-value, or list-nested-in-a-list -- routes through here, so a
+    surviving item's own oversized lists can never be left uncapped just
+    because the list holding it happened to be trimmed by a different code
+    path.
+
+    Returns (kept_items, dropped_count, changed) where `changed` is True if
+    anything -- the trim itself, or a nested cap inside a surviving item --
+    happened.
+    """
+    dropped = 0
+    changed = False
+    if len(value) > limit:
+        dropped = len(value) - limit
+        value = value[:limit]
+        changed = True
+    for item in value:
+        if isinstance(item, (dict, list)):
+            if _cap_lists(item, limit):
+                changed = True
+    return value, dropped, changed
+
+
 def _cap_lists(obj, limit: int) -> bool:
+    """Recursively cap every list-shaped field found within obj, in place.
+
+    Any list this finds -- whether it's a dict's value or an item inside
+    another list -- is trimmed and has its survivors recursed into via the
+    single shared `_trim_list` path above. Returns whether anything changed.
+    """
     changed = False
     if isinstance(obj, dict):
         for key, value in list(obj.items()):
-            if isinstance(value, list) and len(value) > limit:
-                dropped = len(value) - limit
-                obj[key] = value[:limit]
-                obj[f"{key}_truncated_count"] = dropped
-                changed = True
-            elif isinstance(value, (dict, list)):
-                changed = _cap_lists(value, limit) or changed
+            if isinstance(value, list):
+                kept, dropped, item_changed = _trim_list(value, limit)
+                obj[key] = kept
+                if dropped:
+                    obj[f"{key}_truncated_count"] = dropped
+                if dropped or item_changed:
+                    changed = True
+            elif isinstance(value, dict):
+                if _cap_lists(value, limit):
+                    changed = True
     elif isinstance(obj, list):
         for item in obj:
             if isinstance(item, (dict, list)):
-                changed = _cap_lists(item, limit) or changed
+                if _cap_lists(item, limit):
+                    changed = True
     return changed

@@ -86,3 +86,14 @@ def test_dict_value_list_of_dicts_is_capped(monkeypatch):
     out = json.loads(cap_response("list_tasks", raw))
     assert out["tasks"] == [{"id": 0, "name": "task-0"}, {"id": 1, "name": "task-1"}]
     assert out["tasks_truncated_count"] == 3
+
+
+def test_dict_value_list_trim_recurses_into_surviving_items(monkeypatch):
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "2")
+    raw = json.dumps({"tasks": [{"tags": list(range(5))} for _ in range(4)]})
+    out = json.loads(cap_response("list_tasks", raw))
+    assert len(out["tasks"]) == 2
+    assert out["tasks_truncated_count"] == 2
+    for t in out["tasks"]:
+        assert t["tags"] == [0, 1]
+        assert t["tags_truncated_count"] == 3
