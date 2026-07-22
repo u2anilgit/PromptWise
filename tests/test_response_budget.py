@@ -58,6 +58,28 @@ def test_top_level_list_under_limit_is_unchanged(monkeypatch):
     assert json.loads(cap_response("shard_doc", raw)) == [1, 2, 3]
 
 
+def test_top_level_list_items_get_nested_lists_capped(monkeypatch):
+    # An over-limit top-level list gets wrapped in an items envelope, but its
+    # surviving dict items can themselves carry oversized list-shaped fields
+    # -- those must still be capped, not silently passed through.
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "3")
+    raw = json.dumps([{"tags": list(range(10))}] * 5)
+    out = json.loads(cap_response("some_tool", raw))
+    assert out["items_truncated_count"] == 2
+    assert len(out["items"]) == 3
+    assert out["items"][0]["tags"] == [0, 1, 2]
+    assert out["items"][0]["tags_truncated_count"] == 7
+
+
+def test_top_level_list_under_limit_items_get_nested_lists_capped(monkeypatch):
+    # Same nested-capping contract must hold even when the top-level list
+    # itself is under the limit and passes through without an envelope.
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "3")
+    raw = json.dumps([{"tags": list(range(10))}])
+    out = json.loads(cap_response("shard_doc", raw))
+    assert out == [{"tags": [0, 1, 2], "tags_truncated_count": 7}]
+
+
 def test_dict_value_list_of_dicts_is_capped(monkeypatch):
     monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "2")
     raw = json.dumps({"tasks": [{"id": i, "name": f"task-{i}"} for i in range(5)]})

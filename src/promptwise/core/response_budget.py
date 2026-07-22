@@ -51,7 +51,17 @@ def cap_response(name: str, raw_json: str) -> str:
         # JSON type callers see in the rare case truncation actually fires.
         if len(data) > limit:
             dropped = len(data) - limit
-            return json.dumps({"items": data[:limit], "items_truncated_count": dropped})
+            kept = data[:limit]
+            for item in kept:
+                if isinstance(item, (dict, list)):
+                    _cap_lists(item, limit)
+            return json.dumps({"items": kept, "items_truncated_count": dropped})
+        changed = False
+        for item in data:
+            if isinstance(item, (dict, list)):
+                changed = _cap_lists(item, limit) or changed
+        if changed:
+            return json.dumps(data)
         return raw_json
     changed = _cap_lists(data, limit)
     if not changed:
