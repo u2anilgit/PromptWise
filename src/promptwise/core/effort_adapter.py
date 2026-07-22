@@ -77,6 +77,44 @@ class EffortOutcomeStore:
             conn.close()
         return signal
 
+    def record_decision(self, task_class: str, effort: str, ts: str | None = None) -> str:
+        """Insert a fresh decision row with a ``neutral`` signal and return its
+        ``outcome_id``. Mirrors ``adaptive_router.OutcomeStore.record_decision``:
+        a live effort pick is recorded immediately, before any quality verdict
+        exists, and the id is kept so a later verdict can be correlated back via
+        :meth:`update_signal`. A row that never receives a verdict stays
+        ``neutral`` (never counts as a failure)."""
+        outcome_id = uuid.uuid4().hex
+        ts = ts or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        conn = self._connect()
+        try:
+            conn.execute(
+                "INSERT INTO effort_outcomes (outcome_id, ts, task_class, effort, quality_signal) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (outcome_id, ts, task_class or "", effort or "", "neutral"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return outcome_id
+
+    def update_signal(self, outcome_id: str, quality_signal: object) -> str:
+        """Fold ``quality_signal`` onto met/not_met/neutral and store it on an
+        existing decision row (no-op if the id is unknown). Returns the
+        normalized signal. Used to correlate a later verdict onto a recorded
+        live effort decision."""
+        signal = normalize_quality_signal(quality_signal)
+        conn = self._connect()
+        try:
+            conn.execute(
+                "UPDATE effort_outcomes SET quality_signal = ? WHERE outcome_id = ?",
+                (signal, outcome_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return signal
+
     def stats(self, task_class: str) -> dict[str, dict[str, int]]:
         conn = self._connect()
         try:

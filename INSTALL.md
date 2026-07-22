@@ -18,6 +18,22 @@ pip install -e ".[dev]"     # + pytest for development
 
 This installs the engine and the `promptwise` / `promptwise-server` console scripts.
 
+### From a built distribution (no editable checkout)
+
+For CI or a non-dev install, build a wheel + sdist instead of installing in editable mode:
+
+```bash
+pip install build
+python -m build                       # writes dist/promptwise-<version>-py3-none-any.whl + .tar.gz
+pip install dist/promptwise-*.whl
+```
+
+The wheel/sdist ships the Python engine only (`src/promptwise/`) — `skill_packs/`,
+`config/`, `hooks/`, and `.claude-plugin/` stay in the git checkout your MCP host
+points `cwd`/`PYTHONPATH` at (see step 3). This mirrors the plugin's own model: the
+engine is a normal installable package, but the governed assets it reads are
+repo-relative, not bundled inside the wheel.
+
 ## 3. Register with your agent
 
 ### Claude Code (plugin)
@@ -61,7 +77,7 @@ PYTHONPATH=src python -c "import promptwise.server as s; print(len(s._TOOL_DEFS)
 PYTHONPATH=src python -c "from pathlib import Path; from promptwise.core import SkillLoader; sl=SkillLoader(Path('skill_packs')); sl.load_skills(); print(len(sl.skills),'packs')"
 ```
 
-Expected: `69 tools` and `72 packs`.
+Expected: `90 tools` and `81 packs`.
 
 ## Data location
 

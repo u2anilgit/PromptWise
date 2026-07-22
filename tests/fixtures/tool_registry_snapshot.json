@@ -762,6 +762,10 @@
         "route_id": {
           "type": "string",
           "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"
+        },
+        "effort_id": {
+          "type": "string",
+          "description": "Optional: effort_id from a prior route_request; folds this verdict back onto that effort decision's learning outcome"
         }
       },
       "required": [
@@ -1555,6 +1559,10 @@
         "route_id": {
           "type": "string",
           "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"
+        },
+        "effort_id": {
+          "type": "string",
+          "description": "Optional: effort_id from a prior route_request; folds this gate verdict back onto that effort decision's learning outcome"
         }
       },
       "required": [

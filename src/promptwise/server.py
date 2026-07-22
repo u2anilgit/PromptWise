@@ -115,6 +115,23 @@ def _record_route_verdict(route_id, signal) -> None:
         pass
 
 
+def _record_effort_verdict(effort_id, signal) -> None:
+    """Correlate a later quality verdict onto a prior live effort decision.
+
+    Mirrors ``_record_route_verdict`` exactly, over the effort axis: any tool
+    that produces a verdict for an effort decision it was passed
+    (``validate_output`` validity, ``run_quality_gate`` decision) calls this
+    with the ``effort_id`` returned by ``route_request``. Fully fail-open --
+    never raises, never affects the tool's own result."""
+    if not effort_id:
+        return
+    try:
+        from promptwise.core.effort_recorder import record_effort_verdict
+        record_effort_verdict(effort_id, signal)
+    except Exception:
+        pass
+
+
 def _resolve_effort(intent: str, stakes: str) -> str:
     """Reasoning-effort level for a route decision: static heuristic, blended
     with the learned outcome history when PROMPTWISE_ADAPTIVE_EFFORT is on
@@ -205,12 +222,28 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
     except Exception:
         route_id = None
     effort = _resolve_effort(r.intent_detected, r.stakes_detected)
+    # Close the learning loop for the effort axis too (mirrors route_id above,
+    # independent ladder). Fail-open — recording never changes/breaks the route.
+    effort_id = None
+    try:
+        from promptwise.core.effort_recorder import record_effort_decision
+        effort_id = record_effort_decision(
+            task_class=f"{r.intent_detected}/{r.stakes_detected}", effort=effort)
+    except Exception:
+        effort_id = None
+    # Concrete provider param for the resolved effort (thinking_budget_tokens,
+    # reasoning_effort, ...) -- resolve_effort_param never raises.
+    try:
+        from promptwise.core.effort_map import resolve_effort_param
+        effort_param = resolve_effort_param(effort, arguments.get("provider", "claude"))
+    except Exception:
+        effort_param = {}
     return json.dumps({"recommended_model": r.recommended_model, "reason": r.reason, "intent_detected": r.intent_detected,
                        "stakes_detected": r.stakes_detected, "estimated_input_cost_usd": r.estimated_input_cost_usd,
                        "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
                        "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
                        "provider_capped": r.provider_capped, "monthly_budget_capped": r.monthly_budget_capped,
-                       "effort": effort, "route_id": route_id})
+                       "effort": effort, "effort_param": effort_param, "route_id": route_id, "effort_id": effort_id})
 
 
 @tool(name="rewrite_prompt", description="Rewrite prompt with role framing and filler removal",
@@ -578,10 +611,11 @@ async def _handle_budget_report(ctx: ServerContext, arguments: dict) -> str:
 
 # ── Code Validation ──────────────────────────────────────────────────
 @tool(name="validate_output", description="Validate generated code for syntax errors and hallucinated imports",
-         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"}}, "required": ["code"]})
+         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"}, "effort_id": {"type": "string", "description": "Optional: effort_id from a prior route_request; folds this verdict back onto that effort decision's learning outcome"}}, "required": ["code"]})
 async def _handle_validate_output(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.code_validator.validate(arguments.get("code", ""), language=arguments.get("language", "python"))
     _record_route_verdict(arguments.get("route_id"), r.valid)  # WP8.1 loop close (fail-open)
+    _record_effort_verdict(arguments.get("effort_id"), r.valid)  # effort-axis loop close (fail-open)
     return json.dumps({"valid": r.valid, "issues": r.issues, "confidence": r.confidence, "checks_run": r.checks_run, "suggested_fix": r.suggested_fix})
 
 
@@ -1048,7 +1082,7 @@ async def _handle_draft_story(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="run_quality_gate", description="Issue an advisory, auditable quality-gate decision (PASS/CONCERNS/FAIL/WAIVED) from findings, risk score, and NFR assessment",
-         schema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"}}, "required": ["story_id"]})
+         schema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"}, "effort_id": {"type": "string", "description": "Optional: effort_id from a prior route_request; folds this gate verdict back onto that effort decision's learning outcome"}}, "required": ["story_id"]})
 async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.quality_gate import QualityGate
     res = QualityGate().evaluate(
@@ -1056,6 +1090,7 @@ async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
         int(arguments.get("risk_score", 0)), arguments.get("nfr_assessment", {}),
         arguments.get("waiver_reason", ""))
     _record_route_verdict(arguments.get("route_id"), res.decision)  # WP8.1 loop close (fail-open)
+    _record_effort_verdict(arguments.get("effort_id"), res.decision)  # effort-axis loop close (fail-open)
     return json.dumps(res.to_dict())
 
 
@@ -1439,9 +1474,10 @@ async def main() -> None:
         result = await call_tool(ctx, name, arguments)
         return [TextContent(type="text", text=result)]
 
+    from promptwise import __version__ as _pw_version
     init_opts = InitializationOptions(
         server_name="promptwise",
-        server_version="1.1.0",
+        server_version=_pw_version,
         capabilities=server.get_capabilities(
             notification_options=NotificationOptions(),
             experimental_capabilities={},
