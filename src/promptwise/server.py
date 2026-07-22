@@ -134,6 +134,29 @@ def _resolve_effort(intent: str, stakes: str) -> str:
         return base
 
 
+async def _record_skill_execution(ctx: ServerContext, *, tool: str, skill_name: str, result: dict) -> None:
+    """Log cost + audit for one skill execution. invoke_skill/skill_chain
+    already return real per-call cost/model data (execute_skill's response)
+    without ever persisting it -- neither cost_logs nor the audit trail saw
+    it. Mirrors the fields route_request already logs. Fail-open: never
+    raises, never affects the tool's own return value."""
+    if result.get("status") != "success":
+        return
+    try:
+        await ctx.memory.record_cost(
+            tool=tool, session_id="default", model=result.get("model_used", ""),
+            input_tokens=result.get("input_tokens", 0), output_tokens=result.get("output_tokens", 0),
+            cost_usd=result.get("cost_usd", 0.0))
+    except Exception:
+        pass
+    try:
+        _get_audit_log().append(
+            f"{tool}:{skill_name}", agent=skill_name, model=result.get("model_used", ""),
+            cost_usd=float(result.get("cost_usd", 0.0) or 0.0))
+    except Exception:
+        pass
+
+
 _AUDIT_LOG = None
 
 
@@ -650,6 +673,7 @@ async def _handle_invoke_skill(ctx: ServerContext, arguments: dict) -> str:
     if not sk:
         return json.dumps({"error": "Skill not found", "skill_name": arguments.get("skill_name")})
     res = await ctx.orchestrator.execute_skill(sk, arguments.get("context", {}), router=ctx.router)
+    await _record_skill_execution(ctx, tool="invoke_skill", skill_name=sk.name, result=res)
     return json.dumps(res)
 
 
@@ -671,6 +695,8 @@ async def _handle_list_skills(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_skill_chain(ctx: ServerContext, arguments: dict) -> str:
     res = await ctx.orchestrator.execute_skill_chain(ctx.skill_loader, arguments.get("skills", []),
                                                       arguments.get("mode", "sequential"), arguments.get("context", {}), router=ctx.router)
+    for skill_name, skill_result in (res.get("results") or {}).items():
+        await _record_skill_execution(ctx, tool="skill_chain", skill_name=skill_name, result=skill_result)
     return json.dumps(res)
 
 
