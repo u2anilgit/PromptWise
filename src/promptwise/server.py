@@ -115,6 +115,25 @@ def _record_route_verdict(route_id, signal) -> None:
         pass
 
 
+def _resolve_effort(intent: str, stakes: str) -> str:
+    """Reasoning-effort level for a route decision: static heuristic, blended
+    with the learned outcome history when PROMPTWISE_ADAPTIVE_EFFORT is on
+    (default). Fail-open to the static pick on any error -- mirrors
+    Router._maybe_adapt's fail-open contract exactly."""
+    import os
+    from promptwise.core.effort_router import static_effort
+    base = static_effort(intent, stakes)
+    if os.environ.get("PROMPTWISE_ADAPTIVE_EFFORT", "on").strip().lower() in ("0", "off", "false", "no"):
+        return base
+    try:
+        from promptwise.core.effort_adapter import EffortAdapter
+        adapter = EffortAdapter()
+        effort, _ = adapter.adapt(f"{intent}/{stakes}", base)
+        return effort
+    except Exception:
+        return base
+
+
 _AUDIT_LOG = None
 
 
@@ -162,11 +181,13 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
             cost=r.estimated_input_cost_usd)
     except Exception:
         route_id = None
+    effort = _resolve_effort(r.intent_detected, r.stakes_detected)
     return json.dumps({"recommended_model": r.recommended_model, "reason": r.reason, "intent_detected": r.intent_detected,
                        "stakes_detected": r.stakes_detected, "estimated_input_cost_usd": r.estimated_input_cost_usd,
                        "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
                        "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
-                       "provider_capped": r.provider_capped, "monthly_budget_capped": r.monthly_budget_capped, "route_id": route_id})
+                       "provider_capped": r.provider_capped, "monthly_budget_capped": r.monthly_budget_capped,
+                       "effort": effort, "route_id": route_id})
 
 
 @tool(name="rewrite_prompt", description="Rewrite prompt with role framing and filler removal",
