@@ -21,7 +21,7 @@ from promptwise.config import load_config
 from promptwise.core import (
     Router, Rewriter, Optimizer, CompressionEngine, CachePlanner,
     Batcher, Summarizer, RoleDetector, Orchestrator, QualityGuard,
-    SkillLoader, CodexOutputValidator, WorkflowPlanner, TaskTracker, validate_mermaid,
+    SkillLoader, WorkflowPlanner, TaskTracker, validate_mermaid,
 )
 from promptwise.security import SecurityScanner, ComplianceEngine
 from promptwise.plugins import BudgetGuardian, CodeValidator, CostMonitor, ROITracker
@@ -44,7 +44,6 @@ class ServerContext:
     security: SecurityScanner
     compliance: ComplianceEngine
     code_validator: CodeValidator
-    codex_validator: CodexOutputValidator
     budget: BudgetGuardian
     cost_monitor: CostMonitor
     roi: ROITracker
@@ -116,6 +115,48 @@ def _record_route_verdict(route_id, signal) -> None:
         pass
 
 
+def _resolve_effort(intent: str, stakes: str) -> str:
+    """Reasoning-effort level for a route decision: static heuristic, blended
+    with the learned outcome history when PROMPTWISE_ADAPTIVE_EFFORT is on
+    (default). Fail-open to the static pick on any error -- mirrors
+    Router._maybe_adapt's fail-open contract exactly."""
+    import os
+    from promptwise.core.effort_router import static_effort
+    base = static_effort(intent, stakes)
+    if os.environ.get("PROMPTWISE_ADAPTIVE_EFFORT", "on").strip().lower() in ("0", "off", "false", "no"):
+        return base
+    try:
+        from promptwise.core.effort_adapter import EffortAdapter
+        adapter = EffortAdapter()
+        effort, _ = adapter.adapt(f"{intent}/{stakes}", base)
+        return effort
+    except Exception:
+        return base
+
+
+async def _record_skill_execution(ctx: ServerContext, *, tool: str, skill_name: str, result: dict) -> None:
+    """Log cost + audit for one skill execution. invoke_skill/skill_chain
+    already return real per-call cost/model data (execute_skill's response)
+    without ever persisting it -- neither cost_logs nor the audit trail saw
+    it. Mirrors the fields route_request already logs. Fail-open: never
+    raises, never affects the tool's own return value."""
+    if result.get("status") != "success":
+        return
+    try:
+        await ctx.memory.record_cost(
+            tool=tool, session_id="default", model=result.get("model_used", ""),
+            input_tokens=result.get("input_tokens", 0), output_tokens=result.get("output_tokens", 0),
+            cost_usd=result.get("cost_usd", 0.0))
+    except Exception:
+        pass
+    try:
+        _get_audit_log().append(
+            f"{tool}:{skill_name}", agent=skill_name, model=result.get("model_used", ""),
+            cost_usd=float(result.get("cost_usd", 0.0) or 0.0))
+    except Exception:
+        pass
+
+
 _AUDIT_LOG = None
 
 
@@ -163,11 +204,13 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
             cost=r.estimated_input_cost_usd)
     except Exception:
         route_id = None
+    effort = _resolve_effort(r.intent_detected, r.stakes_detected)
     return json.dumps({"recommended_model": r.recommended_model, "reason": r.reason, "intent_detected": r.intent_detected,
                        "stakes_detected": r.stakes_detected, "estimated_input_cost_usd": r.estimated_input_cost_usd,
                        "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
                        "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
-                       "provider_capped": r.provider_capped, "monthly_budget_capped": r.monthly_budget_capped, "route_id": route_id})
+                       "provider_capped": r.provider_capped, "monthly_budget_capped": r.monthly_budget_capped,
+                       "effort": effort, "route_id": route_id})
 
 
 @tool(name="rewrite_prompt", description="Rewrite prompt with role framing and filler removal",
@@ -507,7 +550,13 @@ async def _handle_set_budget_limit(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="get_budget_status", description="Check current spend vs configured budget limits",
          schema={"type": "object", "properties": {}})
 async def _handle_get_budget_status(ctx: ServerContext, arguments: dict) -> str:
-    return json.dumps(ctx.budget.get_budget_status())
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    logs = await ctx.memory.raw_cost_logs(since=month_start)
+    current_spend = round(sum(float(row.get("cost_usd", 0) or 0) for row in logs), 6)
+    days_elapsed = max(1, now.day)
+    daily_burn = round(current_spend / days_elapsed, 6)
+    return json.dumps(ctx.budget.get_budget_status(current_spend_usd=current_spend, daily_burn_usd=daily_burn))
 
 
 @tool(name="budget_report", description="Get detailed budget report with cost anomaly detection",
@@ -624,6 +673,7 @@ async def _handle_invoke_skill(ctx: ServerContext, arguments: dict) -> str:
     if not sk:
         return json.dumps({"error": "Skill not found", "skill_name": arguments.get("skill_name")})
     res = await ctx.orchestrator.execute_skill(sk, arguments.get("context", {}), router=ctx.router)
+    await _record_skill_execution(ctx, tool="invoke_skill", skill_name=sk.name, result=res)
     return json.dumps(res)
 
 
@@ -645,6 +695,8 @@ async def _handle_list_skills(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_skill_chain(ctx: ServerContext, arguments: dict) -> str:
     res = await ctx.orchestrator.execute_skill_chain(ctx.skill_loader, arguments.get("skills", []),
                                                       arguments.get("mode", "sequential"), arguments.get("context", {}), router=ctx.router)
+    for skill_name, skill_result in (res.get("results") or {}).items():
+        await _record_skill_execution(ctx, tool="skill_chain", skill_name=skill_name, result=skill_result)
     return json.dumps(res)
 
 
@@ -869,7 +921,7 @@ async def _handle_route_for_plugin(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"plugin": plugin})
 
 
-@tool(name="run_eval", description="A/B test a prompt across multiple models",
+@tool(name="run_eval", description="Estimate and compare per-model cost for a prompt across multiple models (cost only -- for a real quality comparison, use run_eval_harness)",
          schema={"type": "object", "properties": {"prompt": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}, "default": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"]}}, "required": ["prompt"]})
 async def _handle_run_eval(ctx: ServerContext, arguments: dict) -> str:
     prompt = arguments.get("prompt", "")
@@ -1328,7 +1380,9 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
         handler = _HANDLERS.get(name)
         if handler is None:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})
-        return await handler(ctx, arguments)
+        result = await handler(ctx, arguments)
+        from promptwise.core.response_budget import cap_response
+        return cap_response(name, result)
     except Exception as e:
         return json.dumps({"error": str(e), "type": type(e).__name__, "tool": name})
 
@@ -1364,7 +1418,6 @@ async def main() -> None:
         security=SecurityScanner(config.security),
         compliance=ComplianceEngine(config_dir / "config" / "compliance" if (config_dir / "config").exists() else None),
         code_validator=CodeValidator(),
-        codex_validator=CodexOutputValidator(),
         budget=BudgetGuardian(limit_usd=config.policies.budget_hard_stop_usd, team_budget_usd=config.policies.team_budget_usd, config=config),
         cost_monitor=CostMonitor(),
         roi=ROITracker(),

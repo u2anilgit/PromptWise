@@ -12,7 +12,6 @@ from .skill_loader import SkillLoader
 from .skill_validator import SkillValidator
 from .sbom import SBOMGenerator
 from .license_checker import LicenseChecker
-from .codex_validator import CodexOutputValidator
 from .workflow_planner import WorkflowPlanner
 from .task_tracker import TaskTracker
 from .mermaid import validate_mermaid
@@ -21,6 +20,6 @@ __all__ = [
     "Router", "Rewriter", "Optimizer", "CompressionEngine",
     "CachePlanner", "Batcher", "Summarizer", "RoleDetector",
     "Orchestrator", "QualityGuard", "SkillLoader", "SkillValidator",
-    "SBOMGenerator", "LicenseChecker", "CodexOutputValidator",
+    "SBOMGenerator", "LicenseChecker",
     "WorkflowPlanner", "TaskTracker", "validate_mermaid",
 ]

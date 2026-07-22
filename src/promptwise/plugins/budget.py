@@ -155,11 +155,17 @@ class BudgetGuardian:
         if period == "monthly":
             self.limit_usd = limit_usd
 
-    def get_budget_status(self) -> dict:
+    def get_budget_status(self, current_spend_usd: float | None = None,
+                           daily_burn_usd: float | None = None) -> dict:
+        """``current_spend_usd``/``daily_burn_usd`` let the caller supply real,
+        month-to-date numbers (read from cost_logs); omitting them preserves the
+        prior zero-init default for any caller that never fed ``check()``."""
+        spend = self._current_spend if current_spend_usd is None else current_spend_usd
+        burn = self._daily_burn if daily_burn_usd is None else daily_burn_usd
         limit = self._limits.get("monthly", self.limit_usd)
-        pct = round(self._current_spend / limit * 100, 2) if limit > 0 else 0.0
-        days = round((limit - self._current_spend) / self._daily_burn, 1) if self._daily_burn > 0 else None
-        return {"limit_usd": limit, "period": "monthly", "current_spend_usd": round(self._current_spend, 6),
+        pct = round(spend / limit * 100, 2) if limit > 0 else 0.0
+        days = round((limit - spend) / burn, 1) if burn > 0 else None
+        return {"limit_usd": limit, "period": "monthly", "current_spend_usd": round(spend, 6),
                 "pct_used": pct, "days_remaining_at_burn_rate": days}
 
     def cost_anomaly_detect(self, daily_costs: list[float]) -> dict:

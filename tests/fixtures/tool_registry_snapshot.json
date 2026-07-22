@@ -1288,7 +1288,7 @@
   },
   {
     "name": "run_eval",
-    "description": "A/B test a prompt across multiple models",
+    "description": "Estimate and compare per-model cost for a prompt across multiple models (cost only -- for a real quality comparison, use run_eval_harness)",
     "inputSchema": {
       "type": "object",
       "properties": {

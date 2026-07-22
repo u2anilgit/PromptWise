@@ -32,6 +32,7 @@ def plan_waves(tasks: list[dict], fan_out_cap: int = DEFAULT_FAN_OUT) -> dict:
     deps = {t["id"]: {d for d in (t.get("depends_on") or []) if d in idset and d != t["id"]}
             for t in tasks}
     files = {t["id"]: (t.get("file") or t.get("target") or "") for t in tasks}
+    efforts = {t["id"]: (t.get("effort") or "medium") for t in tasks}
     dependents: dict[str, list[str]] = {i: [] for i in ids}
     for i in ids:
         for d in deps[i]:
@@ -78,6 +79,7 @@ def plan_waves(tasks: list[dict], fan_out_cap: int = DEFAULT_FAN_OUT) -> dict:
         "serialized": sorted(serialized),
         "fan_out_cap": fan_out_cap,
         "capped": capped_any,
+        "task_effort": efforts,
     }
 
 

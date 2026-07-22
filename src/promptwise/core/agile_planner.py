@@ -34,6 +34,7 @@ _DEFAULTS = {
     "planning_order": ["agile-analyst", "agile-pm", "agile-ux", "agile-architect", "agile-po"],
     "dev_loop": ["agile-sm", "agile-dev", "agile-qa"],
     "model_tiers": {"planning": "opus", "execution": "sonnet"},
+    "effort_tiers": {"planning": "high", "execution": "medium"},
     "regulated_inject": {
         "planning": ["security-architecture"],
         "dev_loop_tools": ["owasp_scan", "get_sbom"],
@@ -54,11 +55,12 @@ class AgileStep:
     persona: str        # the agile persona pack, e.g. "agile-sm"
     skill: str          # same as persona (the pack that runs)
     model_tier: str     # "opus" planning / "sonnet" execution
+    effort: str = "medium"   # "low" | "medium" | "high" -- independent of model_tier
     label: str = ""     # cosmetic phase label
 
     def to_dict(self) -> dict:
         return {"phase": self.phase, "persona": self.persona, "skill": self.skill,
-                "model_tier": self.model_tier, "label": self.label}
+                "model_tier": self.model_tier, "effort": self.effort, "label": self.label}
 
 
 @dataclass
@@ -94,7 +96,7 @@ def _load_config(config_path: str | Path | None) -> dict:
         data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     except Exception:  # pragma: no cover - bad yaml -> defaults
         return cfg
-    for k in ("planning_order", "dev_loop", "model_tiers", "regulated_inject"):
+    for k in ("planning_order", "dev_loop", "model_tiers", "effort_tiers", "regulated_inject"):
         if data.get(k):
             cfg[k] = data[k]
     return cfg
@@ -123,6 +125,8 @@ class AgilePlanner:
 
         plan_tier = self.cfg["model_tiers"].get("planning", "opus")
         exec_tier = self.cfg["model_tiers"].get("execution", "sonnet")
+        plan_effort = self.cfg.get("effort_tiers", {}).get("planning", "high")
+        exec_effort = self.cfg.get("effort_tiers", {}).get("execution", "medium")
 
         planning_order = list(self.cfg["planning_order"])
         # Regulated: inject security personas/packs into the planning phase.
@@ -137,12 +141,12 @@ class AgilePlanner:
                 planning_order.extend(inject)
 
         planning = [
-            AgileStep(phase="planning", persona=p, skill=p, model_tier=plan_tier,
+            AgileStep(phase="planning", persona=p, skill=p, model_tier=plan_tier, effort=plan_effort,
                       label=_PHASE_LABEL.get(p, "planning"))
             for p in planning_order
         ]
         dev_loop = [
-            AgileStep(phase="development", persona=p, skill=p, model_tier=exec_tier,
+            AgileStep(phase="development", persona=p, skill=p, model_tier=exec_tier, effort=exec_effort,
                       label=_PHASE_LABEL.get(p, "development"))
             for p in self.cfg["dev_loop"]
         ]

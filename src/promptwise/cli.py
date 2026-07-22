@@ -8,16 +8,47 @@ from pathlib import Path
 from promptwise import __version__
 from promptwise.config import load_config
 from promptwise.db.models import MemoryManager, get_db_path
+from promptwise.plugins.budget import BudgetGuardian
+
+
+async def _memory_manager(db_path: str | None = None) -> MemoryManager:
+    """A real, initialized MemoryManager -- default path via init_db() (the
+    same schema-creating path server.py's main() uses), or an explicit
+    db_path for tests."""
+    if db_path is None:
+        from promptwise.db.models import init_db
+        db_path = await init_db()
+    mm = MemoryManager(db_path)
+    await mm.init()
+    return mm
+
+
+async def _month_to_date_spend(mm: MemoryManager) -> tuple[float, float]:
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    logs = await mm.raw_cost_logs(since=month_start)
+    spend = round(sum(float(row.get("cost_usd", 0) or 0) for row in logs), 6)
+    days_elapsed = max(1, now.day)
+    burn = round(spend / days_elapsed, 6)
+    return spend, burn
+
+
+async def _real_budget_status(guardian: BudgetGuardian, db_path: str | None = None) -> dict:
+    """The CLI/dashboard's one path to a real budget status -- reads
+    month-to-date cost_logs instead of BudgetGuardian's zero-init defaults."""
+    mm = await _memory_manager(db_path)
+    spend, burn = await _month_to_date_spend(mm)
+    return guardian.get_budget_status(current_spend_usd=spend, daily_burn_usd=burn)
 
 
 def _do_stats(config_dir: str | None) -> None:
     cfg = load_config(config_dir)
 
-    from promptwise.plugins.budget import BudgetGuardian
     from promptwise.plugins.roi import ROITracker
 
     guardian = BudgetGuardian(limit_usd=cfg.policies.budget_hard_stop_usd)
-    budget = guardian.get_budget_status()
+    budget = asyncio.run(_real_budget_status(guardian))
 
     roi = ROITracker()
     snapshot = roi.calculate(session_id="stats", total_cost_usd=budget["current_spend_usd"],
@@ -72,10 +103,9 @@ def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> No
 
     if cli_only or not cfg.dashboard.web_enabled:
         from promptwise.dashboard.cli import CLIDashboard
-        from promptwise.plugins.budget import BudgetGuardian
 
         guardian = BudgetGuardian(limit_usd=cfg.policies.budget_hard_stop_usd)
-        budget = guardian.get_budget_status()
+        budget = asyncio.run(_real_budget_status(guardian))
         pct = budget["pct_used"]
         alert = "hard_stop" if pct >= 100 else "critical" if pct >= 90 else "warn" if pct >= 75 else "ok"
         daily_burn = budget["current_spend_usd"] / 30 if budget["current_spend_usd"] else 0.0
@@ -94,7 +124,8 @@ def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> No
     print(f"Starting PromptWise dashboard on http://0.0.0.0:{port}")
 
     from promptwise.dashboard.web import create_web_app
-    app = create_web_app(cfg)
+    mm = asyncio.run(_memory_manager())
+    app = create_web_app(memory_manager=mm)
     app.run(host="0.0.0.0", port=port, debug=False)
 
 
