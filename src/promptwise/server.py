@@ -1354,7 +1354,9 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
         handler = _HANDLERS.get(name)
         if handler is None:
             return json.dumps({"error": f"Unknown tool: {name}", "type": "UnknownTool", "tool": name})
-        return await handler(ctx, arguments)
+        result = await handler(ctx, arguments)
+        from promptwise.core.response_budget import cap_response
+        return cap_response(name, result)
     except Exception as e:
         return json.dumps({"error": str(e), "type": type(e).__name__, "tool": name})
 
