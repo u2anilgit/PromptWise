@@ -7,11 +7,24 @@ run_security_suite result could return unbounded JSON. This module applies
 one global cap at the call_tool choke point, keeping only the first N items
 of any list-shaped field and adding a count marker for what was dropped,
 rather than string-chopping raw JSON.
+
+Design note: earlier versions of this module had three separate call sites
+for "trim a list" (top-level, dict-value, list-item), and only some of them
+recursed into survivors -- every patch closed one shape-specific gap and a
+review kept finding the next one (top-level list, list-in-dict-value,
+list-in-list-item, ...). This version replaces all of that with a single
+generic recursive walker, `_process`, that treats "a list found at the
+document root", "a list found as a dict value", and "a list found as an item
+inside another list" identically: trim to `limit`, record what was dropped,
+then recurse into every surviving element regardless of where the list was
+found. There is exactly one trimming code path (`_process_list`) and one
+recursion code path (`_process`).
 """
 from __future__ import annotations
 
 import json
 import os
+from typing import Any
 
 DEFAULT_MAX_ITEMS = 200
 
@@ -43,75 +56,69 @@ def cap_response(name: str, raw_json: str) -> str:
     except Exception:
         return raw_json
     limit = _max_items()
-    if isinstance(data, list):
-        # A bare top-level list has no dict to hang a "{key}_truncated_count"
-        # sibling off of, unlike the dict-value case below. Wrap it in an
-        # {"items": ..., "items_truncated_count": N} envelope so the marker
-        # survives JSON round-tripping -- this only changes the top-level
-        # JSON type callers see in the rare case truncation actually fires.
-        kept, dropped, item_changed = _trim_list(data, limit)
-        if dropped:
-            return json.dumps({"items": kept, "items_truncated_count": dropped})
-        if item_changed:
-            return json.dumps(kept)
-        return raw_json
-    changed = _cap_lists(data, limit)
+    new_data, changed = _process(data, limit)
     if not changed:
         return raw_json
-    return json.dumps(data)
+    return json.dumps(new_data)
 
 
-def _trim_list(value: list, limit: int) -> tuple[list, int, bool]:
-    """Trim `value` to `limit` items, then recurse into every surviving item
-    to cap ITS own nested lists too.
+def _process(obj: Any, limit: int) -> tuple[Any, bool]:
+    """Generic recursive walker: cap every list-shaped field within `obj`,
+    no matter whether it sits at the document root, as a dict value, or as
+    an item inside another list -- one code path handles all three.
 
-    Trimming and recursing into the survivors are done together, in this one
-    function, on purpose: every list truncation in this module -- top-level,
-    dict-value, or list-nested-in-a-list -- routes through here, so a
-    surviving item's own oversized lists can never be left uncapped just
-    because the list holding it happened to be trimmed by a different code
-    path.
-
-    Returns (kept_items, dropped_count, changed) where `changed` is True if
-    anything -- the trim itself, or a nested cap inside a surviving item --
-    happened.
+    Returns (possibly-new obj, changed).
     """
-    dropped = 0
-    changed = False
-    if len(value) > limit:
-        dropped = len(value) - limit
-        value = value[:limit]
-        changed = True
-    for item in value:
-        if isinstance(item, (dict, list)):
-            if _cap_lists(item, limit):
-                changed = True
-    return value, dropped, changed
-
-
-def _cap_lists(obj, limit: int) -> bool:
-    """Recursively cap every list-shaped field found within obj, in place.
-
-    Any list this finds -- whether it's a dict's value or an item inside
-    another list -- is trimmed and has its survivors recursed into via the
-    single shared `_trim_list` path above. Returns whether anything changed.
-    """
-    changed = False
     if isinstance(obj, dict):
+        changed = False
         for key, value in list(obj.items()):
             if isinstance(value, list):
-                kept, dropped, item_changed = _trim_list(value, limit)
+                kept, dropped, item_changed = _process_list(value, limit)
                 obj[key] = kept
                 if dropped:
                     obj[f"{key}_truncated_count"] = dropped
                 if dropped or item_changed:
                     changed = True
             elif isinstance(value, dict):
-                if _cap_lists(value, limit):
+                _, value_changed = _process(value, limit)
+                if value_changed:
                     changed = True
-    elif isinstance(obj, list):
-        for item in obj:
-            if isinstance(item, (dict, list)):
-                if _cap_lists(item, limit):
-                    changed = True
-    return changed
+        return obj, changed
+
+    if isinstance(obj, list):
+        kept, dropped, item_changed = _process_list(obj, limit)
+        if dropped:
+            # No dict key (or document root) exists here to hang a
+            # "{key}_truncated_count" sibling off of -- wrap the trimmed
+            # list in the same {"items": ..., "items_truncated_count": N}
+            # envelope used for an over-limit top-level list, so the count
+            # is always discoverable and never silently dropped, whether
+            # this list is the document root or sitting inside another list.
+            return {"items": kept, "items_truncated_count": dropped}, True
+        return kept, item_changed
+
+    return obj, False
+
+
+def _process_list(value: list, limit: int) -> tuple[list, int, bool]:
+    """Trim `value` to `limit` items, then recurse into every surviving item
+    to cap its own nested lists too. This is the ONE trimming code path in
+    the module; every list, regardless of where it was found, goes through
+    it.
+
+    Returns (kept_items, dropped_count, changed) where `changed` is True if
+    anything -- the trim itself, or a nested cap inside a surviving item --
+    happened.
+    """
+    dropped = 0
+    if len(value) > limit:
+        dropped = len(value) - limit
+        value = value[:limit]
+    changed = dropped > 0
+    kept = []
+    for item in value:
+        new_item, item_changed = _process(item, limit)
+        kept.append(new_item)
+        if item_changed:
+            changed = True
+    return kept, dropped, changed

@@ -97,3 +97,42 @@ def test_dict_value_list_trim_recurses_into_surviving_items(monkeypatch):
     for t in out["tasks"]:
         assert t["tags"] == [0, 1]
         assert t["tags_truncated_count"] == 3
+
+
+def test_dict_value_list_of_lists_is_capped(monkeypatch):
+    # A list nested directly inside another list -- no dict key mediates the
+    # inner list, so it gets the {"items": ..., "items_truncated_count": N}
+    # envelope in that slot, consistent with the document-root convention.
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "3")
+    raw = json.dumps({"matrix": [list(range(10))]})
+    out = json.loads(cap_response("some_tool", raw))
+    assert out["matrix"] == [{"items": [0, 1, 2], "items_truncated_count": 7}]
+    assert "matrix_truncated_count" not in out  # outer list (len 1) was not itself over-limit
+
+
+def test_top_level_list_of_lists_is_capped(monkeypatch):
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "3")
+    raw = json.dumps([list(range(10)), list(range(10))])
+    out = json.loads(cap_response("some_tool", raw))
+    # outer list has exactly 2 items, under the limit of 3, so it passes
+    # through bare -- but each inner list is over-limit and gets wrapped.
+    assert out == [
+        {"items": [0, 1, 2], "items_truncated_count": 7},
+        {"items": [0, 1, 2], "items_truncated_count": 7},
+    ]
+
+
+def test_deeply_nested_list_of_lists_is_capped_at_every_level(monkeypatch):
+    # list-in-list-in-list, all three over the limit -- every level must be
+    # capped in a single call, not just the outermost or innermost.
+    monkeypatch.setenv("PROMPTWISE_MAX_RESPONSE_ITEMS", "2")
+    raw = json.dumps([[list(range(5)), list(range(5)), list(range(5))]] * 5)
+    out = json.loads(cap_response("some_tool", raw))
+    assert out["items_truncated_count"] == 3
+    assert len(out["items"]) == 2
+    for mid in out["items"]:
+        assert mid["items_truncated_count"] == 1
+        assert len(mid["items"]) == 2
+        for inner in mid["items"]:
+            assert inner["items"] == [0, 1]
+            assert inner["items_truncated_count"] == 3
