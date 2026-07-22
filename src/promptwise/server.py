@@ -2,6 +2,7 @@
 
 import asyncio
 import difflib
+import importlib
 import inspect
 import json
 import sys
@@ -35,6 +36,53 @@ from promptwise.core.tool_registry import (
 
 async def list_tools() -> list[Tool]:
     return _TOOL_DEFS
+
+
+# ── Handler package loading (Tasks 1/2 of handlers/ package split) ──────────
+_HANDLER_MODULES: list[str] = [
+    "code_validation",
+]
+
+_HANDLER_LOAD_ERRORS: dict[str, str] = {}
+
+
+def _load_handler_modules() -> None:
+    """Import every handler category in isolation. A category that fails to
+    import (bad dependency, syntax error, missing optional package) is
+    logged and skipped -- its tools simply never register -- rather than
+    crashing the other categories. Fits the plugin's existing fail-open
+    convention (route_recorder, effort_recorder, response_budget)."""
+    import logging
+    _handlers_logger = logging.getLogger("promptwise.handlers")
+    for _name in _HANDLER_MODULES:
+        try:
+            importlib.import_module(f"promptwise.handlers.{_name}")
+        except Exception as e:
+            _HANDLER_LOAD_ERRORS[_name] = f"{type(e).__name__}: {e}"
+            _handlers_logger.warning(
+                "handler category %r failed to load -- its tools are "
+                "unavailable this run: %s", _name, e)
+
+
+def _disabled_categories() -> set[str]:
+    """Categories to skip at import time: config.yaml's
+    handlers.disabled_categories, unioned with the
+    PROMPTWISE_DISABLED_HANDLER_CATEGORIES env var (comma-separated) for a
+    zero-file override. Fail-open to "nothing disabled" on any config
+    error, matching every other config read in this codebase."""
+    import os
+    configured: set[str] = set()
+    try:
+        from promptwise.config import load_config
+        configured = set(load_config().handlers.disabled_categories or [])
+    except Exception:
+        pass
+    env_val = os.environ.get("PROMPTWISE_DISABLED_HANDLER_CATEGORIES", "")
+    env_set = {c.strip() for c in env_val.split(",") if c.strip()}
+    return configured | env_set
+
+
+_HANDLER_MODULES = [m for m in _HANDLER_MODULES if m not in _disabled_categories()]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -459,14 +507,9 @@ async def _handle_budget_report(ctx: ServerContext, arguments: dict) -> str:
                        "total_cost_usd": round(sum(daily_costs), 6), "anomaly": anomaly})
 
 
-# ── Code Validation ──────────────────────────────────────────────────
-@tool(name="validate_output", description="Validate generated code for syntax errors and hallucinated imports",
-         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"}, "effort_id": {"type": "string", "description": "Optional: effort_id from a prior route_request; folds this verdict back onto that effort decision's learning outcome"}}, "required": ["code"]})
-async def _handle_validate_output(ctx: ServerContext, arguments: dict) -> str:
-    r = ctx.code_validator.validate(arguments.get("code", ""), language=arguments.get("language", "python"))
-    _record_route_verdict(arguments.get("route_id"), r.valid)  # WP8.1 loop close (fail-open)
-    _record_effort_verdict(arguments.get("effort_id"), r.valid)  # effort-axis loop close (fail-open)
-    return json.dumps({"valid": r.valid, "issues": r.issues, "confidence": r.confidence, "checks_run": r.checks_run, "suggested_fix": r.suggested_fix})
+# Load handler modules here to preserve tool registration order (validate_output
+# from handlers.code_validation registers between budget_report and track_roi)
+_load_handler_modules()
 
 
 # ── ROI ──────────────────────────────────────────────────────────────
@@ -1343,52 +1386,9 @@ def sync_main() -> None:
     asyncio.run(main())
 
 
-import importlib
-import logging
-
-_HANDLER_MODULES: list[str] = []
-
-_HANDLER_LOAD_ERRORS: dict[str, str] = {}
-_handlers_logger = logging.getLogger("promptwise.handlers")
-
-
-def _load_handler_modules() -> None:
-    """Import every handler category in isolation. A category that fails to
-    import (bad dependency, syntax error, missing optional package) is
-    logged and skipped -- its tools simply never register -- rather than
-    crashing the other categories. Fits the plugin's existing fail-open
-    convention (route_recorder, effort_recorder, response_budget)."""
-    for _name in _HANDLER_MODULES:
-        try:
-            importlib.import_module(f"promptwise.handlers.{_name}")
-        except Exception as e:
-            _HANDLER_LOAD_ERRORS[_name] = f"{type(e).__name__}: {e}"
-            _handlers_logger.warning(
-                "handler category %r failed to load -- its tools are "
-                "unavailable this run: %s", _name, e)
-
-
-def _disabled_categories() -> set[str]:
-    """Categories to skip at import time: config.yaml's
-    handlers.disabled_categories, unioned with the
-    PROMPTWISE_DISABLED_HANDLER_CATEGORIES env var (comma-separated) for a
-    zero-file override. Fail-open to "nothing disabled" on any config
-    error, matching every other config read in this codebase."""
-    import os
-    configured: set[str] = set()
-    try:
-        from promptwise.config import load_config
-        configured = set(load_config().handlers.disabled_categories or [])
-    except Exception:
-        pass
-    env_val = os.environ.get("PROMPTWISE_DISABLED_HANDLER_CATEGORIES", "")
-    env_set = {c.strip() for c in env_val.split(",") if c.strip()}
-    return configured | env_set
-
-
-_HANDLER_MODULES = [m for m in _HANDLER_MODULES if m not in _disabled_categories()]
-
-_load_handler_modules()
+# -- Backward-compat re-exports (15 existing test files reference
+#    server._handle_* directly; each move task adds its handlers here) --
+from promptwise.handlers.code_validation import _handle_validate_output  # noqa: F401
 
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
