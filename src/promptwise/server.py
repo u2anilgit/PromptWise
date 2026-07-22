@@ -1343,6 +1343,53 @@ def sync_main() -> None:
     asyncio.run(main())
 
 
+import importlib
+import logging
+
+_HANDLER_MODULES: list[str] = []
+
+_HANDLER_LOAD_ERRORS: dict[str, str] = {}
+_handlers_logger = logging.getLogger("promptwise.handlers")
+
+
+def _load_handler_modules() -> None:
+    """Import every handler category in isolation. A category that fails to
+    import (bad dependency, syntax error, missing optional package) is
+    logged and skipped -- its tools simply never register -- rather than
+    crashing the other categories. Fits the plugin's existing fail-open
+    convention (route_recorder, effort_recorder, response_budget)."""
+    for _name in _HANDLER_MODULES:
+        try:
+            importlib.import_module(f"promptwise.handlers.{_name}")
+        except Exception as e:
+            _HANDLER_LOAD_ERRORS[_name] = f"{type(e).__name__}: {e}"
+            _handlers_logger.warning(
+                "handler category %r failed to load -- its tools are "
+                "unavailable this run: %s", _name, e)
+
+
+def _disabled_categories() -> set[str]:
+    """Categories to skip at import time: config.yaml's
+    handlers.disabled_categories, unioned with the
+    PROMPTWISE_DISABLED_HANDLER_CATEGORIES env var (comma-separated) for a
+    zero-file override. Fail-open to "nothing disabled" on any config
+    error, matching every other config read in this codebase."""
+    import os
+    configured: set[str] = set()
+    try:
+        from promptwise.config import load_config
+        configured = set(load_config().handlers.disabled_categories or [])
+    except Exception:
+        pass
+    env_val = os.environ.get("PROMPTWISE_DISABLED_HANDLER_CATEGORIES", "")
+    env_set = {c.strip() for c in env_val.split(",") if c.strip()}
+    return configured | env_set
+
+
+_HANDLER_MODULES = [m for m in _HANDLER_MODULES if m not in _disabled_categories()]
+
+_load_handler_modules()
+
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
 

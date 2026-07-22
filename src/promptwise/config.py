@@ -108,6 +108,11 @@ class AnalyticsConfig:
 
 
 @dataclass
+class HandlersConfig:
+    disabled_categories: list[str] = field(default_factory=list)
+
+
+@dataclass
 class AppConfig:
     version: str = "1.0"
     default_model: str = "claude-sonnet-4-6"
@@ -122,6 +127,7 @@ class AppConfig:
     skills: SkillsConfig = field(default_factory=SkillsConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
+    handlers: HandlersConfig = field(default_factory=HandlersConfig)
 
     def get_model(self, name: str) -> ModelPricing:
         return self.models.get(name, ModelPricing())
@@ -255,6 +261,11 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
         roi_tracking=bool(analytics_raw.get("roi_tracking", True)),
         per_developer=bool(analytics_raw.get("per_developer", True)),
         per_role=bool(analytics_raw.get("per_role", True)),
+    )
+
+    handlers_raw = raw.get("handlers", {}) or {}
+    cfg.handlers = HandlersConfig(
+        disabled_categories=handlers_raw.get("disabled_categories", []),
     )
 
     return cfg
