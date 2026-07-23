@@ -264,17 +264,6 @@ async def _handle_compare_providers(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"comparisons": ctx.router.compare_providers(arguments.get("text", ""), model=arguments.get("model", "claude-sonnet-4-6"))})
 
 
-# ── Security ─────────────────────────────────────────────────────────
-def _maybe_alert_security(result) -> None:
-    """Best-effort, opt-in notification hook (Phase 16). Subscribes to an
-    ALREADY-COMPUTED SecurityResult; never touches security/scanner.py."""
-    try:
-        from promptwise.core import alerts
-        alerts.notify_security(result)
-    except Exception:
-        pass
-
-
 def _maybe_alert_budget(status) -> None:
     """Best-effort, opt-in notification hook (Phase 16). Subscribes to an
     ALREADY-COMPUTED BudgetStatus; never touches plugins/budget.py."""
@@ -285,70 +274,11 @@ def _maybe_alert_budget(status) -> None:
         pass
 
 
-@tool(name="security_check", description="Run security check (secrets, injection, PII, destructive, permissions). Supply-chain OSV.dev lookups are off by default (air-gap safe); set allow_network=true to opt in.",
-         schema={"type": "object", "properties": {"text": {"type": "string"}, "allow_network": {"type": "boolean", "default": False}}, "required": ["text"]})
-async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
-    r = ctx.security.check(arguments.get("text", ""), allow_network=bool(arguments.get("allow_network", False)))
-    _maybe_alert_security(r)
-    return json.dumps({"passed": r.passed, "risk_score": r.risk_score, "violations": r.violations, "blocked": r.blocked, "details": r.details})
-
-
-@tool(name="prompt_injection", description="Scan user input for prompt injection or jailbreak attempts",
-         schema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]})
-async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
-    text = arguments.get("text", "")
-    threshold = float(arguments.get("threshold", 0.7))
-    detected, confidence, found = ctx.security.detect_injection(text)
-    action = "block" if confidence > threshold else ("warn" if confidence > 0 else "allow")
-    return json.dumps({"injection_detected": detected, "confidence": round(confidence, 2), "patterns_found": found, "action": action})
-
-
-@tool(name="owasp_scan", description="Scan code for OWASP Top-10 vulnerabilities",
-         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}}, "required": ["code"]})
-async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
-    vulns = ctx.security.check_owasp(arguments.get("code", ""))
-    weights = {"critical": 3, "high": 2, "medium": 1}
-    risk = sum(weights.get(v["severity"], 1) for v in vulns)
-    return json.dumps({"vulnerabilities": vulns, "risk_score": risk, "passed": risk < 4})
-
-
-@tool(name="scan_response", description="Scan a model response for PII leaks, injection echoes, canary leaks, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Pass a canary token (issued via the indirect-injection canary) to flag if content that flowed through tool output/RAG leaks back into the response. Advisory.",
-         schema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}, "canary": {"type": "string", "default": "", "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here"}}, "required": ["response"]})
-async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
-    response = arguments.get("response", "")
-    original = arguments.get("original_prompt", "")
-    pii_items, redacted = ctx.security.detect_pii(response, redact=True)
-    inj_detected_orig, _, _ = ctx.security.detect_injection(original)
-    inj_detected_resp, _, _ = ctx.security.detect_injection(response)
-    echo = inj_detected_orig and inj_detected_resp
-    leak = any(p in response.lower() for p in ["system prompt", "instructions say", "i was told to"])
-    # Indirect-injection canary: if a canary planted in tool-output/RAG content
-    # surfaces here, that content leaked back into the response.
-    canary_leak = ctx.security.check_canary_leak(response, arguments.get("canary", ""))
-    # Responsible-AI advisory: grounding / bias / ethics (heuristic, never blocks).
-    try:
-        from promptwise.core.responsible_ai import scan as _rai_scan
-        rai = _rai_scan(response, sources=arguments.get("sources", ""))
-    except Exception:
-        rai = {"overall": "clean", "findings": []}
-    return json.dumps({"pii_found": len(pii_items) > 0, "pii_items": pii_items, "injection_echo": echo,
-                       "system_leak": leak, "canary_leak": canary_leak,
-                       "safe": not pii_items and not echo and not leak and not canary_leak,
-                       "redacted_response": redacted, "responsible_ai": rai})
-
-
-@tool(name="benchmark_injection", description="Benchmark the prompt-injection detector against a bundled offline attack+benign corpus and report measured precision/recall/F1/accuracy plus the actual false positives/negatives (a real number, not a claim). Offline by default (air-gap safe); an optional live PINT-style corpus fetch is gated behind allow_network=true.",
-         schema={"type": "object", "properties": {"threshold": {"type": "number", "default": 0.0}, "corpus_path": {"type": "string", "default": ""}, "pint_url": {"type": "string", "default": ""}, "allow_network": {"type": "boolean", "default": False}}})
-async def _handle_benchmark_injection(ctx: ServerContext, arguments: dict) -> str:
-    from promptwise.security.injection_benchmark import benchmark_injection_detector
-    report = benchmark_injection_detector(
-        ctx.security,
-        threshold=float(arguments.get("threshold", 0.0)),
-        corpus_path=arguments.get("corpus_path") or None,
-        pint_url=arguments.get("pint_url", ""),
-        allow_network=bool(arguments.get("allow_network", False)),
-    )
-    return json.dumps(report.to_dict())
+# security_check/prompt_injection/owasp_scan/scan_response/
+# benchmark_injection (handlers.security) originally sat right here,
+# between list_tools's helpers and Role Detection -- register at this
+# position to preserve tool registration order.
+_add_handler_module("security")
 
 
 # ── Role Detection ───────────────────────────────────────────────────
@@ -712,6 +642,7 @@ async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
          schema={"type": "object", "properties": {"targets": {"type": "array", "items": {"type": "string"}}, "context": {"type": "object"}}})
 async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.security_log import SecurityScanStore
+    from promptwise.handlers.security import _maybe_alert_security
     text = " ".join(arguments.get("targets", []))
     sec = ctx.security.check(text)
     owasp = ctx.security.check_owasp(text)
@@ -1068,6 +999,7 @@ from promptwise.handlers.skills import _handle_invoke_skill, _handle_list_skills
 from promptwise.handlers.session_data import _handle_get_session_stats, _handle_clear_history, _handle_export_stats, _handle_reload_config  # noqa: F401
 from promptwise.handlers.learning import _handle_capture_learning, _handle_replay_learnings, _handle_learning_insights, _handle_insights_report  # noqa: F401
 from promptwise.handlers.policy_intel import _handle_tune_permissions, _handle_audit_mcp_servers, _handle_search_trace, _handle_rank_context  # noqa: F401
+from promptwise.handlers.security import _handle_security_check, _handle_prompt_injection, _handle_owasp_scan, _handle_scan_response, _handle_benchmark_injection  # noqa: F401
 
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
