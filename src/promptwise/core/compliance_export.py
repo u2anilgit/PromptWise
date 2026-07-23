@@ -144,7 +144,7 @@ def _resolve_ed25519_key(key=None) -> Ed25519PrivateKey:
         return Ed25519PrivateKey.from_private_bytes(raw)
     env_val = os.environ.get(ENV_KEY_ED25519)
     if env_val:
-        return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(env_val))
+        return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(env_val.strip()))
     key_file = os.environ.get(ENV_KEY_FILE_ED25519)
     if key_file and os.path.exists(key_file):
         data = Path(key_file).read_text().strip()
@@ -248,6 +248,19 @@ def verify_bundle(signed: dict, key=None) -> BundleVerification:
     Dispatches on ``signed["signature"]["alg"]``: HMAC-SHA256 (default,
     requires ``key``) or Ed25519 (public key travels in the bundle, ``key``
     is ignored).
+
+    TRUST BOUNDARY (Ed25519 path only): ``signature_ok=True`` only proves the
+    bundle is internally self-consistent -- i.e. it was signed by *some*
+    Ed25519 keypair and the embedded ``signature.public_key`` matches. It does
+    NOT prove the bundle is authentic or came from a trusted signer, because
+    the public key travels inside the bundle itself with no pinning or trust
+    registry. An attacker who tampers with a bundle can simply re-sign it with
+    their own keypair and this function will still report ``signature_ok=True``.
+    To establish authenticity, the caller must separately obtain the signer's
+    public key out-of-band (e.g. published alongside the audit policy) and
+    compare it against ``signed["signature"]["public_key"]`` before trusting
+    the result. This module intentionally does not implement key pinning or a
+    trust registry (out of scope for this pass; see spec non-goals).
     """
     bundle = signed.get("bundle", {})
     sig_block = signed.get("signature") or {}
@@ -319,7 +332,9 @@ def export_bundle(source, *, key=None, sign=True, control_families=None, out_pat
             summary["signed"] = True
             summary["signature"] = envelope["signature"]
             summary["verified"] = verification.to_dict()
-        except KeyError as exc:
+        except (KeyError, ValueError) as exc:
+            # KeyError: no key configured. ValueError: key configured but malformed
+            # (non-hex, or wrong byte length for Ed25519Priv key). Both fail open.
             summary["sign_error"] = str(exc)
     if out_path:
         summary["zip_path"] = str(write_zip(envelope, out_path))

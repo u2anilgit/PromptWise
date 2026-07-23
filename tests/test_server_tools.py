@@ -3,6 +3,8 @@ import asyncio
 import json
 import typing
 
+import pytest
+
 import promptwise.server as s
 
 NAMES = [t.name for t in s._TOOL_DEFS]
@@ -108,9 +110,6 @@ def test_quality_gate_dispatch():
     out = asyncio.run(s.call_tool(_CTX, "run_quality_gate",
                                   {"story_id": "S1", "findings": [{"severity": "high"}]}))
     assert json.loads(out)["decision"] == "FAIL"
-
-
-import pytest
 
 
 @pytest.mark.asyncio

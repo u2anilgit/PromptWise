@@ -26,7 +26,7 @@ async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) 
         out_path=arguments.get("out_path")))
 
 
-@tool(name="generate_ed25519_keypair", description="Generate a fresh Ed25519 keypair for compliance bundle signing. Returned in-memory only -- never written to disk. Store the private_key yourself (e.g. as PROMPTWISE_ED25519_KEY) before it is lost; share the public_key with auditors who need to verify bundles you sign.",
+@tool(name="generate_ed25519_keypair", description="Generate a fresh Ed25519 keypair for compliance bundle signing. Returned in-memory only -- never written to disk. Store the private_key yourself (e.g. as PROMPTWISE_ED25519_KEY) before it is lost; share the public_key with auditors who need to verify bundles you sign. Note: a bundle verifying with signature_ok=True only proves internal self-consistency (signed by *some* keypair), not authenticity -- auditors must compare the bundle's embedded public_key against the public_key you shared with them out-of-band.",
          schema={"type": "object", "properties": {}})
 async def _handle_generate_ed25519_keypair(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.compliance_export import generate_ed25519_keypair

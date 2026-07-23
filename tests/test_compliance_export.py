@@ -279,3 +279,38 @@ def test_export_bundle_default_sign_alg_is_hmac(monkeypatch):
     monkeypatch.setenv("PROMPTWISE_AUDIT_KEY", KEY)
     summary = ce.export_bundle(_records())
     assert summary["signature"]["alg"] == ce.SIG_ALG
+
+
+def test_export_bundle_ed25519_fails_open_on_malformed_env_key_non_hex(monkeypatch):
+    monkeypatch.delenv(ce.ENV_KEY_FILE_ED25519, raising=False)
+    monkeypatch.setenv(ce.ENV_KEY_ED25519, "not-valid-hex")
+    summary = ce.export_bundle(_records(), sign_alg="ed25519")
+    assert summary["signed"] is False
+    assert "sign_error" in summary
+
+
+def test_export_bundle_ed25519_fails_open_on_malformed_env_key_wrong_length(monkeypatch):
+    monkeypatch.delenv(ce.ENV_KEY_FILE_ED25519, raising=False)
+    monkeypatch.setenv(ce.ENV_KEY_ED25519, "aa" * 16)  # valid hex, but only 16 bytes not 32
+    summary = ce.export_bundle(_records(), sign_alg="ed25519")
+    assert summary["signed"] is False
+    assert "sign_error" in summary
+
+
+def test_resolve_ed25519_key_from_env_var_strips_whitespace(monkeypatch):
+    pair = ce.generate_ed25519_keypair()
+    monkeypatch.setenv(ce.ENV_KEY_ED25519, pair["private_key"] + "\n")
+    priv = ce._resolve_ed25519_key()
+    assert priv.public_key().public_bytes_raw().hex() == pair["public_key"]
+
+
+# ---------- verify_bundle: unknown alg falls through to HMAC branch ----------
+def test_verify_bundle_unknown_alg_falls_through_to_hmac_branch(monkeypatch):
+    monkeypatch.delenv("PROMPTWISE_AUDIT_KEY", raising=False)
+    monkeypatch.delenv("PROMPTWISE_AUDIT_KEY_FILE", raising=False)
+    signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
+    signed["signature"]["alg"] = "RSA-4096"
+    # no valid HMAC key/signature match available -> should not raise, just fail closed
+    res = ce.verify_bundle(signed)
+    assert res.signature_ok is False
+    assert res.ok is False
