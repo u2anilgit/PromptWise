@@ -70,6 +70,7 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
     from promptwise.core.security_log import SecurityScanStore
     from promptwise.handlers.security import _maybe_alert_security
     from promptwise.security.framework_map import build_report_card
+    from promptwise.security.risk_register import RiskRegister
     text = " ".join(arguments.get("targets", []))
     sec = ctx.security.check(text)
     owasp = ctx.security.check_owasp(text)
@@ -90,11 +91,29 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
     except Exception:
         pass  # storage is best-effort; a full disk must not sink the suite
     _maybe_alert_security(sec)
-    return json.dumps({"security": {"passed": sec.passed, "violations": sec.violations, "risk_score": sec.risk_score},
+
+    # Residual-risk register: upsert every violation, annotate each with its
+    # computed status. Best-effort -- a register failure must never sink the
+    # suite (same posture as SecurityScanStore above).
+    annotated_violations = list(sec.violations)
+    risk_summary = {"open": 0, "accepted": 0, "expired": 0}
+    try:
+        reg = RiskRegister()
+        annotated_violations = []
+        for v in sec.violations:
+            fp = reg.upsert(v.get("check", ""), v.get("detail", ""))
+            status = reg.status_of(fp)
+            annotated_violations.append({**v, "risk_status": status})
+        risk_summary = reg.summary()
+    except Exception:
+        annotated_violations = [{**v, "risk_status": "open"} for v in sec.violations]
+
+    return json.dumps({"security": {"passed": sec.passed, "violations": annotated_violations, "risk_score": sec.risk_score},
                        "owasp": owasp,
                        "injection": {"detected": inj_detected, "confidence": round(inj_confidence, 2), "patterns_found": inj_patterns},
                        "pii": {"found": len(pii_items) > 0, "items": pii_items},
                        "compliance_report_card": build_report_card(sec.violations),
+                       "risk_register": risk_summary,
                        "status": "completed"})
 
 

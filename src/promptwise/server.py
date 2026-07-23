@@ -337,7 +337,7 @@ from promptwise.handlers.skills import _handle_invoke_skill, _handle_list_skills
 from promptwise.handlers.session_data import _handle_get_session_stats, _handle_clear_history, _handle_export_stats, _handle_reload_config  # noqa: F401
 from promptwise.handlers.learning import _handle_capture_learning, _handle_replay_learnings, _handle_learning_insights, _handle_insights_report  # noqa: F401
 from promptwise.handlers.policy_intel import _handle_tune_permissions, _handle_audit_mcp_servers, _handle_search_trace, _handle_rank_context  # noqa: F401
-from promptwise.handlers.security import _handle_security_check, _handle_prompt_injection, _handle_owasp_scan, _handle_scan_response, _handle_benchmark_injection  # noqa: F401
+from promptwise.handlers.security import _handle_security_check, _handle_prompt_injection, _handle_owasp_scan, _handle_scan_response, _handle_benchmark_injection, _handle_accept_risk, _handle_list_risk_register  # noqa: F401
 from promptwise.handlers.budget_cost import _handle_monitor_budget, _handle_predict_cost, _handle_set_budget_limit, _handle_get_budget_status, _handle_budget_report  # noqa: F401
 from promptwise.handlers.role_detection import _handle_plan_workflow, _handle_add_task, _handle_update_task, _handle_list_tasks, _handle_task_report, _handle_validate_mermaid, _handle_detect_role  # noqa: F401
 from promptwise.handlers.prompt_engineering import _handle_suggest_technique, _handle_apply_craft, _handle_inject_few_shot, _handle_add_chain_of_thought, _handle_chain_prompts, _handle_eval_prompt_across_models, _handle_audit_system_prompt  # noqa: F401

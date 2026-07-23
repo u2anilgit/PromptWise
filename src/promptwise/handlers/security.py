@@ -85,3 +85,24 @@ async def _handle_benchmark_injection(ctx: ServerContext, arguments: dict) -> st
         allow_network=bool(arguments.get("allow_network", False)),
     )
     return json.dumps(report.to_dict())
+
+
+@tool(name="accept_risk", description="Self-service accept/sign-off for a known residual risk: marks a specific finding (identified by check+detail) as accepted, with an optional expiry date. One call, no approval workflow. Does not change run_security_suite's pass/fail or risk_score -- purely a governance annotation.",
+         schema={"type": "object", "properties": {"check": {"type": "string"}, "detail": {"type": "string"}, "reason": {"type": "string"}, "expires_at": {"type": "string", "default": ""}, "accepted_by": {"type": "string", "default": ""}}, "required": ["check", "detail", "reason"]})
+async def _handle_accept_risk(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.security.risk_register import RiskRegister
+    reg = RiskRegister()
+    fp = reg.upsert(arguments.get("check", ""), arguments.get("detail", ""))
+    ok = reg.accept(fp, reason=arguments.get("reason", ""),
+                     expires_at=arguments.get("expires_at") or None,
+                     accepted_by=arguments.get("accepted_by", ""))
+    return json.dumps({"accepted": ok, "fingerprint": fp})
+
+
+@tool(name="list_risk_register", description="List residual-risk register entries, optionally filtered by computed status (open/accepted/expired -- expiry is computed at read time, never mutates stored rows).",
+         schema={"type": "object", "properties": {"status": {"type": "string", "enum": ["open", "accepted", "expired"], "default": ""}}})
+async def _handle_list_risk_register(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.security.risk_register import RiskRegister
+    reg = RiskRegister()
+    status = arguments.get("status") or None
+    return json.dumps({"entries": reg.list(status=status)})

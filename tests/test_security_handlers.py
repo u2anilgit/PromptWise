@@ -60,12 +60,13 @@ def test_security_check_handler_allow_network_default_false():
 def test_run_security_suite_aggregates_all_checks_and_persists(tmp_path, monkeypatch):
     from promptwise.core import security_log
     monkeypatch.setattr(security_log, "_default_db", lambda: tmp_path / "sec.db")
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
 
     out = json.loads(_call("run_security_suite", {
         "targets": [_CASES["rt-injection-attack"].input_text,
                     _CASES["rt-pii-attack"].input_text,
                     _CASES["rt-owasp-attack"].input_text]}))
-    assert set(out) == {"security", "owasp", "injection", "pii", "compliance_report_card", "status"}
+    assert set(out) == {"security", "owasp", "injection", "pii", "compliance_report_card", "status", "risk_register"}
     assert out["injection"]["detected"] is True
     assert out["pii"]["found"] is True
     assert out["owasp"]
@@ -84,6 +85,7 @@ def test_run_security_suite_findings_count_not_compounded(tmp_path, monkeypatch)
     len(sec.violations) + len(owasp)."""
     from promptwise.core import security_log
     monkeypatch.setattr(security_log, "_default_db", lambda: tmp_path / "sec2.db")
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
 
     text = _CASES["rt-injection-attack"].input_text + " " + _CASES["rt-pii-attack"].input_text
     out = json.loads(_call("run_security_suite", {"targets": [text]}))
@@ -92,3 +94,40 @@ def test_run_security_suite_findings_count_not_compounded(tmp_path, monkeypatch)
 
     rows = security_log.SecurityScanStore(tmp_path / "sec2.db").results()
     assert rows[0]["findings_count"] == expected
+
+
+def test_run_security_suite_annotates_violations_with_risk_status(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    monkeypatch.chdir(tmp_path)
+    out = json.loads(_call("run_security_suite", {
+        "targets": [_CASES["rt-injection-attack"].input_text]}))
+    assert out["risk_register"] == {"open": len(out["security"]["violations"]), "accepted": 0, "expired": 0}
+    for v in out["security"]["violations"]:
+        assert v["risk_status"] == "open"
+
+
+def test_accept_risk_flips_risk_status_on_next_scan(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    monkeypatch.chdir(tmp_path)
+    first = json.loads(_call("run_security_suite", {
+        "targets": [_CASES["rt-injection-attack"].input_text]}))
+    v = first["security"]["violations"][0]
+    accept_out = json.loads(_call("accept_risk", {
+        "check": v["check"], "detail": v["detail"], "reason": "known test fixture"}))
+    assert accept_out["accepted"] is True
+
+    second = json.loads(_call("run_security_suite", {
+        "targets": [_CASES["rt-injection-attack"].input_text]}))
+    matching = [x for x in second["security"]["violations"]
+                if x["check"] == v["check"] and x["detail"] == v["detail"]]
+    assert matching and matching[0]["risk_status"] == "accepted"
+
+
+def test_list_risk_register_filters_by_status(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    monkeypatch.chdir(tmp_path)
+    json.loads(_call("run_security_suite", {
+        "targets": [_CASES["rt-injection-attack"].input_text]}))
+    out = json.loads(_call("list_risk_register", {"status": "open"}))
+    assert len(out["entries"]) >= 1
+    assert all(e["status"] == "open" for e in out["entries"])
