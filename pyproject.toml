@@ -32,6 +32,7 @@ dependencies = [
     "prometheus-client>=0.17",
     "Authlib>=1.2",
     "anthropic>=0.7",
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]
