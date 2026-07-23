@@ -31,6 +31,21 @@ FRAMEWORK_SOURCES = {
         "fetched": "2026-07-23",
         "note": "MITRE ATLAS tactics (AML.TAxxxx), ATLAS.yaml, v5.4.0.",
     },
+    "soc2": {
+        "url": "https://truvocyber.com/blog/soc-2-trust-services-criteria-guide",
+        "fetched": "2026-07-24",
+        "note": "AICPA SOC 2 Trust Services Criteria: Common Criteria (CC1-CC9), Confidentiality (C1.x), Privacy (P1-P8).",
+    },
+    "iso_42001": {
+        "url": "https://mindsetcyber.com.au/iso-42001-controls-list/",
+        "fetched": "2026-07-24",
+        "note": "ISO/IEC 42001:2023 Annex A controls (AI management system).",
+    },
+    "eu_ai_act": {
+        "url": "https://www.euaiact.com/",
+        "fetched": "2026-07-24",
+        "note": "EU AI Act (Regulation (EU) 2024/1689), high-risk AI system obligations (Articles 10, 14, 15, 25).",
+    },
 }
 
 # check-value -> category, one framework per table. Only checks with a real,
@@ -60,10 +75,41 @@ _CHECK_TO_MITRE_ATLAS = {
     "permissions": "AML.TA0012 Privilege Escalation",
 }
 
+_CHECK_TO_SOC2 = {
+    "injection": "CC6.6 Boundary Protection",
+    "secrets": "C1.1 Confidentiality",
+    "pii": "Privacy category (P1-P8)",
+    "supply_chain": "CC9.2 Vendor and Business Partner Risk Management",
+    "destructive": "CC6.8 Malware Prevention",
+    "permissions": "CC6.3 Role-Based Access and Least Privilege",
+}
+
+_CHECK_TO_ISO42001 = {
+    "injection": "A.6.2.6 AI system operation and monitoring",
+    "pii": "A.7.4 Quality of data for AI systems",
+    "supply_chain": "A.10.3 Suppliers",
+    "permissions": "A.9.2 Processes for responsible use of AI systems",
+    # 'secrets' and 'destructive' have no evidenced ISO 42001 category --
+    # omitted per this module's anti-fabrication discipline (ISO 42001
+    # defers general information-security controls to ISO 27001).
+}
+
+_CHECK_TO_EU_AI_ACT = {
+    "injection": "Art. 15 Cybersecurity (resilience to unauthorized manipulation)",
+    "secrets": "Art. 15 Cybersecurity (confidentiality attacks)",
+    "pii": "Art. 10 Data Governance",
+    "supply_chain": "Art. 25 Responsibilities along the AI Value Chain",
+    "destructive": "Art. 15 Robustness (resilience to errors/faults)",
+    "permissions": "Art. 14 Human Oversight",
+}
+
 _TABLES = {
     "owasp_llm_top10": _CHECK_TO_OWASP_LLM,
     "nist_ai_rmf": _CHECK_TO_NIST_AI_RMF,
     "mitre_atlas": _CHECK_TO_MITRE_ATLAS,
+    "soc2": _CHECK_TO_SOC2,
+    "iso_42001": _CHECK_TO_ISO42001,
+    "eu_ai_act": _CHECK_TO_EU_AI_ACT,
 }
 
 

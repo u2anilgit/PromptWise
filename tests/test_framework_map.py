@@ -42,7 +42,10 @@ def test_unmapped_check_is_dropped_not_fabricated():
 
 def test_no_violations_yields_empty_lists_for_every_framework():
     card = build_report_card([])
-    assert card == {"owasp_llm_top10": [], "nist_ai_rmf": [], "mitre_atlas": []}
+    assert card == {
+        "owasp_llm_top10": [], "nist_ai_rmf": [], "mitre_atlas": [],
+        "soc2": [], "iso_42001": [], "eu_ai_act": [],
+    }
 
 
 def test_duplicate_checks_do_not_duplicate_categories():
@@ -55,7 +58,91 @@ def test_duplicate_checks_do_not_duplicate_categories():
 
 
 def test_framework_sources_are_cited():
-    assert set(FRAMEWORK_SOURCES) == {"owasp_llm_top10", "nist_ai_rmf", "mitre_atlas"}
+    assert set(FRAMEWORK_SOURCES) == {
+        "owasp_llm_top10", "nist_ai_rmf", "mitre_atlas",
+        "soc2", "iso_42001", "eu_ai_act",
+    }
     for meta in FRAMEWORK_SOURCES.values():
         assert meta["url"].startswith("https://")
         assert meta["fetched"]
+
+
+# ---------- SOC2 ----------
+def test_injection_violation_maps_to_soc2_boundary_protection():
+    violations = [{"check": "injection", "detail": "Injection: instruction_override"}]
+    card = build_report_card(violations)
+    assert card["soc2"] == ["CC6.6 Boundary Protection"]
+
+
+def test_supply_chain_violation_maps_to_soc2_vendor_risk():
+    violations = [{"check": "supply_chain", "detail": "pipe-to-shell install"}]
+    card = build_report_card(violations)
+    assert "CC9.2 Vendor and Business Partner Risk Management" in card["soc2"]
+
+
+def test_secrets_violation_maps_to_soc2_confidentiality():
+    violations = [{"check": "secrets", "detail": "hardcoded key"}]
+    card = build_report_card(violations)
+    assert card["soc2"] == ["C1.1 Confidentiality"]
+
+
+# ---------- ISO 42001 ----------
+def test_injection_violation_maps_to_iso42001_operation_monitoring():
+    violations = [{"check": "injection", "detail": "Injection: instruction_override"}]
+    card = build_report_card(violations)
+    assert card["iso_42001"] == ["A.6.2.6 AI system operation and monitoring"]
+
+
+def test_supply_chain_violation_maps_to_iso42001_suppliers():
+    violations = [{"check": "supply_chain", "detail": "pipe-to-shell install"}]
+    card = build_report_card(violations)
+    assert "A.10.3 Suppliers" in card["iso_42001"]
+
+
+def test_secrets_and_destructive_are_dropped_not_fabricated_for_iso42001():
+    """No evidenced ISO 42001 category exists for 'secrets' or 'destructive'
+    -- both must be omitted rather than guessing one (same discipline as
+    the existing MITRE ATLAS table's omission of 'secrets'/'pii')."""
+    violations = [
+        {"check": "secrets", "detail": "hardcoded key"},
+        {"check": "destructive", "detail": "destructive shell pattern match"},
+    ]
+    card = build_report_card(violations)
+    assert card["iso_42001"] == []
+
+
+# ---------- EU AI Act ----------
+def test_injection_violation_maps_to_eu_ai_act_article_15():
+    violations = [{"check": "injection", "detail": "Injection: instruction_override"}]
+    card = build_report_card(violations)
+    assert card["eu_ai_act"] == ["Art. 15 Cybersecurity (resilience to unauthorized manipulation)"]
+
+
+def test_pii_violation_maps_to_eu_ai_act_article_10():
+    violations = [{"check": "pii", "detail": "Found PII: email"}]
+    card = build_report_card(violations)
+    assert "Art. 10 Data Governance" in card["eu_ai_act"]
+
+
+def test_permissions_violation_maps_to_eu_ai_act_article_14():
+    violations = [{"check": "permissions", "detail": "overly broad grant"}]
+    card = build_report_card(violations)
+    assert "Art. 14 Human Oversight" in card["eu_ai_act"]
+
+
+def test_supply_chain_violation_maps_to_eu_ai_act_article_25():
+    violations = [{"check": "supply_chain", "detail": "pipe-to-shell install"}]
+    card = build_report_card(violations)
+    assert "Art. 25 Responsibilities along the AI Value Chain" in card["eu_ai_act"]
+
+
+# ---------- cross-cutting ----------
+def test_duplicate_checks_do_not_duplicate_categories_new_frameworks():
+    violations = [
+        {"check": "injection", "detail": "a"},
+        {"check": "injection", "detail": "b"},
+    ]
+    card = build_report_card(violations)
+    assert card["soc2"] == ["CC6.6 Boundary Protection"]
+    assert card["iso_42001"] == ["A.6.2.6 AI system operation and monitoring"]
+    assert card["eu_ai_act"] == ["Art. 15 Cybersecurity (resilience to unauthorized manipulation)"]
