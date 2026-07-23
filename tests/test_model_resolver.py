@@ -233,6 +233,16 @@ def test_resolve_model_80_to_95_uses_cheapest_current_when_available(tmp_path):
     assert result == "y-old"  # 6.0 < 10.0, cheaper current model wins over the newest
 
 
+def test_fallback_models_sorted_price_ascending(tmp_path):
+    reg = _registry(tmp_path)
+    r = Router(registry=reg)
+    # x-2 is current/newest (10.0), x-1 is current/cheaper (8.0); x-0 is
+    # deprecated and must still be excluded entirely (unchanged behavior).
+    result = r.fallback_models("some-other-model-not-in-registry")
+    assert result == ["x-1", "x-2"]  # cheapest first
+    assert "x-0" not in result
+
+
 def test_router_cost_uses_registry_price_for_new_model():
     r = Router()
     res = r.route("Design a critical production security architecture",

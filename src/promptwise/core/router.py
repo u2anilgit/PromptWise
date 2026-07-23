@@ -253,7 +253,14 @@ class Router:
         return None
 
     def fallback_models(self, current: str) -> list[str]:
-        return [m for m in self._current_models() if m != current]
+        models = [m for m in self._current_models() if m != current]
+
+        def _price_key(alias: str) -> float:
+            p = self.registry.price(alias)
+            rate = p.get("input_per_mtok") if p else None
+            return float(rate) if rate is not None else float("inf")
+
+        return sorted(models, key=_price_key)
 
     def plan_emission(self, text: str) -> "EmissionPlan":
         """Map a prompt's intent onto which config sections matter most.
