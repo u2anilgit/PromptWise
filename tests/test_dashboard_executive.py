@@ -50,7 +50,8 @@ def test_api_executive_no_auth_required_by_default():
     assert r.status_code == 200
 
 
-def test_api_executive_zero_state_with_no_seeded_logs(tmp_path):
+def test_api_executive_zero_state_with_no_seeded_logs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     db_path = str(tmp_path / "mem.db")
     mm = asyncio.run(_memory_manager(db_path))
     app = create_web_app(memory_manager=mm)

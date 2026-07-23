@@ -360,12 +360,11 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
         budget_status = BudgetGuardian().check(used_usd=h["total_cost_usd"], days_elapsed=days)
 
         gov = {}
-        if h["total_cost_usd"] > 0:
-            try:
-                from pathlib import Path
-                gov = R.governance_summary(Path.cwd() / ".promptwise")
-            except Exception:
-                gov = {}
+        try:
+            from pathlib import Path
+            gov = R.governance_summary(Path.cwd() / ".promptwise")
+        except Exception:
+            gov = {}
 
         return jsonify({
             "window_days": days,
