@@ -215,6 +215,11 @@ def build_bundle(source, *, control_families=None) -> dict:
         "first_broken_index": chain.first_broken_index,
         "control_families": sorted(fams),
     }
+    try:
+        from promptwise.security.risk_register import RiskRegister
+        manifest["residual_risk_summary"] = RiskRegister().summary()
+    except Exception:
+        manifest["residual_risk_summary"] = {"open": 0, "accepted": 0, "expired": 0}
     return {"manifest": manifest, "records": records}
 
 

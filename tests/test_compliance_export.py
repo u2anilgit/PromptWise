@@ -15,6 +15,18 @@ KEY = "s3cr3t-local-audit-key"
 WRONG = "not-the-key"
 
 
+@pytest.fixture(autouse=True)
+def _isolate_risk_register_db(tmp_path, monkeypatch):
+    """build_bundle() now constructs a RiskRegister() internally, which
+    resolves its db path via promptwise.db.models.get_db_path() -- this
+    always points at the real ~/.promptwise/promptwise.db regardless of
+    cwd, so every test in this file (all of which call build_bundle,
+    directly or via sign_bundle/export_bundle) must have it patched to a
+    tmp_path location to avoid writing test data into the real user db.
+    """
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+
+
 def _records():
     """A short, valid hash chain exported to plain dicts (as the JSONL holds them)."""
     log = AuditLog()
@@ -314,3 +326,19 @@ def test_verify_bundle_unknown_alg_falls_through_to_hmac_branch(monkeypatch):
     res = ce.verify_bundle(signed)
     assert res.signature_ok is False
     assert res.ok is False
+
+
+# ---------- residual risk register integration ----------
+def test_build_bundle_manifest_includes_residual_risk_summary(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    bundle = ce.build_bundle(_records())
+    assert "residual_risk_summary" in bundle["manifest"]
+    assert set(bundle["manifest"]["residual_risk_summary"]) == {"open", "accepted", "expired"}
+
+
+def test_build_bundle_residual_risk_summary_reflects_register_state(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    from promptwise.security.risk_register import RiskRegister
+    RiskRegister().upsert("secrets", "some_pattern")
+    bundle = ce.build_bundle(_records())
+    assert bundle["manifest"]["residual_risk_summary"]["open"] == 1
