@@ -58,3 +58,52 @@ def test_find_identity_returns_none_for_unknown_credential():
 
 def test_find_identity_returns_none_for_empty_credentials_list():
     assert find_identity("anything", []) is None
+
+
+from promptwise.dashboard.web import create_web_app
+
+
+def test_require_auth_false_is_default_and_needs_no_header():
+    app = create_web_app()
+    r = app.test_client().get("/api/models")
+    assert r.status_code == 200
+
+
+def test_require_auth_true_rejects_missing_header(tmp_path):
+    cred_path = tmp_path / "dashboard_auth.yaml"
+    cred_path.write_text(
+        "entries:\n  - credential_hash: \"" + hash_credential("abc") + "\"\n    role: viewer\n",
+        encoding="utf-8")
+    app = create_web_app(require_auth=True, credentials_path=cred_path)
+    r = app.test_client().get("/api/models")
+    assert r.status_code == 401
+
+
+def test_require_auth_true_rejects_unknown_credential(tmp_path):
+    cred_path = tmp_path / "dashboard_auth.yaml"
+    cred_path.write_text(
+        "entries:\n  - credential_hash: \"" + hash_credential("abc") + "\"\n    role: viewer\n",
+        encoding="utf-8")
+    app = create_web_app(require_auth=True, credentials_path=cred_path)
+    r = app.test_client().get("/api/models", headers={"Authorization": "Bearer wrong-value"})
+    assert r.status_code == 401
+
+
+def test_require_auth_true_accepts_valid_viewer_credential(tmp_path):
+    cred_path = tmp_path / "dashboard_auth.yaml"
+    cred_path.write_text(
+        "entries:\n  - credential_hash: \"" + hash_credential("abc") + "\"\n    role: viewer\n",
+        encoding="utf-8")
+    app = create_web_app(require_auth=True, credentials_path=cred_path)
+    r = app.test_client().get("/api/models", headers={"Authorization": "Bearer abc"})
+    assert r.status_code == 200
+
+
+def test_index_route_never_requires_auth(tmp_path):
+    # "/" only serves the static HTML shell (no data) -- always open so the
+    # page can load and its own JS then hits the (gated) /api/* routes.
+    cred_path = tmp_path / "dashboard_auth.yaml"
+    cred_path.write_text("entries: []\n", encoding="utf-8")
+    app = create_web_app(require_auth=True, credentials_path=cred_path)
+    r = app.test_client().get("/")
+    assert r.status_code == 200

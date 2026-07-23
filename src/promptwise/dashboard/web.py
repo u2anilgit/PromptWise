@@ -1,5 +1,7 @@
 from flask import Flask, jsonify, request, render_template_string
 
+from promptwise.dashboard.auth import load_credentials, find_identity, role_satisfies
+
 _INDEX_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -160,14 +162,37 @@ def _run_async(coro):
         loop.close()
 
 
-def create_web_app(stats_service=None, memory_manager=None) -> Flask:
+def create_web_app(stats_service=None, memory_manager=None, require_auth: bool = False,
+                    credentials_path: str = "config/dashboard_auth.yaml") -> Flask:
     app = Flask(__name__)
+    credentials = load_credentials(credentials_path) if require_auth else []
+
+    def require_role(minimum: str):
+        def decorator(fn):
+            from functools import wraps
+
+            @wraps(fn)
+            def wrapper(*args, **kwargs):
+                if not require_auth:
+                    return fn(*args, **kwargs)
+                auth_header = request.headers.get("Authorization", "")
+                if not auth_header.startswith("Bearer "):
+                    return jsonify({"error": "missing credential"}), 401
+                identity = find_identity(auth_header[len("Bearer "):], credentials)
+                if identity is None:
+                    return jsonify({"error": "invalid credential"}), 401
+                if not role_satisfies(identity.role, minimum):
+                    return jsonify({"error": "insufficient role"}), 403
+                return fn(*args, **kwargs)
+            return wrapper
+        return decorator
 
     @app.route("/")
     def index():
         return render_template_string(_INDEX_HTML)
 
     @app.route("/api/dashboard")
+    @require_role("viewer")
     def api_dashboard():
         """Windowed metric model: headline (net savings), trends, breakdowns,
         governance. Raw granularity is capped at 90 days; archive views run to
@@ -207,6 +232,7 @@ def create_web_app(stats_service=None, memory_manager=None) -> Flask:
         return jsonify(model)
 
     @app.route("/api/insights")
+    @require_role("viewer")
     def api_insights():
         """Ranked recommendations (routing/cost/quality/budget) over the local
         telemetry. Deterministic, offline, fail-open — any error yields []."""
@@ -220,6 +246,7 @@ def create_web_app(stats_service=None, memory_manager=None) -> Flask:
         return jsonify({"recommendations": recs[:8], "count": len(recs)})
 
     @app.route("/api/governor")
+    @require_role("viewer")
     def api_governor():
         """Most recent governor proposals + verdicts + apply state, read from the
         local advisory artifact the governor writes (`.promptwise/governor_proposals.json`).
@@ -236,6 +263,7 @@ def create_web_app(stats_service=None, memory_manager=None) -> Flask:
                         "summary": data.get("summary", {})})
 
     @app.route("/api/stats")
+    @require_role("viewer")
     def api_stats():
         if stats_service:
             try:
@@ -247,6 +275,7 @@ def create_web_app(stats_service=None, memory_manager=None) -> Flask:
         return jsonify({"total_cost_usd": 0.0, "total_calls": 0, "avg_saving_pct": 0.0, "cache_hit_rate": 0.0})
 
     @app.route("/api/budget")
+    @require_role("viewer")
     def api_budget():
         from promptwise.plugins.budget import BudgetGuardian
         g = BudgetGuardian()
@@ -254,6 +283,7 @@ def create_web_app(stats_service=None, memory_manager=None) -> Flask:
         return jsonify({"used_usd": s.used_usd, "limit_usd": s.limit_usd, "pct_used": s.pct_used, "alert_level": s.alert_level})
 
     @app.route("/api/roi")
+    @require_role("viewer")
     def api_roi():
         from promptwise.plugins.roi import ROITracker
         r = ROITracker().calculate(session_id=request.args.get("session_id", "unknown"),
@@ -263,6 +293,7 @@ def create_web_app(stats_service=None, memory_manager=None) -> Flask:
         return jsonify({"roi_ratio": r.roi_ratio, "estimated_time_saved_min": r.estimated_time_saved_min, "productivity_score": r.productivity_score})
 
     @app.route("/api/models")
+    @require_role("viewer")
     def api_models():
         """Current selectable models from the registry (deprecated excluded from
         selection but still resolvable elsewhere for history)."""
