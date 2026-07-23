@@ -1,16 +1,10 @@
 """PromptWise — Unified MCP server with ALL tools."""
 
 import asyncio
-import difflib
 import importlib
-import inspect
 import json
 import sys
-import re as _re
-from datetime import datetime, timezone, timedelta
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Awaitable, Callable
 
 from mcp.server import Server, InitializationOptions, NotificationOptions
 from mcp.server.stdio import stdio_server
@@ -22,16 +16,12 @@ from promptwise.config import load_config
 from promptwise.core import (
     Router, Rewriter, Optimizer, CompressionEngine, CachePlanner,
     Batcher, Summarizer, RoleDetector, Orchestrator, QualityGuard,
-    SkillLoader, WorkflowPlanner, TaskTracker, validate_mermaid,
+    SkillLoader, WorkflowPlanner, TaskTracker,
 )
 from promptwise.security import SecurityScanner, ComplianceEngine
 from promptwise.plugins import BudgetGuardian, CodeValidator, CostMonitor, ROITracker
 from promptwise.db import init_db, SessionManager, MemoryManager
-from promptwise.core.tool_registry import (
-    ServerContext, ToolRegistry, _RegistryEntry, _registry, tool,
-    _record_route_verdict, _record_effort_verdict, _resolve_effort,
-    _record_skill_execution, _get_audit_log,
-)
+from promptwise.core.tool_registry import ServerContext, ToolRegistry, _registry  # noqa: F401 (ToolRegistry: tests/test_tool_registry_decorator.py imports it from here)
 
 
 async def list_tools() -> list[Tool]:
