@@ -39,19 +39,24 @@ async def list_tools() -> list[Tool]:
 
 
 # ── Handler package loading (Tasks 1/2 of handlers/ package split) ──────────
-_HANDLER_MODULES: list[str] = [
-    "code_validation",
-]
+_HANDLER_MODULES: list[str] = []
 
 _HANDLER_LOAD_ERRORS: dict[str, str] = {}
 
 
 def _load_handler_modules() -> None:
-    """Import every handler category in isolation. A category that fails to
-    import (bad dependency, syntax error, missing optional package) is
-    logged and skipped -- its tools simply never register -- rather than
-    crashing the other categories. Fits the plugin's existing fail-open
-    convention (route_recorder, effort_recorder, response_budget)."""
+    """Import every handler category currently in _HANDLER_MODULES, in
+    isolation. A category that fails to import (bad dependency, syntax
+    error, missing optional package) is logged and skipped -- its tools
+    simply never register -- rather than crashing the other categories.
+    Fits the plugin's existing fail-open convention (route_recorder,
+    effort_recorder, response_budget).
+
+    Safe to call more than once: Python's import system caches already-loaded
+    modules, so a repeat call is a no-op for any name already imported --
+    this lets _add_handler_module() invoke it once per category, at that
+    category's original in-file position, without re-registering (or
+    re-ordering) categories loaded by an earlier call."""
     import logging
     _handlers_logger = logging.getLogger("promptwise.handlers")
     for _name in _HANDLER_MODULES:
@@ -82,7 +87,18 @@ def _disabled_categories() -> set[str]:
     return configured | env_set
 
 
-_HANDLER_MODULES = [m for m in _HANDLER_MODULES if m not in _disabled_categories()]
+def _add_handler_module(name: str) -> None:
+    """Register one handler category at the exact file position its section
+    used to occupy, then load immediately -- this is what keeps _TOOL_DEFS'
+    registration order identical to the pre-split monolithic server.py (the
+    golden snapshot's ordering contract) even though the 18 remaining move
+    tasks are executed in a different order than the categories originally
+    appeared in the file. Skips (never appends) a category disabled via
+    config/env, checked fresh at each call so a later config reload is
+    honored the same way the original one-shot filter was."""
+    if name not in _disabled_categories():
+        _HANDLER_MODULES.append(name)
+    _load_handler_modules()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -507,9 +523,10 @@ async def _handle_budget_report(ctx: ServerContext, arguments: dict) -> str:
                        "total_cost_usd": round(sum(daily_costs), 6), "anomaly": anomaly})
 
 
-# Load handler modules here to preserve tool registration order (validate_output
-# from handlers.code_validation registers between budget_report and track_roi)
-_load_handler_modules()
+# validate_output (handlers.code_validation) originally sat right here,
+# between budget_report and track_roi -- register it at this position to
+# preserve tool registration order (golden snapshot).
+_add_handler_module("code_validation")
 
 
 # ── ROI ──────────────────────────────────────────────────────────────
@@ -1225,19 +1242,10 @@ async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
         learning_db=arguments.get("learning_db")))
 
 
-# ── Skill auto-optimization (Phase 3) ────────────────────────────────
-@tool(name="optimize_skill_pack", description="Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
-         schema={"type": "object", "properties": {
-             "skill_path": {"type": "string", "description": "path to the SKILL.md / pack .md to optimize"},
-             "project": {"type": "string", "description": "scope corrections to a project"},
-             "max_rules": {"type": "integer", "default": 8, "minimum": 1, "maximum": 25},
-             "dry_run": {"type": "boolean", "default": False, "description": "score and preview without writing"}},
-         "required": ["skill_path"]})
-async def _handle_optimize_skill_pack(ctx: ServerContext, arguments: dict) -> str:
-    from promptwise.core.skill_optimizer import optimize_skill_pack
-    return json.dumps(optimize_skill_pack(
-        arguments.get("skill_path", ""), project=arguments.get("project"),
-        max_rules=arguments.get("max_rules", 8), dry_run=arguments.get("dry_run", False)))
+# optimize_skill_pack (handlers.skill_optimization) originally sat right
+# here, between rank_context and export_compliance_bundle -- register it at
+# this position to preserve tool registration order (golden snapshot).
+_add_handler_module("skill_optimization")
 
 
 # ── Compliance evidence export (Phase 7) ─────────────────────────────
@@ -1389,6 +1397,7 @@ def sync_main() -> None:
 # -- Backward-compat re-exports (15 existing test files reference
 #    server._handle_* directly; each move task adds its handlers here) --
 from promptwise.handlers.code_validation import _handle_validate_output  # noqa: F401
+from promptwise.handlers.skill_optimization import _handle_optimize_skill_pack  # noqa: F401
 
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
