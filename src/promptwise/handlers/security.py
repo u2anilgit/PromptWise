@@ -88,7 +88,7 @@ async def _handle_benchmark_injection(ctx: ServerContext, arguments: dict) -> st
 
 
 @tool(name="accept_risk", description="Self-service accept/sign-off for a known residual risk: marks a specific finding (identified by check+detail) as accepted, with an optional expiry date. One call, no approval workflow. Does not change run_security_suite's pass/fail or risk_score -- purely a governance annotation.",
-         schema={"type": "object", "properties": {"check": {"type": "string"}, "detail": {"type": "string"}, "reason": {"type": "string"}, "expires_at": {"type": "string", "default": ""}, "accepted_by": {"type": "string", "default": ""}}, "required": ["check", "detail", "reason"]})
+         schema={"type": "object", "properties": {"check": {"type": "string"}, "detail": {"type": "string"}, "reason": {"type": "string"}, "expires_at": {"type": "string", "default": "", "description": "ISO-8601 UTC timestamp (e.g. '2026-12-31T00:00:00Z') after which this acceptance lazily expires; compared lexicographically, so the format must match exactly or expiry will be computed incorrectly. Omit for no expiry."}, "accepted_by": {"type": "string", "default": ""}}, "required": ["check", "detail", "reason"]})
 async def _handle_accept_risk(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.security.risk_register import RiskRegister
     reg = RiskRegister()

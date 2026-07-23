@@ -96,7 +96,7 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
     # computed status. Best-effort -- a register failure must never sink the
     # suite (same posture as SecurityScanStore above).
     annotated_violations = list(sec.violations)
-    risk_summary = {"open": 0, "accepted": 0, "expired": 0}
+    reg = None
     try:
         reg = RiskRegister()
         annotated_violations = []
@@ -104,9 +104,17 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
             fp = reg.upsert(v.get("check", ""), v.get("detail", ""))
             status = reg.status_of(fp)
             annotated_violations.append({**v, "risk_status": status})
-        risk_summary = reg.summary()
     except Exception:
         annotated_violations = [{**v, "risk_status": "open"} for v in sec.violations]
+
+    # summary() is a separate try/except so a transient failure here (e.g. a
+    # DB error) only degrades the summary field -- it must not discard the
+    # already-successfully-computed per-violation risk_status annotations above.
+    risk_summary = {"open": 0, "accepted": 0, "expired": 0}
+    try:
+        risk_summary = (reg or RiskRegister()).summary()
+    except Exception:
+        pass
 
     return json.dumps({"security": {"passed": sec.passed, "violations": annotated_violations, "risk_score": sec.risk_score},
                        "owasp": owasp,

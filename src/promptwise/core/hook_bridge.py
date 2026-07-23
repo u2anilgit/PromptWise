@@ -395,7 +395,8 @@ def _log_session_roi(payload: dict) -> dict:
         if not session_id:
             return {"roi_logged": False, "reason": "no session_id in payload"}
 
-        db_path = Path.home() / ".promptwise" / "promptwise.db"
+        from promptwise.db.models import get_db_path
+        db_path = get_db_path()
         if not db_path.exists():
             return {"roi_logged": False, "reason": "promptwise.db not found"}
 
