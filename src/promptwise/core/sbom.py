@@ -3,9 +3,49 @@ import uuid
 import re
 from pathlib import Path
 
+from promptwise.core.model_registry import ModelRegistry
+
+# AI-BOM minimum-elements fields (CISA/G7 "Software Bill of Materials for AI --
+# Minimum Elements", verified 2026-07-23; official source
+# https://www.cisa.gov/resources-tools/resources/software-bill-materials-ai-minimum-elements,
+# field list summarized at
+# https://windowsnews.ai/article/ai-sbom-minimum-elements-cisa-g7-baseline-for-supply-chain-transparency.417650):
+#   1. supplier name / component identity   2. unique identifier
+#   3. component version                    4. author
+#   5. timestamp                             6. dependency relationship
+#   7. cryptographic hash                    8. data provenance
+#   9. model architecture & training framework
+#
+# promptwise.core.model_registry.ModelRegistry only genuinely tracks a subset
+# of these (alias -> #2, provider -> #1, release_date -> #3/#5, family/tier ->
+# #6, status). Fields it does NOT track (hash, data provenance, architecture)
+# are simply omitted from the emitted component -- never filled with a guess.
+# Same anti-fabrication discipline as framework_map.py (P1 Task 4).
+
 
 class SBOMGenerator:
-    def generate(self, project_dir: Path) -> dict:
+    def _ai_model_components(self, registry: ModelRegistry) -> list[dict]:
+        components = []
+        seen: set[str] = set()
+        for alias in registry.all_aliases():
+            if alias in seen:
+                continue
+            seen.add(alias)
+            components.append({
+                "type": "machine-learning-model",
+                "bom-ref": f"model:{alias}",
+                "name": alias,
+                "properties": [
+                    {"name": "supplier", "value": registry.provider_of(alias)},
+                    {"name": "release_date", "value": registry.release_date_of(alias)},
+                    {"name": "tier", "value": registry.tier_of(alias)},
+                    {"name": "status", "value": registry.status(alias)},
+                ],
+            })
+        return components
+
+    def generate(self, project_dir: Path, *, include_ai_models: bool = True,
+                 model_registry: "ModelRegistry | None" = None) -> dict:
         project_path = Path(project_dir)
         components: list[dict] = []
         seen_purls: set[str] = set()
@@ -74,6 +114,10 @@ class SBOMGenerator:
                     _walk(data.get("dependencies", {}))
             except Exception:
                 pass
+
+        if include_ai_models:
+            registry = model_registry if model_registry is not None else ModelRegistry()
+            components.extend(self._ai_model_components(registry))
 
         return {
             "bomFormat": "CycloneDX",

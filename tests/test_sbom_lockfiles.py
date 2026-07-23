@@ -77,7 +77,9 @@ def test_no_duplicate_purls(tmp_path):
     (tmp_path / "poetry.lock").write_text(
         '[[package]]\nname = "requests"\nversion = "2.31.0"\n', encoding="utf-8")
     sbom = SBOMGenerator().generate(tmp_path)
-    purls = [c["purl"] for c in sbom["components"]]
+    # machine-learning-model components (Task 7, AI-BOM coverage) use a
+    # bom-ref, not a purl -- only "library" components carry one.
+    purls = [c["purl"] for c in sbom["components"] if c["type"] == "library"]
     assert len(purls) == len(set(purls))
     # The direct manifest entry wins.
     comps = _by_name(sbom)
