@@ -99,16 +99,22 @@ def test_supply_chain_violation_maps_to_iso42001_suppliers():
     assert "A.10.3 Suppliers" in card["iso_42001"]
 
 
-def test_secrets_and_destructive_are_dropped_not_fabricated_for_iso42001():
-    """No evidenced ISO 42001 category exists for 'secrets' or 'destructive'
-    -- both must be omitted rather than guessing one (same discipline as
-    the existing MITRE ATLAS table's omission of 'secrets'/'pii')."""
+def test_secrets_destructive_and_pii_are_dropped_not_fabricated_for_iso42001():
+    """No evidenced ISO 42001 category exists for 'secrets', 'destructive',
+    or 'pii' -- all three must be omitted rather than guessing one (same
+    discipline as the existing MITRE ATLAS table's omission of
+    'secrets'/'pii'). 'pii' in particular must NOT be forced onto A.7.4
+    "Quality of data for AI systems", which is a data-quality control
+    (accuracy/completeness/representativeness), not a privacy/disclosure
+    control -- mapping it there would be a citation mismatch."""
     violations = [
         {"check": "secrets", "detail": "hardcoded key"},
         {"check": "destructive", "detail": "destructive shell pattern match"},
+        {"check": "pii", "detail": "Found PII: email"},
     ]
     card = build_report_card(violations)
     assert card["iso_42001"] == []
+    assert "A.7.4 Quality of data for AI systems" not in card["iso_42001"]
 
 
 # ---------- EU AI Act ----------

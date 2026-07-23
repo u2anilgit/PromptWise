@@ -2,12 +2,14 @@
 
 Maps ``SecurityScanner`` violation ``check`` values (already produced by
 ``check()``, and re-exposed by ``run_security_suite`` / ``run_red_team_harness``
--- no new detection logic lives here) onto three external governance
+-- no new detection logic lives here) onto six external governance
 frameworks simultaneously, promptfoo-style: OWASP LLM Top 10, NIST AI RMF,
-and MITRE ATLAS.
+MITRE ATLAS, SOC 2, ISO/IEC 42001, and the EU AI Act.
 
-Every category name below was fetched and verified this session (2026-07-23)
-from the cited authoritative source -- never invented. A ``check`` value with
+Every category name below was fetched and verified this session (2026-07-23
+for OWASP LLM Top 10 / NIST AI RMF / MITRE ATLAS; 2026-07-24 for SOC 2 /
+ISO 42001 / EU AI Act) from the cited authoritative source -- never invented.
+A ``check`` value with
 no evidenced category in a given framework is simply omitted from that
 framework's list; it is not guessed or forced to a "closest" category. This
 follows the same anti-fabrication discipline as ``mcp_auditor.py``'s OWASP
@@ -86,12 +88,15 @@ _CHECK_TO_SOC2 = {
 
 _CHECK_TO_ISO42001 = {
     "injection": "A.6.2.6 AI system operation and monitoring",
-    "pii": "A.7.4 Quality of data for AI systems",
     "supply_chain": "A.10.3 Suppliers",
     "permissions": "A.9.2 Processes for responsible use of AI systems",
-    # 'secrets' and 'destructive' have no evidenced ISO 42001 category --
-    # omitted per this module's anti-fabrication discipline (ISO 42001
-    # defers general information-security controls to ISO 27001).
+    # 'secrets', 'destructive', and 'pii' have no evidenced ISO 42001
+    # category -- omitted per this module's anti-fabrication discipline
+    # (ISO 42001 defers general information-security and personal-data
+    # protection specifics to ISO 27001/other standards; A.7.4's "data
+    # quality" scope covers accuracy/completeness/representativeness,
+    # not privacy/disclosure protection, so it is not a genuine fit for
+    # the 'pii' check).
 }
 
 _CHECK_TO_EU_AI_ACT = {
