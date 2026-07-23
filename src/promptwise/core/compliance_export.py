@@ -22,14 +22,24 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.exceptions import InvalidSignature
+
 from promptwise.core.audit_log import GENESIS, AuditLog, AuditRecord
 
 # Local HMAC key sources, in precedence order: explicit arg > env value > env keyfile.
 ENV_KEY = "PROMPTWISE_AUDIT_KEY"
 ENV_KEY_FILE = "PROMPTWISE_AUDIT_KEY_FILE"
 
+ENV_KEY_ED25519 = "PROMPTWISE_ED25519_KEY"
+ENV_KEY_FILE_ED25519 = "PROMPTWISE_ED25519_KEY_FILE"
+
 BUNDLE_SCHEMA = "promptwise.compliance.bundle/v1"
 SIG_ALG = "HMAC-SHA256"
+SIG_ALG_ED25519 = "Ed25519"
 
 # Bundle members when serialized to a stdlib .zip.
 _ZIP_MEMBER = "bundle.json"
@@ -114,6 +124,34 @@ def _resolve_key(key=None) -> bytes:
             return data
     raise KeyError(
         f"no HMAC key available: set {ENV_KEY} or {ENV_KEY_FILE}, or pass key="
+    )
+
+
+def generate_ed25519_keypair() -> dict:
+    """Generate a fresh Ed25519 keypair in memory. Never written to disk."""
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    return {
+        "private_key": private_key.private_bytes_raw().hex(),
+        "public_key": public_key.public_bytes_raw().hex(),
+    }
+
+
+def _resolve_ed25519_key(key=None) -> Ed25519PrivateKey:
+    """Resolve the local Ed25519 private key from an explicit arg, env var, or key file."""
+    if key is not None:
+        raw = bytes.fromhex(key) if isinstance(key, str) else bytes(key)
+        return Ed25519PrivateKey.from_private_bytes(raw)
+    env_val = os.environ.get(ENV_KEY_ED25519)
+    if env_val:
+        return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(env_val))
+    key_file = os.environ.get(ENV_KEY_FILE_ED25519)
+    if key_file and os.path.exists(key_file):
+        data = Path(key_file).read_text().strip()
+        if data:
+            return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(data))
+    raise KeyError(
+        f"no Ed25519 key available: set {ENV_KEY_ED25519} or {ENV_KEY_FILE_ED25519}, or pass key="
     )
 
 

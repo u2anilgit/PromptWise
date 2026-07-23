@@ -163,3 +163,47 @@ def test_no_network_used(monkeypatch):
     monkeypatch.setattr(socket, "create_connection", _boom)
     signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
     assert ce.verify_bundle(signed, key=KEY).ok
+
+
+# ---------- Ed25519 keygen + key resolution ----------
+def test_generate_ed25519_keypair_returns_hex_pair():
+    pair = ce.generate_ed25519_keypair()
+    assert set(pair) == {"private_key", "public_key"}
+    assert len(bytes.fromhex(pair["private_key"])) == 32
+    assert len(bytes.fromhex(pair["public_key"])) == 32
+
+
+def test_generate_ed25519_keypair_is_random():
+    a = ce.generate_ed25519_keypair()
+    b = ce.generate_ed25519_keypair()
+    assert a["private_key"] != b["private_key"]
+
+
+def test_resolve_ed25519_key_from_explicit_arg():
+    pair = ce.generate_ed25519_keypair()
+    priv = ce._resolve_ed25519_key(pair["private_key"])
+    assert priv.public_key().public_bytes_raw().hex() == pair["public_key"]
+
+
+def test_resolve_ed25519_key_from_env_var(monkeypatch):
+    pair = ce.generate_ed25519_keypair()
+    monkeypatch.setenv(ce.ENV_KEY_ED25519, pair["private_key"])
+    priv = ce._resolve_ed25519_key()
+    assert priv.public_key().public_bytes_raw().hex() == pair["public_key"]
+
+
+def test_resolve_ed25519_key_from_key_file(tmp_path, monkeypatch):
+    pair = ce.generate_ed25519_keypair()
+    keyfile = tmp_path / "ed25519.key"
+    keyfile.write_text(pair["private_key"])
+    monkeypatch.delenv(ce.ENV_KEY_ED25519, raising=False)
+    monkeypatch.setenv(ce.ENV_KEY_FILE_ED25519, str(keyfile))
+    priv = ce._resolve_ed25519_key()
+    assert priv.public_key().public_bytes_raw().hex() == pair["public_key"]
+
+
+def test_resolve_ed25519_key_raises_when_missing(monkeypatch):
+    monkeypatch.delenv(ce.ENV_KEY_ED25519, raising=False)
+    monkeypatch.delenv(ce.ENV_KEY_FILE_ED25519, raising=False)
+    with pytest.raises(KeyError):
+        ce._resolve_ed25519_key()
