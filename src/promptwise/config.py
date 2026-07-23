@@ -98,6 +98,7 @@ class DashboardConfig:
     cli_enabled: bool = True
     web_enabled: bool = True
     web_port: int = 8765
+    web_host: str = "127.0.0.1"
 
 
 @dataclass
@@ -254,6 +255,7 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
         cli_enabled=bool(dash_raw.get("cli_enabled", True)),
         web_enabled=bool(dash_raw.get("web_enabled", True)),
         web_port=int(dash_raw.get("web_port", 8765)),
+        web_host=str(dash_raw.get("web_host", "127.0.0.1")),
     )
 
     analytics_raw = raw.get("analytics", {}) or {}

@@ -121,12 +121,13 @@ def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> No
         return
 
     port = port or cfg.dashboard.web_port
-    print(f"Starting PromptWise dashboard on http://0.0.0.0:{port}")
+    host = cfg.dashboard.web_host
+    print(f"Starting PromptWise dashboard on http://{host}:{port}")
 
     from promptwise.dashboard.web import create_web_app
     mm = asyncio.run(_memory_manager())
     app = create_web_app(memory_manager=mm)
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host=host, port=port, debug=False)
 
 
 def _run_doctor(as_json: bool = False) -> None:
