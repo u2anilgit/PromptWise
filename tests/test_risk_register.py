@@ -63,9 +63,29 @@ def test_status_of_reports_expired_lazily_without_mutating_row(tmp_path):
     reg.accept(fp, reason="temporary", expires_at="2026-01-15T00:00:00Z")
     status = reg.status_of(fp, now_iso="2026-07-24T00:00:00Z")
     assert status == "expired"
-    # the stored column is untouched -- only the computed status is "expired"
+    # the stored column is untouched -- only the COMPUTED status is "expired".
+    # list()/status_of() both report the computed value; verify the raw
+    # sqlite row directly to confirm no mutation happened.
+    import sqlite3
+    conn = sqlite3.connect(str(reg.db_path))
+    raw_status = conn.execute(
+        "SELECT status FROM risk_register WHERE fingerprint = ?", (fp,)).fetchone()[0]
+    conn.close()
+    assert raw_status == "accepted"
+    # list() with no now_iso still correctly computes "expired" lazily
+    # using real wall-clock time, matching status_of()/summary()'s behavior.
     rows = reg.list()
-    assert rows[0]["status"] == "accepted"
+    assert rows[0]["status"] == "expired"
+
+
+def test_list_computes_expiry_lazily_even_without_explicit_now_iso(tmp_path, monkeypatch):
+    reg = RiskRegister(tmp_path / "risk.db")
+    fp = reg.upsert("permissions", "some_pattern", ts="2020-01-01T00:00:00Z")
+    reg.accept(fp, reason="temp", expires_at="2020-01-02T00:00:00Z")
+    # No now_iso passed -- must still compute against real current time,
+    # which is well after 2020-01-02, so this must report "expired".
+    rows = reg.list()
+    assert rows[0]["status"] == "expired"
 
 
 def test_list_filters_by_computed_status(tmp_path):

@@ -123,6 +123,7 @@ class RiskRegister:
         return self._computed_status(row, now_iso)
 
     def list(self, status: str | None = None, *, now_iso: str | None = None) -> list[dict]:
+        now_iso = now_iso or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         conn = self._connect()
         try:
             rows = conn.execute("SELECT * FROM risk_register ORDER BY last_seen DESC").fetchall()
@@ -130,12 +131,7 @@ class RiskRegister:
             conn.close()
         out = []
         for r in rows:
-            # Only compute expiry if now_iso is explicitly provided
-            if now_iso is not None:
-                computed = self._computed_status(r, now_iso)
-            else:
-                computed = r["status"]
-
+            computed = self._computed_status(r, now_iso)
             if status is not None and computed != status:
                 continue
             out.append({
