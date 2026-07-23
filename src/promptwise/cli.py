@@ -98,6 +98,26 @@ def _run_eval(config_dir: str | None, prompt: str, model: str | None) -> None:
     print(f"Time:         {elapsed*1000:.0f}ms")
 
 
+def _resolve_require_auth(web_host: str, credentials_path) -> bool:
+    """Whether the dashboard must enforce RBAC for this run. Loopback binds
+    never require it (solo/local use, zero friction). A non-loopback bind
+    without a configured credentials file is refused outright -- this is
+    the one moment an unauthenticated dashboard would actually be exposed
+    to something other than the operator's own machine."""
+    from pathlib import Path
+    is_loopback = str(web_host) in ("127.0.0.1", "localhost", "::1")
+    if is_loopback:
+        return False
+    if not Path(credentials_path).exists():
+        raise SystemExit(
+            f"Refusing to bind the dashboard to a non-loopback address ({web_host}) "
+            "without config/dashboard_auth.yaml configured. Either bind to "
+            "127.0.0.1 (solo/local use), or create that file with at least one "
+            "credential entry (see config/dashboard_auth.yaml.example) to serve "
+            "teammates.")
+    return True
+
+
 def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> None:
     cfg = load_config(config_dir)
 
@@ -122,11 +142,15 @@ def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> No
 
     port = port or cfg.dashboard.web_port
     host = cfg.dashboard.web_host
-    print(f"Starting PromptWise dashboard on http://{host}:{port}")
+    credentials_path = "config/dashboard_auth.yaml"
+    require_auth = _resolve_require_auth(host, credentials_path)
+    print(f"Starting PromptWise dashboard on http://{host}:{port}"
+          + (" (RBAC enforced)" if require_auth else ""))
 
     from promptwise.dashboard.web import create_web_app
     mm = asyncio.run(_memory_manager())
-    app = create_web_app(memory_manager=mm)
+    app = create_web_app(memory_manager=mm, require_auth=require_auth,
+                          credentials_path=credentials_path)
     app.run(host=host, port=port, debug=False)
 
 

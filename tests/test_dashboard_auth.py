@@ -107,3 +107,25 @@ def test_index_route_never_requires_auth(tmp_path):
     app = create_web_app(require_auth=True, credentials_path=cred_path)
     r = app.test_client().get("/")
     assert r.status_code == 200
+
+
+import pytest
+
+from promptwise.cli import _resolve_require_auth
+
+
+def test_loopback_host_never_requires_auth_file(tmp_path):
+    missing = tmp_path / "does_not_exist.yaml"
+    assert _resolve_require_auth("127.0.0.1", missing) is False
+
+
+def test_non_loopback_host_without_credentials_file_refuses_to_start(tmp_path):
+    missing = tmp_path / "does_not_exist.yaml"
+    with pytest.raises(SystemExit):
+        _resolve_require_auth("0.0.0.0", missing)
+
+
+def test_non_loopback_host_with_credentials_file_requires_auth(tmp_path):
+    cred_path = tmp_path / "dashboard_auth.yaml"
+    cred_path.write_text("entries: []\n", encoding="utf-8")
+    assert _resolve_require_auth("0.0.0.0", cred_path) is True
