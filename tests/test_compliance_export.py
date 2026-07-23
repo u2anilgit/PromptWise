@@ -207,3 +207,75 @@ def test_resolve_ed25519_key_raises_when_missing(monkeypatch):
     monkeypatch.delenv(ce.ENV_KEY_FILE_ED25519, raising=False)
     with pytest.raises(KeyError):
         ce._resolve_ed25519_key()
+
+
+# ---------- Ed25519 sign/verify ----------
+def test_ed25519_sign_and_verify_roundtrip():
+    pair = ce.generate_ed25519_keypair()
+    signed = ce.sign_bundle_ed25519(ce.build_bundle(_records()), key=pair["private_key"])
+    assert signed["signature"]["alg"] == "Ed25519"
+    assert signed["signature"]["public_key"] == pair["public_key"]
+    res = ce.verify_bundle(signed)  # no key arg needed — pubkey is embedded
+    assert res.ok
+    assert res.signature_ok
+    assert res.chain.ok
+
+
+def test_ed25519_verify_fails_on_tampered_bundle():
+    pair = ce.generate_ed25519_keypair()
+    signed = ce.sign_bundle_ed25519(ce.build_bundle(_records()), key=pair["private_key"])
+    signed["bundle"]["records"][0]["task"] = "TAMPERED"
+    res = ce.verify_bundle(signed)
+    assert not res.signature_ok
+
+
+def test_ed25519_verify_fails_on_tampered_signature():
+    pair = ce.generate_ed25519_keypair()
+    signed = ce.sign_bundle_ed25519(ce.build_bundle(_records()), key=pair["private_key"])
+    signed["signature"]["value"] = "00" * 64
+    res = ce.verify_bundle(signed)
+    assert not res.signature_ok
+
+
+def test_ed25519_chain_tamper_detected_independent_of_signature():
+    pair = ce.generate_ed25519_keypair()
+    bundle = ce.build_bundle(_records())
+    bundle["records"][1]["task"] = "TAMPERED"
+    signed = ce.sign_bundle_ed25519(bundle, key=pair["private_key"])
+    res = ce.verify_bundle(signed)
+    assert res.signature_ok  # signature matches the (already-tampered) bundle bytes
+    assert not res.chain.ok  # but the chain re-walk still catches it
+    assert not res.ok
+
+
+def test_verify_bundle_dispatches_on_alg_hmac_unaffected():
+    signed = ce.sign_bundle(ce.build_bundle(_records()), key=KEY)
+    assert signed["signature"]["alg"] == ce.SIG_ALG
+    res = ce.verify_bundle(signed, key=KEY)
+    assert res.ok
+
+
+# ---------- export_bundle(sign_alg=...) ----------
+def test_export_bundle_ed25519_end_to_end(tmp_path, monkeypatch):
+    pair = ce.generate_ed25519_keypair()
+    monkeypatch.setenv(ce.ENV_KEY_ED25519, pair["private_key"])
+    summary = ce.export_bundle(_records(), sign_alg="ed25519", out_path=tmp_path / "bundle.zip")
+    assert summary["signed"] is True
+    assert summary["signature"]["alg"] == "Ed25519"
+    assert summary["verified"]["ok"] is True
+    loaded = ce.read_zip(tmp_path / "bundle.zip")
+    assert ce.verify_bundle(loaded).ok
+
+
+def test_export_bundle_ed25519_fails_open_without_key(monkeypatch):
+    monkeypatch.delenv(ce.ENV_KEY_ED25519, raising=False)
+    monkeypatch.delenv(ce.ENV_KEY_FILE_ED25519, raising=False)
+    summary = ce.export_bundle(_records(), sign_alg="ed25519")
+    assert summary["signed"] is False
+    assert "sign_error" in summary
+
+
+def test_export_bundle_default_sign_alg_is_hmac(monkeypatch):
+    monkeypatch.setenv("PROMPTWISE_AUDIT_KEY", KEY)
+    summary = ce.export_bundle(_records())
+    assert summary["signature"]["alg"] == ce.SIG_ALG

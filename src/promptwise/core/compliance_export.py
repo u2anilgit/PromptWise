@@ -226,18 +226,50 @@ def sign_bundle(bundle: dict, key=None) -> dict:
     return {"bundle": bundle, "signature": {"alg": SIG_ALG, "value": signature}}
 
 
+def sign_bundle_ed25519(bundle: dict, key=None) -> dict:
+    """Ed25519-sign the canonicalized bundle bytes; embeds the public key for
+    verification without a shared secret."""
+    private_key = _resolve_ed25519_key(key)
+    signature = private_key.sign(_canonical_bytes(bundle))
+    public_key_hex = private_key.public_key().public_bytes_raw().hex()
+    return {
+        "bundle": bundle,
+        "signature": {
+            "alg": SIG_ALG_ED25519,
+            "value": signature.hex(),
+            "public_key": public_key_hex,
+        },
+    }
+
+
 def verify_bundle(signed: dict, key=None) -> BundleVerification:
-    """Re-check the HMAC signature and re-walk the chain; both must pass."""
+    """Re-check the signature and re-walk the chain; both must pass.
+
+    Dispatches on ``signed["signature"]["alg"]``: HMAC-SHA256 (default,
+    requires ``key``) or Ed25519 (public key travels in the bundle, ``key``
+    is ignored).
+    """
     bundle = signed.get("bundle", {})
-    sig = (signed.get("signature") or {}).get("value")
+    sig_block = signed.get("signature") or {}
+    sig = sig_block.get("value")
+    alg = sig_block.get("alg", SIG_ALG)
 
     signature_ok = False
-    try:
-        key_bytes = _resolve_key(key)
-        expected = hmac.new(key_bytes, _canonical_bytes(bundle), hashlib.sha256).hexdigest()
-        signature_ok = bool(sig) and hmac.compare_digest(expected, sig)
-    except (KeyError, ValueError):
-        signature_ok = False
+    if alg == SIG_ALG_ED25519:
+        try:
+            public_key_hex = sig_block.get("public_key")
+            public_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key_hex))
+            public_key.verify(bytes.fromhex(sig), _canonical_bytes(bundle))
+            signature_ok = True
+        except (InvalidSignature, ValueError, TypeError):
+            signature_ok = False
+    else:
+        try:
+            key_bytes = _resolve_key(key)
+            expected = hmac.new(key_bytes, _canonical_bytes(bundle), hashlib.sha256).hexdigest()
+            signature_ok = bool(sig) and hmac.compare_digest(expected, sig)
+        except (KeyError, ValueError):
+            signature_ok = False
 
     chain = verify_chain(bundle.get("records", []))
     return BundleVerification(ok=signature_ok and chain.ok, signature_ok=signature_ok, chain=chain)
@@ -261,12 +293,13 @@ def read_zip(path) -> dict:
 
 
 # ── convenience: build + sign + optional zip in one call (used by the server) ─
-def export_bundle(source, *, key=None, sign=True, control_families=None, out_path=None) -> dict:
+def export_bundle(source, *, key=None, sign=True, control_families=None, out_path=None, sign_alg="hmac") -> dict:
     """One-shot: build a bundle, optionally sign it, optionally write a .zip.
 
     Returns a JSON-serializable summary (manifest, verification status, and the signed
     envelope). Fail-open: if signing is requested but no key is configured, the summary
-    reports ``signed=False`` with the reason rather than raising.
+    reports ``signed=False`` with the reason rather than raising. ``sign_alg`` selects
+    ``"hmac"`` (default, unchanged behavior) or ``"ed25519"``.
     """
     bundle = build_bundle(source, control_families=control_families)
     summary: dict = {
@@ -277,8 +310,12 @@ def export_bundle(source, *, key=None, sign=True, control_families=None, out_pat
     envelope: dict = {"bundle": bundle}
     if sign:
         try:
-            envelope = sign_bundle(bundle, key=key)
-            verification = verify_bundle(envelope, key=key)
+            if sign_alg == "ed25519":
+                envelope = sign_bundle_ed25519(bundle, key=key)
+                verification = verify_bundle(envelope)
+            else:
+                envelope = sign_bundle(bundle, key=key)
+                verification = verify_bundle(envelope, key=key)
             summary["signed"] = True
             summary["signature"] = envelope["signature"]
             summary["verified"] = verification.to_dict()
