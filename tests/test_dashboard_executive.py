@@ -114,3 +114,26 @@ def test_api_executive_budget_used_equals_net_savings_cost_basis(tmp_path):
     body = r.get_json()
 
     assert body["budget"]["used_usd"] == 7.5
+
+
+def test_index_page_has_two_tab_buttons():
+    app = create_web_app()
+    r = app.test_client().get("/")
+    html = r.get_data(as_text=True)
+    assert 'id="tab-btn-ops"' in html
+    assert 'id="tab-btn-exec"' in html
+
+
+def test_index_page_has_two_tab_containers():
+    app = create_web_app()
+    r = app.test_client().get("/")
+    html = r.get_data(as_text=True)
+    assert 'id="tab-ops"' in html
+    assert 'id="tab-exec"' in html
+
+
+def test_index_page_executive_tab_fetches_api_executive():
+    app = create_web_app()
+    r = app.test_client().get("/")
+    html = r.get_data(as_text=True)
+    assert "/api/executive" in html

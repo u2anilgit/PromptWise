@@ -17,6 +17,9 @@ _INDEX_HTML = """<!DOCTYPE html>
     h1 { font-size:1.6rem; letter-spacing:-.02em; }
     h1 small { color:var(--mut); font-weight:400; font-size:.9rem; margin-left:.5rem; }
     select { background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.5rem .8rem; font-size:.9rem; }
+    .tabbtn { background:var(--card); color:var(--mut); border:1px solid var(--line); border-radius:8px; padding:.5rem 1rem; font-size:.85rem; cursor:pointer; }
+    .tabbtn.active { color:var(--ink); border-color:var(--accent); }
+    #tab-exec { display:none; }
     .hero { background:linear-gradient(135deg,rgba(129,140,248,.14),transparent); border:1px solid var(--line); border-radius:14px; padding:1.6rem 1.8rem; margin-bottom:1.2rem; }
     .hero .lbl { font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
     .hero .val { font-size:2.6rem; font-weight:700; color:var(--good); }
@@ -43,46 +46,94 @@ _INDEX_HTML = """<!DOCTYPE html>
 <body>
   <header>
     <h1>PromptWise <small id="win-lbl">last 30 days</small></h1>
-    <select id="win" onchange="load()">
-      <option value="7">Last 7 days</option>
-      <option value="30" selected>Last 30 days</option>
-      <option value="60">Last 60 days</option>
-      <option value="90">Last 90 days</option>
-      <option value="180">Last 180 days (archive)</option>
-      <option value="365">Last 1 year (archive)</option>
-    </select>
+    <div style="display:flex;align-items:center;gap:.8rem;">
+      <div>
+        <button id="tab-btn-ops" class="tabbtn active" onclick="showTab('ops')">Operational</button>
+        <button id="tab-btn-exec" class="tabbtn" onclick="showTab('exec')">Executive</button>
+      </div>
+      <select id="win" onchange="load()">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="60">Last 60 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="180">Last 180 days (archive)</option>
+        <option value="365">Last 1 year (archive)</option>
+      </select>
+    </div>
   </header>
 
-  <div class="hero">
-    <div class="lbl">Net savings this window &mdash; North Star</div>
-    <div class="val" id="net">$0.00</div>
-    <div class="sub" id="net-sub">vs. running every call on the top tier</div>
+  <div id="tab-ops">
+    <div class="hero">
+      <div class="lbl">Net savings this window &mdash; North Star</div>
+      <div class="val" id="net">$0.00</div>
+      <div class="sub" id="net-sub">vs. running every call on the top tier</div>
+    </div>
+
+    <div class="grid" id="cards"></div>
+
+    <div class="sect">Spend trend</div>
+    <div class="bars" id="trend"></div>
+    <div class="muted" id="trend-lbl"></div>
+
+    <div class="sect">By model <span class="muted">(deprecated retained)</span></div>
+    <table><thead><tr><th>Model</th><th>Calls</th><th>Cost</th></tr></thead><tbody id="by-model"></tbody></table>
+
+    <div class="sect">By skill</div>
+    <table><thead><tr><th>Skill / tool</th><th>Calls</th><th>Cost</th></tr></thead><tbody id="by-skill"></tbody></table>
+
+    <div class="sect">Recommendations <span class="muted">(ranked · offline · min-sample gated)</span></div>
+    <table><thead><tr><th>Category</th><th>Recommendation</th><th>Impact</th><th>Confidence</th></tr></thead><tbody id="recs"></tbody></table>
+
+    <div class="sect">Governance &mdash; is it working?</div>
+    <div class="gov" id="gov"></div>
+
+    <div class="sect">Governor actions <span class="muted">(Phase 9 &middot; policy-gated &middot; reversible &middot; default advise-only)</span></div>
+    <div class="muted" id="gov-mode"></div>
+    <table><thead><tr><th>Type</th><th>Blast radius</th><th>Action</th><th>Policy</th><th>Status</th></tr></thead><tbody id="gov-actions"></tbody></table>
   </div>
 
-  <div class="grid" id="cards"></div>
-
-  <div class="sect">Spend trend</div>
-  <div class="bars" id="trend"></div>
-  <div class="muted" id="trend-lbl"></div>
-
-  <div class="sect">By model <span class="muted">(deprecated retained)</span></div>
-  <table><thead><tr><th>Model</th><th>Calls</th><th>Cost</th></tr></thead><tbody id="by-model"></tbody></table>
-
-  <div class="sect">By skill</div>
-  <table><thead><tr><th>Skill / tool</th><th>Calls</th><th>Cost</th></tr></thead><tbody id="by-skill"></tbody></table>
-
-  <div class="sect">Recommendations <span class="muted">(ranked · offline · min-sample gated)</span></div>
-  <table><thead><tr><th>Category</th><th>Recommendation</th><th>Impact</th><th>Confidence</th></tr></thead><tbody id="recs"></tbody></table>
-
-  <div class="sect">Governance &mdash; is it working?</div>
-  <div class="gov" id="gov"></div>
-
-  <div class="sect">Governor actions <span class="muted">(Phase 9 &middot; policy-gated &middot; reversible &middot; default advise-only)</span></div>
-  <div class="muted" id="gov-mode"></div>
-  <table><thead><tr><th>Type</th><th>Blast radius</th><th>Action</th><th>Policy</th><th>Status</th></tr></thead><tbody id="gov-actions"></tbody></table>
+  <div id="tab-exec">
+    <div class="hero">
+      <div class="lbl">Net savings this window</div>
+      <div class="val" id="exec-net">$0.00</div>
+      <div class="sub" id="exec-net-sub">vs. running every call on the top tier</div>
+    </div>
+    <div class="grid" id="exec-cards"></div>
+    <div class="sect">Governance status</div>
+    <div class="gov" id="exec-gov"></div>
+  </div>
 
   <script>
     function money(x){ return '$' + (Number(x)||0).toFixed(Math.abs(x)<1?4:2); }
+    function showTab(name){
+      const isOps = name === 'ops';
+      document.getElementById('tab-ops').style.display = isOps ? '' : 'none';
+      document.getElementById('tab-exec').style.display = isOps ? 'none' : '';
+      document.getElementById('tab-btn-ops').classList.toggle('active', isOps);
+      document.getElementById('tab-btn-exec').classList.toggle('active', !isOps);
+      if (!isOps) loadExecutive();
+    }
+    async function loadExecutive(){
+      const days = document.getElementById('win').value;
+      let d;
+      try { d = await (await fetch('/api/executive?days=' + days)).json(); }
+      catch(e){ console.error(e); return; }
+      document.getElementById('exec-net').textContent = money(d.net_savings_usd);
+      document.getElementById('exec-net-sub').textContent = (d.savings_rate_pct||0) + '% saved vs. top-tier baseline';
+      const roi = d.roi || {}; const budget = d.budget || {};
+      document.getElementById('exec-cards').innerHTML = [
+        ['ROI ratio', (roi.roi_ratio||0).toFixed(2)+'x', 'value of time saved vs. cost'],
+        ['Time saved', (roi.estimated_time_saved_hours||0)+' hrs', 'this window'],
+        ['Budget used', money(budget.used_usd), (budget.pct_used||0)+'% of ' + money(budget.limit_usd) + ' cap'],
+      ].map(c=>`<div class="card"><div class="t">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]}</div></div>`).join('');
+      const g = d.governance || {};
+      document.getElementById('exec-gov').innerHTML = [
+        ['Audit chain', g.chain_ok===false?'BROKEN':'OK', g.chain_ok===false?'no':'ok'],
+        ['Audit records', g.audit_records||0, ''],
+        ['Denials logged', g.denials||0, ''],
+        ['Failures captured', g.failures||0, ''],
+      ].map(p=>`<div class="pill"><div class="t muted">${p[0]}</div><div class="v ${p[2]}">${p[1]}</div></div>`).join('');
+    }
     async function load(){
       const days = document.getElementById('win').value;
       document.getElementById('win-lbl').textContent = 'last ' + days + ' days';
