@@ -237,7 +237,12 @@ class Router:
     def resolve_model(self, skill_name: str, budget_pct: float = 0.0) -> str:
         if budget_pct >= 95:
             return self._tier_model("fast")
-        return self._tier_model("balanced")
+        balanced = self._tier_model("balanced")
+        if budget_pct >= 80:
+            cheaper = self._cheapest_current("balanced")
+            if cheaper:
+                return cheaper
+        return balanced
 
     def route_for_plugin(self, text: str) -> str | None:
         text_lower = text.lower()

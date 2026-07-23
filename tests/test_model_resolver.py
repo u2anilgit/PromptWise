@@ -195,6 +195,44 @@ def test_route_no_budget_params_never_triggers_cost_switch():
     assert "cost pressure" not in res.reason
 
 
+def test_resolve_model_below_80_returns_balanced_unchanged():
+    r = Router()
+    assert r.resolve_model("some_skill", budget_pct=50.0) == r._tier_model("balanced")
+
+
+def test_resolve_model_95_and_above_returns_fast_unchanged():
+    r = Router()
+    assert r.resolve_model("some_skill", budget_pct=95.0) == r._tier_model("fast")
+
+
+def test_resolve_model_80_to_95_prefers_cheaper_balanced_model(tmp_path):
+    reg = _registry(tmp_path)
+    r = Router(registry=reg)
+    # fam-x is a "powerful"-tier family, so "balanced" has nothing in this
+    # synthetic registry -- _cheapest_current returns None and the method
+    # must fall back to the plain _tier_model("balanced") result, proving
+    # the fallback path (not just the happy path) is exercised.
+    assert r.resolve_model("some_skill", budget_pct=85.0) == r._tier_model("balanced")
+
+
+_BALANCED_REG = textwrap.dedent("""
+schema_version: 1
+families:
+  fam-y: { provider: testco, tier: balanced }
+models:
+  - { alias: y-new, family: fam-y, status: current, release_date: "2026-06-01", price: {input_per_mtok: 10.0, output_per_mtok: 20.0} }
+  - { alias: y-old, family: fam-y, status: current, release_date: "2025-01-01", price: {input_per_mtok: 6.0, output_per_mtok: 12.0} }
+""")
+
+
+def test_resolve_model_80_to_95_uses_cheapest_current_when_available(tmp_path):
+    p = tmp_path / "models.yaml"
+    p.write_text(_BALANCED_REG, encoding="utf-8")
+    r = Router(registry=ModelRegistry(p))
+    result = r.resolve_model("some_skill", budget_pct=85.0)
+    assert result == "y-old"  # 6.0 < 10.0, cheaper current model wins over the newest
+
+
 def test_router_cost_uses_registry_price_for_new_model():
     r = Router()
     res = r.route("Design a critical production security architecture",
