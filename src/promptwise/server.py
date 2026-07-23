@@ -511,51 +511,11 @@ _add_handler_module("roi")
 _add_handler_module("memory_session")
 
 
-# ── Skills ───────────────────────────────────────────────────────────
-@tool(name="invoke_skill", description="Invoke a specific skill with context",
-         schema={"type": "object", "properties": {"skill_name": {"type": "string"}, "context": {"type": "object", "default": {}}, "params": {"type": "object", "default": {}}}, "required": ["skill_name"]})
-async def _handle_invoke_skill(ctx: ServerContext, arguments: dict) -> str:
-    sk = ctx.skill_loader.get_skill(arguments.get("skill_name", ""))
-    if not sk:
-        return json.dumps({"error": "Skill not found", "skill_name": arguments.get("skill_name")})
-    res = await ctx.orchestrator.execute_skill(sk, arguments.get("context", {}), router=ctx.router)
-    await _record_skill_execution(ctx, tool="invoke_skill", skill_name=sk.name, result=res)
-    return json.dumps(res)
-
-
-@tool(name="list_skills", description="List all available skills filtered by role",
-         schema={"type": "object", "properties": {"role": {"type": "string"}, "category": {"type": "string"}}})
-async def _handle_list_skills(ctx: ServerContext, arguments: dict) -> str:
-    skills_list = []
-    for sk in ctx.skill_loader.skills.values():
-        role_filter = arguments.get("role")
-        if role_filter and sk.roles and role_filter not in sk.roles:
-            continue
-        skills_list.append({"name": sk.name, "description": sk.description, "triggers": sk.triggers,
-                            "depends_on": sk.depends_on, "roles": sk.roles, "model_tier": sk.model_tier})
-    return json.dumps({"skills": skills_list})
-
-
-@tool(name="skill_chain", description="Execute a list of skills sequentially",
-         schema={"type": "object", "properties": {"skills": {"type": "array", "items": {"type": "string"}}, "mode": {"type": "string", "enum": ["sequential", "parallel"], "default": "sequential"}, "context": {"type": "object", "default": {}}}, "required": ["skills"]})
-async def _handle_skill_chain(ctx: ServerContext, arguments: dict) -> str:
-    res = await ctx.orchestrator.execute_skill_chain(ctx.skill_loader, arguments.get("skills", []),
-                                                      arguments.get("mode", "sequential"), arguments.get("context", {}), router=ctx.router)
-    for skill_name, skill_result in (res.get("results") or {}).items():
-        await _record_skill_execution(ctx, tool="skill_chain", skill_name=skill_name, result=skill_result)
-    return json.dumps(res)
-
-
-@tool(name="suggest_skill", description="Recommend best skill for a given user message",
-         schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]})
-async def _handle_suggest_skill(ctx: ServerContext, arguments: dict) -> str:
-    text = arguments.get("text", "")
-    match = ctx.skill_loader.match_skill(text)
-    if match:
-        return json.dumps({"skill": match.name, "description": match.description})
-    scored = sorted([{"name": sk.name, "score": sum(1 for t in sk.triggers if t.lower() in text.lower()) / max(len(sk.triggers), 1),
-                      "description": sk.description} for sk in ctx.skill_loader.skills.values()], key=lambda x: x["score"], reverse=True)[:3]
-    return json.dumps({"top_matches": scored, "note": "No high-confidence match"})
+# invoke_skill/list_skills/skill_chain/suggest_skill (handlers.skills)
+# originally sat right here, between check_session_timeout and
+# suggest_technique -- register at this position to preserve tool
+# registration order.
+_add_handler_module("skills")
 
 
 # ── Prompt Engineering ───────────────────────────────────────────────
@@ -1237,6 +1197,7 @@ from promptwise.handlers.orchestration import _handle_orchestrate_tasks, _handle
 from promptwise.handlers.roi import _handle_track_roi, _handle_get_roi_report, _handle_cost_report  # noqa: F401
 from promptwise.handlers.prompt_registry import _handle_save_prompt, _handle_search_prompts, _handle_compare_prompts  # noqa: F401
 from promptwise.handlers.memory_session import _handle_get_memory_context, _handle_query_memory, _handle_ping_session, _handle_check_session_timeout  # noqa: F401
+from promptwise.handlers.skills import _handle_invoke_skill, _handle_list_skills, _handle_skill_chain, _handle_suggest_skill  # noqa: F401
 
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
