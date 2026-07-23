@@ -167,10 +167,20 @@ ever unbounded, and **cost + audit logging for skill invocations** (`invoke_skil
 `skill_chain` results were computed but never persisted before — now every successful
 execution shows up in cost reports and the audit trail). The 90 MCP tools are registered
 through a decorator-based tool registry (one source of truth per tool — no hand-synced
-definition/handler pair to drift), and an optional local VS Code panel
+definition/handler pair to drift, now organized into a `handlers/` package of 20 category
+files instead of one monolithic `server.py`), and an optional local VS Code panel
 (`vscode-extension/`) surfaces budget, security, and governance at a glance over the same
 MCP server, zero external services. Everything runs directly from PromptWise — local-first,
 no third-party integrations, air-gapped by default.
+
+New in v1.4: a **compliance report card** (OWASP LLM Top 10 2025 / NIST AI RMF / MITRE
+ATLAS), an **OpenTelemetry GenAI exporter** (stdlib-only, no new dependency), **policy
+inheritance** (`extends:` org → team → project, tighten-only), **SIEM-streamable audit
+sinks** (webhook/syslog), **within-tier cost-aware model routing** (prefers a cheaper
+active model in the same quality tier under moderate budget pressure, before ever
+collapsing to the cheapest tier), and **dashboard auth/RBAC** — the dashboard now binds
+`127.0.0.1` by default (fixed an accidental LAN-exposure default) and a non-loopback bind
+requires configured credentials, opt-in and zero-friction for solo use.
 
 ## License
 

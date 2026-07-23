@@ -4,6 +4,48 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## [1.4.0] — Handlers package split, governance gap-closure, cost-aware routing, dashboard RBAC
+
+### Added
+- **`handlers/` package split** — `server.py`'s 90 `@tool` handlers (was ~1500 lines)
+  now live across 20 category files under `src/promptwise/handlers/`, loaded through a
+  fault-isolated per-category import loop (one broken category can't take down the other
+  19) with a category enable/disable toggle
+  (`HandlersConfig.disabled_categories` / `PROMPTWISE_DISABLED_HANDLER_CATEGORIES`) and a
+  coverage-guard test. `server.py` is now 352 lines of pure orchestration. Zero behavior
+  change — every handler re-exported for backward compatibility.
+- **Governance gap-closure (P0+P1, 9 of 17 items)** — deleted a fully fabricated
+  integration doc; config-linter rules-file-injection/bidi-control detection; MCP auditor
+  mapped to OWASP MCP Top 10; a multi-framework compliance report card
+  (`security/framework_map.py`: OWASP LLM Top 10 2025, NIST AI RMF, MITRE ATLAS) wired
+  into `run_security_suite`; opt-in hard-blocking budget mode alongside the existing
+  advisory one; a hand-rolled OpenTelemetry GenAI exporter (`core/otel_exporter.py`,
+  stdlib-only, no new dependency) for `cost_report`/`export_audit`; AI-BOM fields on
+  `get_sbom` (omitted, never fabricated, when the registry doesn't track a field);
+  `policy.yaml` `extends:` inheritance (org → team → project, tighten-only, cycle-safe);
+  SIEM-streamable audit sinks (`core/audit_sinks.py`: webhook/syslog, opt-in).
+- **Within-tier cost-aware routing** — the model registry now keeps a family's latest
+  *and* previous-generation model both `current`, and `Router` can pick the cheaper one
+  under moderate (80-99%) budget pressure instead of only ever picking the newest model
+  or, at 100%+, collapsing the whole request to the `fast` tier. Every switch is recorded
+  in `route()`'s `reason` string — never silent. `resolve_model()` and `fallback_models()`
+  updated for consistency.
+- **Dashboard auth + RBAC** — the dashboard's Flask app now defaults to binding
+  `127.0.0.1` instead of `0.0.0.0` (fixes an accidental LAN-exposure bug affecting every
+  prior solo-dev user by default). New `dashboard/auth.py` (hashed-credential `Identity`
+  lookup, never stores a plaintext credential) gates every `/api/*` route behind a
+  viewer/admin role check, opt-in and fully backward-compatible
+  (`require_auth` defaults `False`). A non-loopback bind now refuses to start
+  (`SystemExit`) unless `config/dashboard_auth.yaml` is configured — team/enterprise
+  access is opt-in, never silent.
+
+### Fixed
+- Config/policy review found and fixed two real issues before merge: a disjoint
+  `policy.yaml` `extends:` child/parent tier list could silently collapse to "allow every
+  tier" (the opposite of tighten-only) — now rejected with a clear error instead; audit
+  sink forwarding ran inside the cross-process audit-log file lock, reintroducing the
+  lock-contention shape of a prior hash-chain race incident — moved outside the lock.
+
 ## [1.3.0] — Governance/FinOps hardening: effort axis, response cap, skill audit
 
 ### Added
