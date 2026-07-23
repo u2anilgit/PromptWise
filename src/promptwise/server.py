@@ -475,6 +475,18 @@ async def _handle_run_autonomous(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(r)
 
 
+class BudgetExceededError(Exception):
+    """Raised by monitor_budget only when BudgetGuardian is in opt-in
+    "block" mode and spend has crossed the hard limit. call_tool's generic
+    exception handler turns this into an error-typed JSON response carrying
+    the full BudgetStatus so callers can distinguish a real hard block from
+    an ordinary tool failure."""
+
+    def __init__(self, status):
+        self.status = status
+        super().__init__(f"budget hard limit exceeded: {status.used_usd} >= {status.limit_usd}")
+
+
 # ── Budget & Cost ────────────────────────────────────────────────────
 @tool(name="monitor_budget", description="Check spend against budget limit",
          schema={"type": "object", "properties": {
@@ -485,9 +497,21 @@ async def _handle_monitor_budget(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.budget.check(used_usd=float(arguments.get("used_usd", 0)), days_elapsed=int(arguments.get("days_elapsed", 1)),
                          project_id=arguments.get("project_id"), tool_cost_usd=float(arguments.get("tool_cost_usd", 0) or 0))
     _maybe_alert_budget(r)
+    if r.blocked:
+        # Opt-in hard-blocking mode only (BudgetGuardian.mode == "block", set via
+        # set_budget_limit(..., mode="block")). Surfacing an error-typed
+        # response (rather than just alert_level="hard_stop" in an ordinary
+        # payload) is what makes this a real hard block callers must handle,
+        # not a warning that's easy to ignore. Mirrors call_tool's own
+        # exception -> error-JSON convention (see BudgetExceededError) so a
+        # direct handler call and a call_tool-routed call look identical.
+        err = BudgetExceededError(r)
+        return json.dumps({"error": str(err), "type": type(err).__name__, "tool": "monitor_budget",
+                           "blocked": True, "used_usd": r.used_usd, "limit_usd": r.limit_usd})
     return json.dumps({"used_usd": r.used_usd, "limit_usd": r.limit_usd, "pct_used": r.pct_used,
                        "daily_burn_usd": r.daily_burn_usd, "projected_monthly_usd": r.projected_monthly_usd,
-                       "alert_level": r.alert_level, "project_id": r.project_id, "cost_breakdown": r.cost_breakdown})
+                       "alert_level": r.alert_level, "project_id": r.project_id, "cost_breakdown": r.cost_breakdown,
+                       "blocked": r.blocked})
 
 
 @tool(name="predict_cost", description="Estimate cost of a prompt before sending",
@@ -497,11 +521,17 @@ async def _handle_predict_cost(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(r)
 
 
-@tool(name="set_budget_limit", description="Set monthly or daily spending limit",
-         schema={"type": "object", "properties": {"limit_usd": {"type": "number"}, "period": {"type": "string", "enum": ["daily", "monthly"], "default": "monthly"}}, "required": ["limit_usd"]})
+@tool(name="set_budget_limit", description="Set monthly or daily spending limit; optionally switch the guardian between advisory (default) and opt-in hard-blocking enforcement",
+         schema={"type": "object", "properties": {
+             "limit_usd": {"type": "number"}, "period": {"type": "string", "enum": ["daily", "monthly"], "default": "monthly"},
+             "mode": {"type": "string", "enum": ["advise", "block"], "description": "advise (default) never blocks; block hard-stops monitor_budget once spend crosses the limit. Opt-in only."}},
+         "required": ["limit_usd"]})
 async def _handle_set_budget_limit(ctx: ServerContext, arguments: dict) -> str:
     ctx.budget.set_limit(float(arguments.get("limit_usd", 0)), period=arguments.get("period", "monthly"))
-    return json.dumps({"status": "ok", "limit_usd": arguments.get("limit_usd"), "period": arguments.get("period", "monthly")})
+    if "mode" in arguments:
+        ctx.budget.set_mode(arguments["mode"])
+    return json.dumps({"status": "ok", "limit_usd": arguments.get("limit_usd"),
+                       "period": arguments.get("period", "monthly"), "mode": ctx.budget.mode})
 
 
 @tool(name="get_budget_status", description="Check current spend vs configured budget limits",

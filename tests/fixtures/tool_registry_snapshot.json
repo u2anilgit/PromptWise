@@ -696,7 +696,7 @@
   },
   {
     "name": "set_budget_limit",
-    "description": "Set monthly or daily spending limit",
+    "description": "Set monthly or daily spending limit; optionally switch the guardian between advisory (default) and opt-in hard-blocking enforcement",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -710,6 +710,14 @@
             "monthly"
           ],
           "default": "monthly"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "advise",
+            "block"
+          ],
+          "description": "advise (default) never blocks; block hard-stops monitor_budget once spend crosses the limit. Opt-in only."
         }
       },
       "required": [
