@@ -38,9 +38,14 @@ models:
     price: { input_per_mtok: 15.0, output_per_mtok: 75.0, cache_write_per_mtok: 18.75, cache_hit_per_mtok: 1.50 }
   - alias: claude-opus-4-7
     family: claude-opus
-    status: deprecated
+    status: current
     release_date: "2026-01-15"
     price: { input_per_mtok: 15.0, output_per_mtok: 75.0, cache_write_per_mtok: 18.75, cache_hit_per_mtok: 1.50 }
+  - alias: claude-sonnet-5
+    family: claude-sonnet
+    status: current
+    release_date: "2026-05-01"
+    price: { input_per_mtok: 3.0, output_per_mtok: 15.0, cache_write_per_mtok: 3.75, cache_hit_per_mtok: 0.30 }
   - alias: claude-sonnet-4-6
     family: claude-sonnet
     status: current

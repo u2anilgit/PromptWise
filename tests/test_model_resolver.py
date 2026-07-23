@@ -95,10 +95,15 @@ def test_router_fast_tier_resolves_current():
     assert res.recommended_model == "claude-haiku-4-5-20251001"
 
 
-def test_router_alternatives_exclude_deprecated():
-    r = Router()
-    res = r.route("write a function", intent="code", stakes="high", provider="claude")
-    assert "claude-opus-4-7" not in res.alternatives  # deprecated never offered
+def test_router_alternatives_exclude_deprecated(tmp_path):
+    reg = _registry(tmp_path)
+    r = Router(registry=reg)
+    res = r.route("write a function", intent="code", stakes="high", provider="testco")
+    assert "x-0" not in res.alternatives  # deprecated never offered
+    assert "x-1" in res.alternatives  # a second current model in the same
+    # family/tier IS offered as an alternative -- the registry intentionally
+    # keeps the previous-gen model "current" alongside the newest one so
+    # routing/cost-optimization can pick among active models, not just latest
 
 
 def test_router_cost_uses_registry_price_for_new_model():
