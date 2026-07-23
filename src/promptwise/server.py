@@ -21,7 +21,7 @@ from promptwise.core import (
 from promptwise.security import SecurityScanner, ComplianceEngine
 from promptwise.plugins import BudgetGuardian, CodeValidator, CostMonitor, ROITracker
 from promptwise.db import init_db, SessionManager, MemoryManager
-from promptwise.core.tool_registry import ServerContext, ToolRegistry, _registry  # noqa: F401 (ToolRegistry: tests/test_tool_registry_decorator.py imports it from here)
+from promptwise.core.tool_registry import ServerContext, ToolRegistry, _registry, _get_audit_log  # noqa: F401 (ToolRegistry: tests/test_tool_registry_decorator.py imports it from here; _get_audit_log: back-compat re-export, canonical copy lives in tool_registry.py)
 
 
 async def list_tools() -> list[Tool]:

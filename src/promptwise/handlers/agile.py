@@ -59,7 +59,7 @@ async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(res.to_dict())
 
 
-@tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons",
+@tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons. The policy file may optionally set extends: <parent-path> for org->team->project inheritance -- a child can only tighten (narrow allowed tiers, add bans/gates, lower the budget cap), never loosen a parent's policy. Single-tier files with no extends key behave exactly as before.",
          schema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}}})
 async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.policy import Policy
@@ -89,12 +89,16 @@ async def _handle_record_audit(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="export_audit", description="Export the full AI-change audit trail (portable JSON + human-readable text) with hash-chain verification status",
-         schema={"type": "object", "properties": {"format": {"type": "string", "enum": ["json", "text", "both"], "default": "both"}}})
+         schema={"type": "object", "properties": {"format": {"type": "string", "enum": ["json", "text", "both", "otlp"], "default": "both", "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceSpans payload (one span per audit record) instead of json/text"}}})
 async def _handle_export_audit(ctx: ServerContext, arguments: dict) -> str:
     audit = _get_audit_log()
     ok, msg = audit.verify()
     fmt = arguments.get("format", "both")
     out = {"chain_ok": ok, "chain_msg": msg, "record_count": len(audit.records)}
+    if fmt == "otlp":
+        from promptwise.core.otel_exporter import audit_records_to_otlp_spans
+        out["otlp"] = audit_records_to_otlp_spans(json.loads(audit.export_json()))
+        return json.dumps(out)
     if fmt in ("json", "both"):
         out["json"] = json.loads(audit.export_json())
     if fmt in ("text", "both"):

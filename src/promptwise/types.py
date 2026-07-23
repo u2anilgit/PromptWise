@@ -158,6 +158,7 @@ class BudgetStatus:
     alert_level: str
     project_id: str | None = None
     cost_breakdown: dict[str, float] | None = None
+    blocked: bool = False
 
 
 @dataclass(frozen=True)

@@ -696,7 +696,7 @@
   },
   {
     "name": "set_budget_limit",
-    "description": "Set monthly or daily spending limit",
+    "description": "Set monthly or daily spending limit; optionally switch the guardian between advisory (default) and opt-in hard-blocking enforcement",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -710,6 +710,14 @@
             "monthly"
           ],
           "default": "monthly"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "advise",
+            "block"
+          ],
+          "description": "advise (default) never blocks; block hard-stops monitor_budget once spend crosses the limit. Opt-in only."
         }
       },
       "required": [
@@ -833,7 +841,12 @@
         },
         "format": {
           "type": "string",
-          "default": "json"
+          "enum": [
+            "json",
+            "otlp"
+          ],
+          "default": "json",
+          "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceMetrics payload instead of the plain report"
         }
       }
     }
@@ -1572,7 +1585,7 @@
   },
   {
     "name": "check_policy",
-    "description": "Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons",
+    "description": "Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons. The policy file may optionally set extends: <parent-path> for org->team->project inheritance -- a child can only tighten (narrow allowed tiers, add bans/gates, lower the budget cap), never loosen a parent's policy. Single-tier files with no extends key behave exactly as before.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1662,9 +1675,11 @@
           "enum": [
             "json",
             "text",
-            "both"
+            "both",
+            "otlp"
           ],
-          "default": "both"
+          "default": "both",
+          "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceSpans payload (one span per audit record) instead of json/text"
         }
       }
     }

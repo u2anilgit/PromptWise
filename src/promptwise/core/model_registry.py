@@ -152,6 +152,19 @@ class ModelRegistry:
         m = self._by_alias.get(alias)
         return self._tier_of(m) if m else ""
 
+    def provider_of(self, alias: str) -> str:
+        """Public: the provider (e.g. "claude") of a concrete alias, resolving
+        the family default when the model row omits its own. ``""`` when the
+        alias is unknown, mirroring ``tier_of``'s fail-open contract."""
+        m = self._by_alias.get(alias)
+        return self._provider_of(m) if m else ""
+
+    def release_date_of(self, alias: str) -> str:
+        """Public: the recorded ``release_date`` of a concrete alias, or
+        ``""`` when unknown/unrecorded -- never fabricated."""
+        m = self._by_alias.get(alias)
+        return str(m.get("release_date", "")) if m else ""
+
     def price(self, alias: str) -> dict | None:
         """Point-in-time unit price for a specific model (snapshot source)."""
         m = self._by_alias.get(alias)

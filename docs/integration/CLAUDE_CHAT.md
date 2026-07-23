@@ -220,6 +220,6 @@ Check available models at https://console.anthropic.com/docs/api/models
 
 ## Learn More
 
-- [Multi-Platform Guide](./MULTI_PLATFORM.md)
+- [Multi-Platform Guide](./PORTABILITY.md)
 - [PromptWise Skills](../skills/SKILL.md)
 - [Anthropic API Docs](https://docs.anthropic.com)

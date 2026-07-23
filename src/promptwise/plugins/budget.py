@@ -67,9 +67,13 @@ _FAMILY_TIER = {"haiku": "fast", "sonnet": "balanced", "opus": "powerful"}
 _TIER_LABELS = {"fast": "haiku", "balanced": "sonnet", "powerful": "opus"}
 
 
+_VALID_MODES = {"advise", "block"}
+
+
 class BudgetGuardian:
     def __init__(self, limit_usd: float | None = None, team_budget_usd: float = 100.0,
-                 config: "AppConfig | None" = None, registry: "ModelRegistry | None" = None):
+                 config: "AppConfig | None" = None, registry: "ModelRegistry | None" = None,
+                 mode: str = "advise"):
         # ``limit_usd is None`` marks "caller relied on the default" -> read the
         # governor overlay (closing the loop) and fall back to _DEFAULT_LIMIT_USD.
         # An explicit ``limit_usd=X`` still wins, preserving existing callers.
@@ -79,6 +83,11 @@ class BudgetGuardian:
         self._limits: dict[str, float] = {"monthly": limit}
         self._current_spend = 0.0
         self._daily_burn = 0.0
+        # Advisory-by-default (project identity): hard-blocking is opt-in only,
+        # via set_mode("block") / set_budget_limit(..., mode="block").
+        if mode not in _VALID_MODES:
+            raise ValueError(f"mode must be one of {sorted(_VALID_MODES)}, got {mode!r}")
+        self.mode = mode
         # Pricing source for predict_cost: registry first (the live source
         # core/router.py already reads), config second, RateSpec defaults last --
         # same fallback chain as Router._input_rate, so the two engines can never
@@ -108,9 +117,11 @@ class BudgetGuardian:
             alert = "ok"
 
         breakdown = {"llm_usd": round(used_usd, 6), "tool_usd": round(tool_cost_usd, 6)} if tool_cost_usd else None
+        blocked = alert == "hard_stop" and self.mode == "block"
         return BudgetStatus(used_usd=round(total, 4), limit_usd=self.limit_usd, pct_used=pct,
                             daily_burn_usd=daily_burn, projected_monthly_usd=projected,
-                            alert_level=alert, project_id=project_id, cost_breakdown=breakdown)
+                            alert_level=alert, project_id=project_id, cost_breakdown=breakdown,
+                            blocked=blocked)
 
     def _resolve_alias(self, model: str) -> str:
         """Accept either a concrete alias or a bare family/tier word (haiku/sonnet/
@@ -154,6 +165,14 @@ class BudgetGuardian:
         self._limits[period] = limit_usd
         if period == "monthly":
             self.limit_usd = limit_usd
+
+    def set_mode(self, mode: str) -> None:
+        """Switch between advisory (default) and opt-in hard-blocking budget
+        enforcement. Never called implicitly -- a caller must explicitly ask
+        for "block" (advisory-by-default is a stated project identity)."""
+        if mode not in _VALID_MODES:
+            raise ValueError(f"mode must be one of {sorted(_VALID_MODES)}, got {mode!r}")
+        self.mode = mode
 
     def get_budget_status(self, current_spend_usd: float | None = None,
                            daily_burn_usd: float | None = None) -> dict:

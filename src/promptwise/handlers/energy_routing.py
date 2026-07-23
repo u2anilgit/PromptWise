@@ -69,6 +69,7 @@ async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.security_log import SecurityScanStore
     from promptwise.handlers.security import _maybe_alert_security
+    from promptwise.security.framework_map import build_report_card
     text = " ".join(arguments.get("targets", []))
     sec = ctx.security.check(text)
     owasp = ctx.security.check_owasp(text)
@@ -93,6 +94,7 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
                        "owasp": owasp,
                        "injection": {"detected": inj_detected, "confidence": round(inj_confidence, 2), "patterns_found": inj_patterns},
                        "pii": {"found": len(pii_items) > 0, "items": pii_items},
+                       "compliance_report_card": build_report_card(sec.violations),
                        "status": "completed"})
 
 

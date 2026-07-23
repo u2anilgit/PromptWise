@@ -65,11 +65,12 @@ def test_run_security_suite_aggregates_all_checks_and_persists(tmp_path, monkeyp
         "targets": [_CASES["rt-injection-attack"].input_text,
                     _CASES["rt-pii-attack"].input_text,
                     _CASES["rt-owasp-attack"].input_text]}))
-    assert set(out) == {"security", "owasp", "injection", "pii", "status"}
+    assert set(out) == {"security", "owasp", "injection", "pii", "compliance_report_card", "status"}
     assert out["injection"]["detected"] is True
     assert out["pii"]["found"] is True
     assert out["owasp"]
     assert out["status"] == "completed"
+    assert "LLM01:2025 Prompt Injection" in out["compliance_report_card"]["owasp_llm_top10"]
 
     rows = security_log.SecurityScanStore(tmp_path / "sec.db").results()
     assert len(rows) == 1
