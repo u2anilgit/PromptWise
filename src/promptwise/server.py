@@ -1043,7 +1043,7 @@ async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(res.to_dict())
 
 
-@tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons",
+@tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons. The policy file may optionally set extends: <parent-path> for org->team->project inheritance -- a child can only tighten (narrow allowed tiers, add bans/gates, lower the budget cap), never loosen a parent's policy. Single-tier files with no extends key behave exactly as before.",
          schema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}}})
 async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.policy import Policy
