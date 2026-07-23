@@ -149,6 +149,52 @@ def test_pressure_pct_is_the_higher_of_the_two_signals():
     assert pct == 90.0
 
 
+def test_route_below_80pct_pressure_picks_newest_unchanged(tmp_path):
+    reg = _registry(tmp_path)
+    r = Router(registry=reg)
+    res = r.route("Design a critical production security architecture", intent="analysis",
+                  stakes="high", provider="testco",
+                  monthly_budget_usd=100.0, days_elapsed_in_month=30, provider_spend_usd=10.0)
+    # projected = 10/30*30 = 10 -> 10% pressure, well under 80
+    assert res.recommended_model == "x-2"
+    assert "cost pressure" not in res.reason
+
+
+def test_route_80_to_99pct_pressure_picks_cheaper_same_tier(tmp_path):
+    reg = _registry(tmp_path)
+    r = Router(registry=reg)
+    res = r.route("Design a critical production security architecture", intent="analysis",
+                  stakes="high", provider="testco",
+                  monthly_budget_usd=100.0, days_elapsed_in_month=30, provider_spend_usd=90.0)
+    # projected = 90/30*30 = 90 -> 90% pressure, in [80, 100)
+    assert res.recommended_model == "x-1"  # cheaper current model in the same "powerful" tier
+    assert "cost pressure" in res.reason
+    assert "90.0%" in res.reason
+    assert res.monthly_budget_capped is False  # still under the 100% hard cap
+
+
+def test_route_100pct_pressure_still_hard_collapses_to_fast(tmp_path):
+    reg = _registry(tmp_path)
+    r = Router(registry=reg)
+    res = r.route("Design a critical production security architecture", intent="analysis",
+                  stakes="high", provider="testco",
+                  monthly_budget_usd=100.0, days_elapsed_in_month=30, provider_spend_usd=100.0)
+    # projected = 100/30*30 = 100 -> 100% pressure -- unchanged existing hard-cap behavior
+    assert res.monthly_budget_capped is True
+    # fam-x only has a "powerful" tier, so the fast-tier fallback resolves via
+    # config default rather than the registry -- what matters here is that the
+    # staged 80-99% swap did NOT override the existing hard collapse.
+    assert res.recommended_model != "x-1"
+    assert res.recommended_model != "x-2"
+
+
+def test_route_no_budget_params_never_triggers_cost_switch():
+    r = Router()
+    res = r.route("Design a critical production security architecture",
+                  intent="analysis", stakes="high", provider="claude")
+    assert "cost pressure" not in res.reason
+
+
 def test_router_cost_uses_registry_price_for_new_model():
     r = Router()
     res = r.route("Design a critical production security architecture",

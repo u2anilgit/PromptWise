@@ -168,6 +168,25 @@ class Router:
                 tier = "fast"
 
         recommended = self._resolve_current(tier, provider)
+
+        # Staged cost-pressure escalation: below 80% pressure, unchanged
+        # behavior (newest current model). At 80-99% pressure -- moderate,
+        # but under the existing 100% hard cap above -- prefer the cheapest
+        # still-current model in the SAME tier over the newest one, instead
+        # of jumping tiers. 100%+ is handled entirely by provider_capped/
+        # monthly_capped above (tier already forced to "fast"); this check
+        # never overrides that.
+        pressure = self._pressure_pct(
+            cap=cap, provider_spend_usd=provider_spend_usd,
+            monthly_budget_usd=monthly_budget_usd, days_elapsed_in_month=days_elapsed_in_month)
+        cost_switched = False
+        if not provider_capped and not monthly_capped and 80 <= pressure < 100:
+            cheaper = self._cheapest_current(tier, provider)
+            if cheaper and cheaper != recommended:
+                cost_switched = True
+                previous = recommended
+                recommended = cheaper
+
         input_tokens = max(1, len(text) // 4)
         in_rate, ctx_window = self._input_rate(recommended)
         cost = input_tokens * in_rate / 1_000_000
@@ -183,6 +202,9 @@ class Router:
             reason += (f" | projected monthly spend at current pace "
                        f"(${projected_monthly:.2f}) >= monthly_budget_usd (${monthly_budget_usd:.2f}) "
                        f"-- rerouted to fast tier")
+        if cost_switched:
+            reason += (f" | cost pressure {pressure:.1f}% >= 80% -- switched to {recommended} "
+                       f"(cheaper active {tier}-tier model) over {previous}")
 
         return RouteResult(
             recommended_model=recommended,
