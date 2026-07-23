@@ -116,6 +116,40 @@ def test_api_executive_budget_used_equals_net_savings_cost_basis(tmp_path):
     assert body["budget"]["used_usd"] == 7.5
 
 
+def test_api_executive_reports_governance_data_when_cost_is_zero(tmp_path, monkeypatch):
+    """Regression guard for a previously-fixed bug: governance_summary() was
+    once gated on total_cost_usd > 0, silently hiding real audit data whenever
+    the cost window had zero spend. Governance activity and LLM spend are
+    independent -- audit records can exist with zero cost in the window."""
+    monkeypatch.chdir(tmp_path)
+    state_dir = tmp_path / ".promptwise"
+    state_dir.mkdir()
+    (state_dir / "audit.jsonl").write_text(
+        '{"task": "some task", "other": "field"}\n', encoding="utf-8")
+
+    db_path = str(tmp_path / "mem.db")
+    mm = asyncio.run(_memory_manager(db_path))
+    app = create_web_app(memory_manager=mm)
+    r = app.test_client().get("/api/executive")
+    body = r.get_json()
+
+    assert r.status_code == 200
+    assert body["budget"]["used_usd"] == 0.0
+    assert body["governance"]["audit_records"] >= 1
+
+
+def test_api_executive_archive_window_not_truncated_to_90_days(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db_path = str(tmp_path / "mem.db")
+    mm = asyncio.run(_memory_manager(db_path))
+    app = create_web_app(memory_manager=mm)
+    r = app.test_client().get("/api/executive?days=365")
+    body = r.get_json()
+
+    assert r.status_code == 200
+    assert body["window_days"] == 365
+
+
 def test_index_page_has_two_tab_buttons():
     app = create_web_app()
     r = app.test_client().get("/")

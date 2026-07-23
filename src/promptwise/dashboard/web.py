@@ -373,7 +373,8 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
         rather than raising (same fail-soft posture as /api/dashboard)."""
         from promptwise.dashboard import retention as R
         raw = str(request.args.get("days", R.DEFAULT_WINDOW))
-        days = R.clamp_window(raw, raw=True)
+        is_archive = int(raw) > R.HOT_MAX_DAYS if raw.isdigit() else False
+        days = R.clamp_window(raw, raw=not is_archive)
         now = R.utc_now_iso()
         cutoff = R.window_cutoff(days, now)
 
