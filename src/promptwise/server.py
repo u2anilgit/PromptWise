@@ -1254,20 +1254,10 @@ _add_handler_module("skill_optimization")
 _add_handler_module("compliance_export")
 
 
-# ── Scheduled org/compliance report export (Phase 16) ────────────────
-@tool(name="export_org_report", description="Build a periodic summary (spend, security-scan verdicts, governance/governor actions) for a stakeholder who doesn't touch a CLI. Markdown or self-contained HTML; no PDF dependency. Pass out_path to write it; omit to just return the report data. Offline; no network.",
-         schema={"type": "object", "properties": {
-             "window_days": {"type": "integer", "default": 30, "minimum": 1, "maximum": 365},
-             "format": {"type": "string", "enum": ["markdown", "html"], "default": "markdown"},
-             "out_path": {"type": "string", "description": "optional path to write the report"},
-             "repo_root": {"type": "string", "default": "."}}})
-async def _handle_export_org_report(ctx: ServerContext, arguments: dict) -> str:
-    from promptwise.core.report_export import export_report
-    return json.dumps(export_report(
-        repo_root=arguments.get("repo_root", "."),
-        window_days=int(arguments.get("window_days", 30)),
-        out_path=arguments.get("out_path"),
-        fmt=arguments.get("format", "markdown")))
+# export_org_report (handlers.scheduled_export) originally sat right here,
+# between export_compliance_bundle and run_governor -- register it at this
+# position to preserve tool registration order.
+_add_handler_module("scheduled_export")
 
 
 # ── Autonomous governor (Phase 9) ────────────────────────────────────
@@ -1389,6 +1379,7 @@ def sync_main() -> None:
 from promptwise.handlers.code_validation import _handle_validate_output  # noqa: F401
 from promptwise.handlers.skill_optimization import _handle_optimize_skill_pack  # noqa: F401
 from promptwise.handlers.compliance_export import _handle_export_compliance_bundle  # noqa: F401
+from promptwise.handlers.scheduled_export import _handle_export_org_report  # noqa: F401
 
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
