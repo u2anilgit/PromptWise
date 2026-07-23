@@ -93,11 +93,26 @@ class AuditRecord:
 class AuditLog:
     """Append-only hash chain. In-memory by default; pass a path for JSONL persistence."""
 
-    def __init__(self, path: str | Path | None = None):
+    def __init__(self, path: str | Path | None = None, sinks: list | None = None):
         self.path = Path(path) if path else None
         self.records: list[AuditRecord] = []
+        # Optional, opt-in SIEM-streamable side channels (webhook/syslog --
+        # see audit_sinks.py). The JSONL file above stays the default sink
+        # and the source of truth; a sink failure here must never break the
+        # chain or raise out of append() (see _forward_to_sinks).
+        self.sinks = list(sinks) if sinks else []
         if self.path and self.path.exists():
             self._load()
+
+    def _forward_to_sinks(self, rec: AuditRecord) -> None:
+        if not self.sinks:
+            return
+        payload = asdict(rec)
+        for sink in self.sinks:
+            try:
+                sink.send(payload)
+            except Exception:
+                pass  # a broken/unreachable sink must never break the chain
 
     def _load(self) -> None:
         if not self.path:
@@ -145,6 +160,7 @@ class AuditLog:
                 )
                 self.records.append(rec)
                 self._persist(rec)
+                self._forward_to_sinks(rec)
                 return rec
         rec = self._build_record(
             task, actor=actor, agent=agent, model=model, cost_usd=cost_usd,
@@ -152,6 +168,7 @@ class AuditLog:
             compliance_decision=compliance_decision, files_touched=files_touched,
         )
         self.records.append(rec)
+        self._forward_to_sinks(rec)
         return rec
 
     def _build_record(

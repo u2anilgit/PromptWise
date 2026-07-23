@@ -120,12 +120,19 @@ _AUDIT_LOG = None
 
 
 def _get_audit_log():
-    """Lazy, process-wide hash-chained audit log persisted at the repo root."""
+    """Lazy, process-wide hash-chained audit log persisted at the repo root.
+
+    The JSONL file is always the sink and the source of truth. If
+    config/audit_sinks.yaml exists it is loaded as additional, opt-in
+    SIEM-streamable sinks (webhook/syslog); its absence (the default) means
+    zero behavior change from before Task 9."""
     global _AUDIT_LOG
     if _AUDIT_LOG is None:
         from promptwise.core.audit_log import AuditLog
+        from promptwise.core.audit_sinks import load_sinks_from_config
         repo_root = Path(__file__).resolve().parents[2]
-        _AUDIT_LOG = AuditLog(repo_root / "promptwise_audit.jsonl")
+        sinks = load_sinks_from_config(repo_root / "config" / "audit_sinks.yaml")
+        _AUDIT_LOG = AuditLog(repo_root / "promptwise_audit.jsonl", sinks=sinks)
     return _AUDIT_LOG
 
 
