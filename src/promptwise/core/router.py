@@ -86,6 +86,41 @@ class Router:
                 seen.append(m)
         return seen or [self.config.default_model]
 
+    def _cheapest_current(self, tier: str, provider: str = "claude") -> str | None:
+        """The lowest input_per_mtok alias among `tier`'s *current* models.
+        None when the registry isn't loaded or has nothing current for that
+        tier. Not filtered by `provider` beyond what `all_current(tier)`
+        already returns -- matches `_current_models()`'s existing scope;
+        `provider` is accepted for call-site symmetry with `_tier_model` and
+        for when the registry gains multi-provider rows."""
+        if not self.registry.loaded:
+            return None
+        candidates = self.registry.all_current(tier)
+        if not candidates:
+            return None
+        priced = [(a, self.registry.price(a)) for a in candidates]
+        priced = [(a, p) for a, p in priced if p and p.get("input_per_mtok") is not None]
+        if not priced:
+            return None
+        priced.sort(key=lambda ap: ap[1]["input_per_mtok"])
+        return priced[0][0]
+
+    def _pressure_pct(self, *, cap: float | None, provider_spend_usd: float | None,
+                       monthly_budget_usd: float | None, days_elapsed_in_month: int | None) -> float:
+        """0-100. The higher of (provider_spend_usd / cap) and the monthly
+        pace projection (provider_spend_usd / days_elapsed_in_month * 30) /
+        monthly_budget_usd, expressed as a percentage. 0.0 when neither
+        signal has all its inputs supplied -- fail-open, matching route()'s
+        existing provider_capped/monthly_capped conventions."""
+        pct = 0.0
+        if cap is not None and cap > 0 and provider_spend_usd is not None:
+            pct = max(pct, provider_spend_usd / cap * 100)
+        if (monthly_budget_usd is not None and monthly_budget_usd > 0
+                and days_elapsed_in_month and provider_spend_usd is not None):
+            projected = provider_spend_usd / max(days_elapsed_in_month, 1) * 30
+            pct = max(pct, projected / monthly_budget_usd * 100)
+        return pct
+
     def _input_rate(self, model_alias: str) -> tuple[float, int]:
         """(input_per_mtok, context_window) for a model — registry price first
         (the live source), then config pricing, then defaults."""

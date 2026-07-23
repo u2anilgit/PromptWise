@@ -106,6 +106,49 @@ def test_router_alternatives_exclude_deprecated(tmp_path):
     # routing/cost-optimization can pick among active models, not just latest
 
 
+def test_cheapest_current_picks_lowest_price_among_current(tmp_path):
+    reg = _registry(tmp_path)
+    r = Router(registry=reg)
+    assert r._cheapest_current("powerful", "testco") == "x-1"  # 8.0 < 10.0, x-0 is deprecated
+
+
+def test_cheapest_current_none_when_tier_empty(tmp_path):
+    reg = _registry(tmp_path)
+    r = Router(registry=reg)
+    assert r._cheapest_current("fast", "testco") is None  # fam-x is powerful-only
+
+
+def test_pressure_pct_zero_when_no_signals_supplied():
+    r = Router()
+    pct = r._pressure_pct(cap=None, provider_spend_usd=None,
+                           monthly_budget_usd=None, days_elapsed_in_month=None)
+    assert pct == 0.0
+
+
+def test_pressure_pct_from_provider_cap():
+    r = Router()
+    pct = r._pressure_pct(cap=50.0, provider_spend_usd=40.0,
+                           monthly_budget_usd=None, days_elapsed_in_month=None)
+    assert pct == 80.0
+
+
+def test_pressure_pct_from_monthly_pace():
+    r = Router()
+    # projected = 90 / 30 * 30 = 90; 90 / 100 * 100 = 90.0
+    pct = r._pressure_pct(cap=None, provider_spend_usd=90.0,
+                           monthly_budget_usd=100.0, days_elapsed_in_month=30)
+    assert pct == 90.0
+
+
+def test_pressure_pct_is_the_higher_of_the_two_signals():
+    r = Router()
+    # provider cap pressure: 90/200*100 = 45.0; monthly pace pressure:
+    # (90/30*30)/100*100 = 90.0 -- the higher one (monthly pace) wins
+    pct = r._pressure_pct(cap=200.0, provider_spend_usd=90.0,
+                           monthly_budget_usd=100.0, days_elapsed_in_month=30)
+    assert pct == 90.0
+
+
 def test_router_cost_uses_registry_price_for_new_model():
     r = Router()
     res = r.route("Design a critical production security architecture",
