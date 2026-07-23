@@ -110,6 +110,29 @@ def test_quality_gate_dispatch():
     assert json.loads(out)["decision"] == "FAIL"
 
 
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_generate_ed25519_keypair_tool():
+    from promptwise.handlers.compliance_export import _handle_generate_ed25519_keypair
+    result = json.loads(await _handle_generate_ed25519_keypair(_CTX, {}))
+    assert set(result) == {"private_key", "public_key"}
+    assert len(bytes.fromhex(result["private_key"])) == 32
+    assert len(bytes.fromhex(result["public_key"])) == 32
+
+
+@pytest.mark.asyncio
+async def test_export_compliance_bundle_tool_sign_alg_ed25519(monkeypatch):
+    from promptwise.core.compliance_export import generate_ed25519_keypair, ENV_KEY_ED25519
+    from promptwise.handlers.compliance_export import _handle_export_compliance_bundle
+    pair = generate_ed25519_keypair()
+    monkeypatch.setenv(ENV_KEY_ED25519, pair["private_key"])
+    result = json.loads(await _handle_export_compliance_bundle(_CTX, {"sign_alg": "ed25519"}))
+    assert result["signed"] is True
+    assert result["signature"]["alg"] == "Ed25519"
+
+
 def test_sync_agent_config_dispatch(tmp_path):
     out = asyncio.run(s.call_tool(_CTX, "sync_agent_config",
                                   {"project": "acme", "policy_summary": ["Budget $5/day"],
