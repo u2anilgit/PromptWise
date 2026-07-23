@@ -1,0 +1,20 @@
+"""handlers.code_validation -- code-validation MCP tool handler (moved
+verbatim from server.py's "Code Validation" section during the handlers/
+package split; see
+docs/superpowers/specs/2026-07-22-handlers-package-split-design.md)."""
+from __future__ import annotations
+
+import json
+
+from promptwise.core.tool_registry import (
+    ServerContext, tool, _record_route_verdict, _record_effort_verdict,
+)
+
+
+@tool(name="validate_output", description="Validate generated code for syntax errors and hallucinated imports",
+         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"}, "effort_id": {"type": "string", "description": "Optional: effort_id from a prior route_request; folds this verdict back onto that effort decision's learning outcome"}}, "required": ["code"]})
+async def _handle_validate_output(ctx: ServerContext, arguments: dict) -> str:
+    r = ctx.code_validator.validate(arguments.get("code", ""), language=arguments.get("language", "python"))
+    _record_route_verdict(arguments.get("route_id"), r.valid)  # WP8.1 loop close (fail-open)
+    _record_effort_verdict(arguments.get("effort_id"), r.valid)  # effort-axis loop close (fail-open)
+    return json.dumps({"valid": r.valid, "issues": r.issues, "confidence": r.confidence, "checks_run": r.checks_run, "suggested_fix": r.suggested_fix})

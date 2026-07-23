@@ -9,6 +9,7 @@ import json
 import typing
 
 import promptwise.server as s
+import promptwise.core.tool_registry as tr
 from promptwise.core.audit_log import AuditLog
 
 
@@ -57,7 +58,7 @@ def test_invoke_skill_logs_cost_and_audit(monkeypatch, tmp_path):
 
     ctx = typing.cast(s.ServerContext, _FakeCtx())
     audit_path = tmp_path / "audit.jsonl"
-    monkeypatch.setattr(s, "_get_audit_log", lambda: AuditLog(audit_path))
+    monkeypatch.setattr(tr, "_get_audit_log", lambda: AuditLog(audit_path))
 
     out = asyncio.run(s._handle_invoke_skill(ctx, {"skill_name": "demo-skill"}))
 
@@ -76,7 +77,7 @@ def test_skill_chain_logs_cost_and_audit_per_skill(monkeypatch, tmp_path):
 
     ctx = typing.cast(s.ServerContext, _FakeCtx())
     audit_path = tmp_path / "audit.jsonl"
-    monkeypatch.setattr(s, "_get_audit_log", lambda: AuditLog(audit_path))
+    monkeypatch.setattr(tr, "_get_audit_log", lambda: AuditLog(audit_path))
 
     asyncio.run(s._handle_skill_chain(ctx, {"skills": ["demo-skill", "demo-skill-2"]}))
 
@@ -94,7 +95,7 @@ def test_failed_skill_execution_does_not_log_cost(monkeypatch, tmp_path):
         memory = _FakeMemory()
 
     ctx = typing.cast(s.ServerContext, _FakeCtx())
-    monkeypatch.setattr(s, "_get_audit_log", lambda: AuditLog(tmp_path / "audit.jsonl"))
+    monkeypatch.setattr(tr, "_get_audit_log", lambda: AuditLog(tmp_path / "audit.jsonl"))
 
     asyncio.run(s._handle_invoke_skill(ctx, {"skill_name": "demo-skill"}))
     assert ctx.memory.calls == []
@@ -117,7 +118,7 @@ def test_skill_chain_mixed_success_and_failure_logs_only_success(monkeypatch, tm
 
     ctx = typing.cast(s.ServerContext, _FakeCtx())
     audit_path = tmp_path / "audit.jsonl"
-    monkeypatch.setattr(s, "_get_audit_log", lambda: AuditLog(audit_path))
+    monkeypatch.setattr(tr, "_get_audit_log", lambda: AuditLog(audit_path))
 
     asyncio.run(s._handle_skill_chain(ctx, {"skills": ["demo-skill", "bad-skill"]}))
 
@@ -141,7 +142,7 @@ def test_record_skill_execution_is_fail_open_when_record_cost_raises(monkeypatch
 
     ctx = typing.cast(s.ServerContext, _FakeCtx())
     audit_path = tmp_path / "audit.jsonl"
-    monkeypatch.setattr(s, "_get_audit_log", lambda: AuditLog(audit_path))
+    monkeypatch.setattr(tr, "_get_audit_log", lambda: AuditLog(audit_path))
 
     out = asyncio.run(s._handle_invoke_skill(ctx, {"skill_name": "demo-skill"}))
 
