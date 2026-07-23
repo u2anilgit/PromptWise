@@ -1248,20 +1248,10 @@ async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
 _add_handler_module("skill_optimization")
 
 
-# ── Compliance evidence export (Phase 7) ─────────────────────────────
-@tool(name="export_compliance_bundle", description="Build a self-verifying, HMAC-signed compliance evidence bundle from the hash-chained audit trail: verifies the chain, wraps records in a manifest (time range, count, chain-head digest), signs with a local key, and can write a .zip. Offline; no network.",
-         schema={"type": "object", "properties": {
-             "sign": {"type": "boolean", "default": True, "description": "HMAC-sign the bundle with the local key (env PROMPTWISE_AUDIT_KEY or PROMPTWISE_AUDIT_KEY_FILE)"},
-             "control_families": {"type": "array", "items": {"type": "string"}, "description": "generic control-family tags; inferred from the trace when omitted"},
-             "out_path": {"type": "string", "description": "optional path to write a .zip evidence archive"}}})
-async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) -> str:
-    from promptwise.core.compliance_export import export_bundle
-    audit = _get_audit_log()
-    records = json.loads(audit.export_json())
-    return json.dumps(export_bundle(
-        records, sign=arguments.get("sign", True),
-        control_families=arguments.get("control_families"),
-        out_path=arguments.get("out_path")))
+# export_compliance_bundle (handlers.compliance_export) originally sat right
+# here, between rank_context/optimize_skill_pack and export_org_report --
+# register it at this position to preserve tool registration order.
+_add_handler_module("compliance_export")
 
 
 # ── Scheduled org/compliance report export (Phase 16) ────────────────
@@ -1398,6 +1388,7 @@ def sync_main() -> None:
 #    server._handle_* directly; each move task adds its handlers here) --
 from promptwise.handlers.code_validation import _handle_validate_output  # noqa: F401
 from promptwise.handlers.skill_optimization import _handle_optimize_skill_pack  # noqa: F401
+from promptwise.handlers.compliance_export import _handle_export_compliance_bundle  # noqa: F401
 
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
