@@ -598,7 +598,7 @@ async def _handle_get_roi_report(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="cost_report", description="Get cost breakdown by project/period",
-         schema={"type": "object", "properties": {"project_id": {"type": "string"}, "period": {"type": "string", "default": "weekly"}, "format": {"type": "string", "default": "json"}}})
+         schema={"type": "object", "properties": {"project_id": {"type": "string"}, "period": {"type": "string", "default": "weekly"}, "format": {"type": "string", "enum": ["json", "otlp"], "default": "json", "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceMetrics payload instead of the plain report"}}})
 async def _handle_cost_report(ctx: ServerContext, arguments: dict) -> str:
     stats = await ctx.memory.get_roi_stats(period=arguments.get("period", "weekly"))
     pid = arguments.get("project_id")
@@ -610,8 +610,12 @@ async def _handle_cost_report(ctx: ServerContext, arguments: dict) -> str:
         by_skill.setdefault(sk, {"cost_usd": 0.0, "calls": 0})
         by_skill[sk]["cost_usd"] += s.get("cost_usd", 0.0)
         by_skill[sk]["calls"] += 1
-    return json.dumps({"period": arguments.get("period", "weekly"), "project_id": pid,
-                       "total_cost_usd": round(sum(v["cost_usd"] for v in by_skill.values()), 6), "by_skill": by_skill})
+    report = {"period": arguments.get("period", "weekly"), "project_id": pid,
+             "total_cost_usd": round(sum(v["cost_usd"] for v in by_skill.values()), 6), "by_skill": by_skill}
+    if arguments.get("format") == "otlp":
+        from promptwise.core.otel_exporter import cost_report_to_otlp_metrics
+        return json.dumps(cost_report_to_otlp_metrics(report))
+    return json.dumps(report)
 
 
 # ── Memory & Session ─────────────────────────────────────────────────
@@ -1069,12 +1073,16 @@ async def _handle_record_audit(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="export_audit", description="Export the full AI-change audit trail (portable JSON + human-readable text) with hash-chain verification status",
-         schema={"type": "object", "properties": {"format": {"type": "string", "enum": ["json", "text", "both"], "default": "both"}}})
+         schema={"type": "object", "properties": {"format": {"type": "string", "enum": ["json", "text", "both", "otlp"], "default": "both", "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceSpans payload (one span per audit record) instead of json/text"}}})
 async def _handle_export_audit(ctx: ServerContext, arguments: dict) -> str:
     audit = _get_audit_log()
     ok, msg = audit.verify()
     fmt = arguments.get("format", "both")
     out = {"chain_ok": ok, "chain_msg": msg, "record_count": len(audit.records)}
+    if fmt == "otlp":
+        from promptwise.core.otel_exporter import audit_records_to_otlp_spans
+        out["otlp"] = audit_records_to_otlp_spans(json.loads(audit.export_json()))
+        return json.dumps(out)
     if fmt in ("json", "both"):
         out["json"] = json.loads(audit.export_json())
     if fmt in ("text", "both"):

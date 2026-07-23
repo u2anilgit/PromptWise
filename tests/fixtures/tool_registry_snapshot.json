@@ -837,7 +837,12 @@
         },
         "format": {
           "type": "string",
-          "default": "json"
+          "enum": [
+            "json",
+            "otlp"
+          ],
+          "default": "json",
+          "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceMetrics payload instead of the plain report"
         }
       }
     }
@@ -1662,9 +1667,11 @@
           "enum": [
             "json",
             "text",
-            "both"
+            "both",
+            "otlp"
           ],
-          "default": "both"
+          "default": "both",
+          "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceSpans payload (one span per audit record) instead of json/text"
         }
       }
     }
