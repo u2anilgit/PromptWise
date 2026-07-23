@@ -36,6 +36,17 @@ def _merge_tighten(parent: "Policy", child: "Policy") -> "Policy":
     """
     if child.allowed_model_tiers and parent.allowed_model_tiers:
         allowed = [t for t in child.allowed_model_tiers if t in set(parent.allowed_model_tiers)]
+        if not allowed:
+            # An empty allowed_model_tiers means "no restriction" elsewhere in
+            # this dataclass, so a disjoint child/parent intersection must
+            # never collapse to that value here -- it would silently loosen
+            # the merged policy to "allow every tier", the opposite of
+            # tighten-only. Reject the config instead of guessing.
+            raise ValueError(
+                "policy extends: child allowed_model_tiers "
+                f"{child.allowed_model_tiers} share no tiers with parent's "
+                f"{parent.allowed_model_tiers} -- child must narrow the "
+                "parent's list, not replace it with an unrelated one")
     else:
         allowed = child.allowed_model_tiers or parent.allowed_model_tiers
 

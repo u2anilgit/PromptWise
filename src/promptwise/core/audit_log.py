@@ -160,8 +160,12 @@ class AuditLog:
                 )
                 self.records.append(rec)
                 self._persist(rec)
-                self._forward_to_sinks(rec)
-                return rec
+            # Outside the cross-process file lock: a slow/hanging sink (DNS
+            # stall, unreachable webhook) must never hold the lock other
+            # writers need, or it reintroduces the lock-contention shape of
+            # this project's prior hash-chain race incident.
+            self._forward_to_sinks(rec)
+            return rec
         rec = self._build_record(
             task, actor=actor, agent=agent, model=model, cost_usd=cost_usd,
             rules_applied=rules_applied, gate_decision=gate_decision,

@@ -76,6 +76,17 @@ def test_extends_path_resolves_relative_to_the_child_file(tmp_path):
     assert set(pol.banned_operations) == {"format_disk", "deploy_prod"}
 
 
+def test_disjoint_allowed_model_tiers_rejected_not_silently_unrestricted(tmp_path):
+    # allowed_model_tiers == [] means "no restriction" elsewhere in this
+    # dataclass, so a child/parent intersection that happens to be empty
+    # must never collapse to that value -- it would silently loosen the
+    # merged policy to "allow every tier", the opposite of tighten-only.
+    org = _write(tmp_path / "org.yaml", "allowed_model_tiers: [fast]\n")
+    _write(tmp_path / "project.yaml", f"extends: {org.name}\nallowed_model_tiers: [powerful]\n")
+    with pytest.raises(ValueError, match="allowed_model_tiers"):
+        Policy.from_yaml(tmp_path / "project.yaml")
+
+
 def test_cyclic_extends_raises_instead_of_infinite_recursion(tmp_path):
     a = tmp_path / "a.yaml"
     b = tmp_path / "b.yaml"
