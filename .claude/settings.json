@@ -1,12 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Write(src/*)",
-      "Write(**/*.py)",
-      "Write(.claude/*)",
-      "Write(tests/*)",
-      "Write(docs/*)",
-      "Write(docs_superpowers/*)"
+      "Edit(src/*)",
+      "Edit(**/*.py)",
+      "Edit(.claude/*)",
+      "Edit(tests/*)",
+      "Edit(docs/*)",
+      "Edit(docs_superpowers/*)"
     ]
   }
 }
