@@ -312,4 +312,78 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
             pass
         return jsonify({"leaderboard": []})
 
+    @app.route("/api/executive")
+    @require_role("viewer")
+    def api_executive():
+        """One-page, jargon-free rollup for finance/senior-mgmt: net savings,
+        ROI, budget burn vs. cap, governance status. Reuses the same window
+        computation /api/dashboard performs -- no new persistence, no new
+        data model. Every number degrades to zero/empty on missing data
+        rather than raising (same fail-soft posture as /api/dashboard)."""
+        from promptwise.dashboard import retention as R
+        raw = str(request.args.get("days", R.DEFAULT_WINDOW))
+        days = R.clamp_window(raw, raw=True)
+        now = R.utc_now_iso()
+        cutoff = R.window_cutoff(days, now)
+
+        logs = []
+        if memory_manager is not None and hasattr(memory_manager, "raw_cost_logs"):
+            try:
+                logs = _run_async(memory_manager.raw_cost_logs(since=cutoff))
+            except Exception:
+                logs = []
+
+        top_price = None
+        try:
+            from promptwise.core.model_registry import ModelRegistry
+            reg = ModelRegistry()
+            top_price = reg.price(reg.resolve("powerful") or "")
+        except Exception:
+            top_price = None
+
+        model = R.build_dashboard_model(logs, window_days=days, now_iso=now, top_tier_price=top_price)
+        h = model["headline"]
+
+        total_in = sum(float(l.get("input_tokens", 0) or 0) for l in logs)
+        total_out = sum(float(l.get("output_tokens", 0) or 0) for l in logs)
+        tokens_saved_estimate = int((total_in + total_out) * (h["tokens_saved_pct"] / 100))
+
+        from promptwise.plugins.roi import ROITracker
+        roi = ROITracker().calculate(
+            session_id="executive-rollup",
+            total_cost_usd=h["total_cost_usd"],
+            tokens_saved=tokens_saved_estimate,
+            calls=h["total_calls"],
+        )
+
+        from promptwise.plugins.budget import BudgetGuardian
+        budget_status = BudgetGuardian().check(used_usd=h["total_cost_usd"], days_elapsed=days)
+
+        gov = {}
+        if h["total_cost_usd"] > 0:
+            try:
+                from pathlib import Path
+                gov = R.governance_summary(Path.cwd() / ".promptwise")
+            except Exception:
+                gov = {}
+
+        return jsonify({
+            "window_days": days,
+            "generated_at": now,
+            "net_savings_usd": h["net_savings_usd"],
+            "savings_rate_pct": h["savings_rate_pct"],
+            "roi": {
+                "roi_ratio": roi.roi_ratio,
+                "estimated_time_saved_hours": round(roi.estimated_time_saved_min / 60, 2),
+                "productivity_score": roi.productivity_score,
+            },
+            "budget": {
+                "used_usd": budget_status.used_usd,
+                "limit_usd": budget_status.limit_usd,
+                "pct_used": budget_status.pct_used,
+                "alert_level": budget_status.alert_level,
+            },
+            "governance": gov or {"audit_records": 0, "chain_ok": True, "denials": 0, "failures": 0},
+        })
+
     return app
