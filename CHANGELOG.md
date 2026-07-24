@@ -4,6 +4,17 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## [1.5.0] — ADR / decision-memory log
+
+### Added
+- **`record_decision` / `query_decisions`** — a lightweight ADR (Architecture Decision
+  Record) log (`core/decision_store.py`, `handlers/decisions.py`), mirroring the
+  residual-risk register's pattern: sync sqlite via the shared `get_db_path()`
+  resolver, no approval workflow. `record_decision` captures title/context/decision/
+  consequences/tags; passing `supersedes=<id>` atomically marks an earlier decision
+  superseded and links it in the same call. `query_decisions` lists (filterable by
+  status/tag) or keyword-searches (case-insensitive, across all text fields) the log.
+
 ## [1.4.0] — Handlers package split, governance gap-closure, cost-aware routing, dashboard RBAC
 
 ### Added

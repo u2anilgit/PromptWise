@@ -2381,5 +2381,75 @@
         "action_id"
       ]
     }
+  },
+  {
+    "name": "record_decision",
+    "description": "Record an architectural decision (ADR-style): title, context (the situation/forces), decision (what was chosen), and optional consequences/tags. Pass supersedes=<id> to atomically mark an earlier decision as superseded and link it -- one call, no separate supersede step.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        },
+        "consequences": {
+          "type": "string",
+          "default": ""
+        },
+        "tags": {
+          "type": "string",
+          "default": "",
+          "description": "comma-joined free-form tags, e.g. 'routing,cost'"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "accepted",
+            "deprecated"
+          ],
+          "default": "accepted"
+        },
+        "supersedes": {
+          "type": "integer",
+          "description": "id of an earlier decision this one replaces"
+        }
+      },
+      "required": [
+        "title",
+        "context",
+        "decision"
+      ]
+    }
+  },
+  {
+    "name": "query_decisions",
+    "description": "Query the ADR/decision-memory log. Pass query for a case-insensitive keyword search across title/context/decision/consequences; otherwise lists decisions optionally filtered by status (proposed/accepted/superseded/deprecated) and/or tag (exact tag match, not substring). Newest first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "default": ""
+        },
+        "status": {
+          "type": "string",
+          "default": ""
+        },
+        "tag": {
+          "type": "string",
+          "default": ""
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20
+        }
+      }
+    }
   }
 ]

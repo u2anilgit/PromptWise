@@ -239,6 +239,11 @@ _add_handler_module("scheduled_export")
 _add_handler_module("governor")
 
 
+# record_decision/query_decisions (handlers.decisions) -- new ADR/
+# decision-memory category, no pre-split ordering to preserve.
+_add_handler_module("decisions")
+
+
 async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
     try:
         handler = _HANDLERS.get(name)
