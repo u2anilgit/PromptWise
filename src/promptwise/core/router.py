@@ -299,6 +299,13 @@ class Router:
             sections = ["method", "policy"]
         return EmissionPlan(intent=intent, sections=sections, targets=["codex"])
 
+    def detect_intent(self, text: str) -> str:
+        """Public: the same intent taxonomy (extract/classify/summarize/code/etc.)
+        route() keys its task_class on -- other outcome-learning axes (e.g.
+        core/technique_adapter.py) reuse this instead of inventing a separate
+        bucketing scheme."""
+        return self._detect_intent(text)
+
     def _detect_intent(self, text: str) -> str:
         t = text.lower()
         if any(kw in t for kw in ("extract", "parse", "pull", "get all")):

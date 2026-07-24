@@ -9,7 +9,7 @@ import json
 from promptwise.core.tool_registry import ServerContext, tool
 
 
-@tool(name="suggest_technique", description="Auto-detect best prompting technique: CRAFT, Few-Shot, Chain-of-Thought, or Chaining",
+@tool(name="suggest_technique", description="Auto-detect best prompting technique: CRAFT, Few-Shot, Chain-of-Thought, or Chaining. Blends the static heuristic pick with learned outcome history for this task class (fails open to the heuristic pick when history is thin). Returns technique_id -- pass it to validate_output/run_quality_gate's technique_id param so a later verdict teaches this decision.",
          schema={"type": "object", "properties": {"prompt": {"type": "string"}}, "required": ["prompt"]})
 async def _handle_suggest_technique(ctx: ServerContext, arguments: dict) -> str:
     prompt = arguments.get("prompt", "")
@@ -22,7 +22,21 @@ async def _handle_suggest_technique(ctx: ServerContext, arguments: dict) -> str:
         tech, conf, reason = "Chaining", 0.75, "Complex multi-sentence task"
     else:
         tech, conf, reason = "CRAFT", 0.80, "Short prompt; add Context/Role/Action/Format/Tone"
-    return json.dumps({"technique": tech, "confidence": conf, "rationale": reason})
+
+    technique_id = None
+    try:
+        from promptwise.core.technique_adapter import TechniqueAdapter
+        from promptwise.core.technique_recorder import record_technique_decision
+        task_class = ctx.router.detect_intent(prompt)
+        adapted, adapt_reason = TechniqueAdapter().adapt(task_class, tech)
+        if adapted != tech:
+            tech = adapted
+            reason = f"{reason} | adaptive: {adapt_reason}"
+        technique_id = record_technique_decision(task_class, tech)
+    except Exception:
+        pass  # fail-open: heuristic pick above stands unchanged
+
+    return json.dumps({"technique": tech, "confidence": conf, "rationale": reason, "technique_id": technique_id})
 
 
 @tool(name="apply_craft", description="Analyze prompt against CRAFT axes (Context/Role/Action/Format/Tone) and rebuild",

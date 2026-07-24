@@ -832,6 +832,10 @@
         "effort_id": {
           "type": "string",
           "description": "Optional: effort_id from a prior route_request; folds this verdict back onto that effort decision's learning outcome"
+        },
+        "technique_id": {
+          "type": "string",
+          "description": "Optional: technique_id from a prior suggest_technique; folds this verdict back onto that technique decision's learning outcome"
         }
       },
       "required": [
@@ -1071,7 +1075,7 @@
   },
   {
     "name": "suggest_technique",
-    "description": "Auto-detect best prompting technique: CRAFT, Few-Shot, Chain-of-Thought, or Chaining",
+    "description": "Auto-detect best prompting technique: CRAFT, Few-Shot, Chain-of-Thought, or Chaining. Blends the static heuristic pick with learned outcome history for this task class (fails open to the heuristic pick when history is thin). Returns technique_id -- pass it to validate_output/run_quality_gate's technique_id param so a later verdict teaches this decision.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1634,6 +1638,10 @@
         "effort_id": {
           "type": "string",
           "description": "Optional: effort_id from a prior route_request; folds this gate verdict back onto that effort decision's learning outcome"
+        },
+        "technique_id": {
+          "type": "string",
+          "description": "Optional: technique_id from a prior suggest_technique; folds this gate verdict back onto that technique decision's learning outcome"
         }
       },
       "required": [

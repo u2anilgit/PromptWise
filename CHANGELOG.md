@@ -4,6 +4,26 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## [1.8.0] — Broader self-learning coverage: technique outcome-learning
+
+### Added
+- **Prompting-technique outcome-learning** — `suggest_technique` (previously pure
+  keyword heuristic, zero memory) now blends its static CRAFT/Few-Shot/
+  Chain-of-Thought/Chaining pick with learned outcome history, a third
+  outcome-learning axis alongside model-tier (`adaptive_router.py`) and
+  reasoning-effort (`effort_adapter.py`). `core/technique_adapter.py`
+  (`TechniqueOutcomeStore`/`TechniqueAdapter`) is categorical rather than an
+  ordered ladder: it switches away from the static pick only when another
+  technique has strong, clearly-better evidence for the same task class
+  (`Router.detect_intent()`, a new public wrapper reusing the existing intent
+  taxonomy). `core/technique_recorder.py` mirrors `effort_recorder.py`'s
+  bounded-correlation/env-gate (`PROMPTWISE_TECHNIQUE_RECORDING`) pattern.
+  `suggest_technique` returns `technique_id`; `validate_output`/
+  `run_quality_gate` gain an optional `technique_id` param (mirroring their
+  existing `route_id`/`effort_id`) to fold a later verdict back onto the
+  decision. Fully additive and fail-open -- thin history reproduces the
+  heuristic pick exactly.
+
 ## [1.7.0] — Advisory-only cross-provider cost comparison
 
 ### Added

@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 
 from promptwise.core.tool_registry import (
-    ServerContext, tool, _record_route_verdict, _record_effort_verdict, _get_audit_log,
+    ServerContext, tool, _record_route_verdict, _record_effort_verdict,
+    _record_technique_verdict, _get_audit_log,
 )
 
 
@@ -47,7 +48,7 @@ async def _handle_draft_story(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="run_quality_gate", description="Issue an advisory, auditable quality-gate decision (PASS/CONCERNS/FAIL/WAIVED) from findings, risk score, and NFR assessment",
-         schema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"}, "effort_id": {"type": "string", "description": "Optional: effort_id from a prior route_request; folds this gate verdict back onto that effort decision's learning outcome"}}, "required": ["story_id"]})
+         schema={"type": "object", "properties": {"story_id": {"type": "string"}, "findings": {"type": "array", "items": {"type": "object"}, "default": []}, "risk_score": {"type": "integer", "default": 0}, "nfr_assessment": {"type": "object", "default": {}}, "waiver_reason": {"type": "string", "default": ""}, "route_id": {"type": "string", "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"}, "effort_id": {"type": "string", "description": "Optional: effort_id from a prior route_request; folds this gate verdict back onto that effort decision's learning outcome"}, "technique_id": {"type": "string", "description": "Optional: technique_id from a prior suggest_technique; folds this gate verdict back onto that technique decision's learning outcome"}}, "required": ["story_id"]})
 async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.quality_gate import QualityGate
     res = QualityGate().evaluate(
@@ -56,6 +57,7 @@ async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
         arguments.get("waiver_reason", ""))
     _record_route_verdict(arguments.get("route_id"), res.decision)  # WP8.1 loop close (fail-open)
     _record_effort_verdict(arguments.get("effort_id"), res.decision)  # effort-axis loop close (fail-open)
+    _record_technique_verdict(arguments.get("technique_id"), res.decision)  # technique-axis loop close (fail-open)
     return json.dumps(res.to_dict())
 
 

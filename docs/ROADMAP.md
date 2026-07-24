@@ -276,7 +276,7 @@ Effort key: S = <1 day, M = 1-3 days, L = multi-day/needs its own spec.
 |---|---|---|---|
 | Per-project data scoping (`cost_logs` migration) | Makes the dashboard-auth `Identity.projects` field real — schema change + ~30 call sites | L | Not started |
 | Deepen `sync_agent_config`/`check_portability`/etc. across Cursor, Copilot, Windsurf | The real "one plugin, every coding agent" seed — biggest differentiator, not yet built out | L | Not started |
-| Broader self-learning coverage | Wider outcome-learning beyond current adaptive routing/effort-axis | M | Not started |
+| Broader self-learning coverage | `suggest_technique` gains a third outcome-learning axis (categorical, not a ladder — `core/technique_adapter.py`), mirroring the tier/effort pattern | M | **Done** (v1.8.0) |
 | Gap-closure P2 (remaining governance items) | 2 of the original 8 already landed via P1 (compliance report card, AI-BOM fields) — needs a fresh re-scope pass before sizing what's left | Needs re-audit | Not started |
 | ADR/decision-memory log | `record_decision`/`query_decisions`, mirrors the residual-risk register's pattern | S-M | **Done** (v1.5.0) |
 | Real static analysis wiring | `validate_output` gains opt-in `use_static_analysis` (ruff/eslint via subprocess, fail-open) | M | **Done** (v1.6.0) |

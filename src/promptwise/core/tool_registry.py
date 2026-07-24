@@ -122,6 +122,24 @@ def _record_effort_verdict(effort_id, signal) -> None:
         pass
 
 
+def _record_technique_verdict(technique_id, signal) -> None:
+    """Correlate a later quality verdict onto a prior live technique decision.
+
+    Mirrors ``_record_route_verdict``/``_record_effort_verdict`` exactly, over
+    the prompting-technique axis: any tool that produces a verdict for a
+    technique decision it was passed (``validate_output`` validity,
+    ``run_quality_gate`` decision) calls this with the ``technique_id``
+    returned by ``suggest_technique``. Fully fail-open -- never raises, never
+    affects the tool's own result."""
+    if not technique_id:
+        return
+    try:
+        from promptwise.core.technique_recorder import record_technique_verdict
+        record_technique_verdict(technique_id, signal)
+    except Exception:
+        pass
+
+
 def _resolve_effort(intent: str, stakes: str) -> str:
     """Reasoning-effort level for a route decision: static heuristic, blended
     with the learned outcome history when PROMPTWISE_ADAPTIVE_EFFORT is on
