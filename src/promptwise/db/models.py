@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from sqlalchemy import String, Float, Text, create_engine
+from sqlalchemy import String, Float, Text, create_engine, text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.future import select
@@ -299,7 +299,7 @@ class MemoryManager:
         async with self.async_session() as session:
             stmt = (select(PromptModel)
                     .where(PromptModel.name == name, PromptModel.version == version)
-                    .order_by(PromptModel.ts.desc()))
+                    .order_by(PromptModel.ts.desc(), text("rowid DESC")))
             row = (await session.execute(stmt)).scalars().first()
         if row is None:
             return None
