@@ -2286,6 +2286,51 @@
     }
   },
   {
+    "name": "grant_jit_permission",
+    "description": "Grant a time-boxed permission for a tool signature (e.g. 'Bash:git'), auto-expiring after ttl_minutes (default 60, max 480/8h). Independent of .mcp.json; enforced by the PreToolUse JIT guard hook, which allows while active and denies once expired.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "signature": {
+          "type": "string",
+          "description": "tool signature, e.g. 'Bash:git' or 'mcp__promptwise__run_governor'"
+        },
+        "ttl_minutes": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 480
+        }
+      },
+      "required": [
+        "signature"
+      ]
+    }
+  },
+  {
+    "name": "revoke_jit_permission",
+    "description": "Immediately revoke a time-boxed JIT permission grant for a tool signature, before its natural expiry.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "signature": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "signature"
+      ]
+    }
+  },
+  {
+    "name": "list_jit_permissions",
+    "description": "List all JIT permission grants (active and expired) with their expiry timestamps.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
     "name": "optimize_skill_pack",
     "description": "Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
     "inputSchema": {
