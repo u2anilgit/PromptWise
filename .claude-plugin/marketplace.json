@@ -9,9 +9,9 @@
   "plugins": [
     {
       "name": "promptwise",
-      "description": "The governance & intelligence layer for AI agents. One /promptwise hub skill routing to 76 MCP tools (routing, cost, security, compliance, responsible-AI, workflow planning, agile method + governance, runtime enforcement hooks, continuous learning loop, MCP supply-chain audit, searchable trace, diagrams, task tracking) and 81 portable skill packs. Works across Claude Code, Codex, Cursor, Gemini via MCP + SKILL.md + AGENTS.md.",
+      "description": "The governance & intelligence layer for AI agents. One /promptwise hub skill routing to 98 MCP tools (routing, cost, security, compliance, responsible-AI, workflow planning, agile method + governance, runtime enforcement hooks, continuous learning loop, MCP supply-chain audit, searchable trace, diagrams, task tracking) and 81 portable skill packs. Works across Claude Code, Codex, Cursor, Gemini via MCP + SKILL.md + AGENTS.md.",
       "source": "./",
-      "version": "1.2.0"
+      "version": "1.9.0"
     }
   ]
 }
