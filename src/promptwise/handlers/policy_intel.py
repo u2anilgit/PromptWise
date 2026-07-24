@@ -71,3 +71,35 @@ async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
         sources=tuple(sources), use_embeddings=arguments.get("use_embeddings", False),
         repo_root=arguments.get("repo_root", "."), audit_path=arguments.get("audit_path"),
         learning_db=arguments.get("learning_db")))
+
+
+@tool(name="grant_jit_permission", description="Grant a time-boxed permission for a tool signature (e.g. 'Bash:git'), auto-expiring after ttl_minutes (default 60, max 480/8h). Independent of .mcp.json; enforced by the PreToolUse JIT guard hook, which allows while active and denies once expired.",
+         schema={"type": "object", "properties": {
+             "signature": {"type": "string", "description": "tool signature, e.g. 'Bash:git' or 'mcp__promptwise__run_governor'"},
+             "ttl_minutes": {"type": "integer", "default": 60, "minimum": 1, "maximum": 480}},
+         "required": ["signature"]})
+async def _handle_grant_jit_permission(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.jit_permissions import JITPermissions
+    signature = arguments.get("signature", "")
+    ttl_minutes = arguments.get("ttl_minutes", 60)
+    rec = JITPermissions().grant(signature, ttl_minutes=ttl_minutes)
+    return json.dumps(rec)
+
+
+@tool(name="revoke_jit_permission", description="Immediately revoke a time-boxed JIT permission grant for a tool signature, before its natural expiry.",
+         schema={"type": "object", "properties": {
+             "signature": {"type": "string"}},
+         "required": ["signature"]})
+async def _handle_revoke_jit_permission(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.jit_permissions import JITPermissions
+    signature = arguments.get("signature", "")
+    JITPermissions().revoke(signature)
+    return json.dumps({"signature": signature, "revoked": True})
+
+
+@tool(name="list_jit_permissions", description="List all JIT permission grants (active and expired) with their expiry timestamps.",
+         schema={"type": "object", "properties": {}})
+async def _handle_list_jit_permissions(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.jit_permissions import JITPermissions
+    grants = JITPermissions().list_all()
+    return json.dumps({"grants": grants})

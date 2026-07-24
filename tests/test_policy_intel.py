@@ -130,3 +130,36 @@ def test_server_dispatch_phase4(tmp_path):
     out2 = json.loads(asyncio.run(__import__("promptwise.server", fromlist=["call_tool"]).call_tool(
         None, "audit_mcp_servers", {"repo_root": "."})))
     assert out2["server_count"] >= 1
+
+
+# ── JIT permissions (Task 2) ─────────────────────────────────────────────────
+def test_grant_jit_permission_returns_signature_and_expiry(monkeypatch, tmp_path):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    grant_handler = __import__("promptwise.handlers.policy_intel", fromlist=["_handle_grant_jit_permission"])._handle_grant_jit_permission
+    result = asyncio.run(grant_handler(None, {"signature": "Bash:git", "ttl_minutes": 60}))
+    body = json.loads(result)
+    assert body["signature"] == "Bash:git"
+    assert "expires_at" in body
+
+
+def test_list_jit_permissions_shows_active_grant(monkeypatch, tmp_path):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    grant_handler = __import__("promptwise.handlers.policy_intel", fromlist=["_handle_grant_jit_permission"])._handle_grant_jit_permission
+    list_handler = __import__("promptwise.handlers.policy_intel", fromlist=["_handle_list_jit_permissions"])._handle_list_jit_permissions
+    asyncio.run(grant_handler(None, {"signature": "Bash:git"}))
+    result = asyncio.run(list_handler(None, {}))
+    body = json.loads(result)
+    assert len(body["grants"]) == 1
+    assert body["grants"][0]["status"] == "active"
+
+
+def test_revoke_jit_permission_clears_the_grant(monkeypatch, tmp_path):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    grant_handler = __import__("promptwise.handlers.policy_intel", fromlist=["_handle_grant_jit_permission"])._handle_grant_jit_permission
+    revoke_handler = __import__("promptwise.handlers.policy_intel", fromlist=["_handle_revoke_jit_permission"])._handle_revoke_jit_permission
+    list_handler = __import__("promptwise.handlers.policy_intel", fromlist=["_handle_list_jit_permissions"])._handle_list_jit_permissions
+    asyncio.run(grant_handler(None, {"signature": "Bash:git"}))
+    asyncio.run(revoke_handler(None, {"signature": "Bash:git"}))
+    result = asyncio.run(list_handler(None, {}))
+    body = json.loads(result)
+    assert body["grants"] == []
