@@ -117,3 +117,19 @@ def test_has_record_true_after_grant(tmp_path):
     jp = JITPermissions(tmp_path / "jit.db")
     jp.grant("Bash:git", ttl_minutes=60)
     assert jp.has_record("Bash:git") is True
+
+
+def test_fmt_parse_round_trip_is_exact():
+    """Regression test for DST bug: _fmt and _parse must round-trip exactly.
+
+    Ensures that calendar.timegm is used instead of mktime + timezone
+    offset, which would incorrectly apply DST rules based on the host's
+    current DST state rather than the UTC nature of the timestamps.
+    """
+    from promptwise.core.jit_permissions import _fmt, _parse
+    import time as time_module
+
+    now = time_module.time()
+    # truncate to whole seconds since _fmt has 1-second resolution
+    now = float(int(now))
+    assert _parse(_fmt(now)) == now

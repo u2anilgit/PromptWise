@@ -1,4 +1,4 @@
-﻿"""jit_permissions -- time-boxed, tool-signature-scoped permission grants.
+"""jit_permissions -- time-boxed, tool-signature-scoped permission grants.
 
 A grant is temporary: "allow this tool for the next N minutes," then
 auto-reverts to normal prompting once the window lapses. Same small-sqlite-
@@ -14,6 +14,7 @@ permission_tuner._command_signature (e.g. "Bash:git",
 """
 from __future__ import annotations
 
+import calendar
 import sqlite3
 import time
 from pathlib import Path
@@ -42,7 +43,7 @@ def _fmt(ts: float) -> str:
 
 
 def _parse(ts: str) -> float:
-    return time.mktime(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")) - time.timezone
+    return calendar.timegm(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ"))
 
 
 class JITPermissions:
