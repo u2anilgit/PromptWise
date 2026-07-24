@@ -4,16 +4,22 @@ Single index over the phased roadmaps. Each phase has its own detailed doc
 (`docs/PHASE<N>_ROADMAP.md`). This file is the resume point: what is done, what is
 open, and where to pick up next.
 
-**Status as of 2026-07-22:** Phases 6–18 complete and merged to `main`, plus
-subsequent direct-commit debt sweeps (fabricated/double-counted stats fixes,
-VS Code panel stat-card formatting) bringing `main` to **623 Python tests**.
-An in-progress branch, `p0-p1-bugfix-effort-axis` (pushed to origin, not yet
-merged), is mid-flight on a governance/FinOps deep-dive: see "In progress"
-below. No planned finale — the series is open-ended and continues when new
-work is scoped. Only one older feature candidate remains: **D**
-(local-embeddings, needs dependency sign-off) — explicitly deferred/skipped
-by the user, pick up
-only if asked. See "Open items" below.
+**Status as of 2026-07-24:** Phases 6–18 complete and merged to `main`. The
+`p0-p1-bugfix-effort-axis` branch (was in-progress as of 2026-07-22) has since
+landed, plus a run of further direct-to-main features: handlers/ package split
+(90 tools out of `server.py` into 20 category files), governance gap-closure
+P0+P1 (9 of 17 items — config-linter hardening, MCP-auditor OWASP mapping,
+multi-framework compliance report card, opt-in hard-blocking budget mode,
+OTel exporter, AI-BOM fields, policy `extends:` inheritance, SIEM sinks),
+within-tier cost-aware routing, dashboard auth/RBAC, executive dashboard,
+SOC2/ISO42001/EU-AI-Act compliance mapping, Ed25519 compliance-bundle
+signing, residual-risk register, ADR/decision-memory log, real static-analysis
+wiring (`validate_output`), and advisory-only cross-provider cost comparison
+(`compare_providers`). `main` is at **795 Python tests**, package version
+`1.7.0`. No planned finale — the series is open-ended. See "Open items" below
+for what's left; only one older feature candidate remains fully parked: **D**
+(local-embeddings, needs dependency sign-off) — explicitly deferred/skipped by
+the user, pick up only if asked.
 
 Standing guardrails (all phases): local-first, air-gap-safe, no new infrastructure, no
 new pip dependencies, no branded/competitor model ids (tiers/families only), hooks &
@@ -262,6 +268,19 @@ starting at Task 7; progress ledger at
 ---
 
 ## Open items (resume here)
+
+### Next-roadmap backlog (from the 2026-07-23 vision review, 3 of 6 items shipped 2026-07-24)
+Effort key: S = <1 day, M = 1-3 days, L = multi-day/needs its own spec.
+
+| Task | Outcome | Effort | Status |
+|---|---|---|---|
+| Per-project data scoping (`cost_logs` migration) | Makes the dashboard-auth `Identity.projects` field real — schema change + ~30 call sites | L | Not started |
+| Deepen `sync_agent_config`/`check_portability`/etc. across Cursor, Copilot, Windsurf | The real "one plugin, every coding agent" seed — biggest differentiator, not yet built out | L | Not started |
+| Broader self-learning coverage | Wider outcome-learning beyond current adaptive routing/effort-axis | M | Not started |
+| Gap-closure P2 (remaining governance items) | 2 of the original 8 already landed via P1 (compliance report card, AI-BOM fields) — needs a fresh re-scope pass before sizing what's left | Needs re-audit | Not started |
+| ADR/decision-memory log | `record_decision`/`query_decisions`, mirrors the residual-risk register's pattern | S-M | **Done** (v1.5.0) |
+| Real static analysis wiring | `validate_output` gains opt-in `use_static_analysis` (ruff/eslint via subprocess, fail-open) | M | **Done** (v1.6.0) |
+| Advisory cross-provider routing | `compare_providers` now a real advisory comparison vs. OpenAI/Gemini reference pricing, structurally decoupled from actual routing | M | **Done** (v1.7.0) |
 
 ### Feature candidates
 The 2026-07-08 gap analysis (`docs/GAP_ANALYSIS_2026-07.md`) produced 8 ranked phase
