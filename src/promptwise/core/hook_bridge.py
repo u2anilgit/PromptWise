@@ -161,6 +161,22 @@ def userpromptsubmit_policy(payload: dict) -> HookDecision:
         except Exception:
             pass
 
+        # 3) auto skill-match: surface the best-matching skill_packs/ skill for
+        # this prompt automatically, every turn -- the same engine suggest_skill
+        # uses, just never previously wired to fire without an explicit tool
+        # call. Advisory only; never blocks, never changes routing.
+        try:
+            from promptwise.config import load_config
+            from promptwise.core.skill_loader import SkillLoader
+            config = load_config(_REPO_ROOT)
+            loader = SkillLoader(_REPO_ROOT / config.skills.directory)
+            loader.load_skills()
+            match = loader.match_skill(prompt)
+            if match:
+                notes.append(f"skill match: '{match.name}' — {match.description}")
+        except Exception:
+            pass
+
         if blocked:
             return HookDecision(action="block", event="UserPromptSubmit",
                                 reason="PromptWise policy: " + "; ".join(notes), extra={"notes": notes})

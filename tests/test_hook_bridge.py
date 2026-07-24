@@ -83,6 +83,31 @@ def test_userprompt_clean_allows(tmp_path):
     assert d.action == "allow"
 
 
+# ── UserPromptSubmit auto skill-match ────────────────────────────────────────
+def test_userprompt_matching_skill_surfaces_via_additional_context(tmp_path):
+    # "generate tests" is a real trigger on skill_packs/testing/test-generator.md.
+    d = hb.userpromptsubmit_policy(_payload(tmp_path, prompt="please generate tests for this module"))
+    assert d.action == "warn"
+    assert "skill match" in d.reason.lower()
+    assert "test-generator" in d.reason
+
+
+def test_userprompt_no_skill_match_still_allows(tmp_path):
+    d = hb.userpromptsubmit_policy(_payload(tmp_path, prompt="what time is it"))
+    assert d.action == "allow"
+
+
+def test_run_emits_additional_context_for_skill_match(tmp_path):
+    payload = _payload(tmp_path, prompt="please generate tests for this module")
+    stdin = io.StringIO(json.dumps(payload))
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    code = hb.run("userpromptsubmit_policy", stdin=stdin, stdout=stdout, stderr=stderr)
+    assert code == 0
+    out = json.loads(stdout.getvalue())
+    assert "skill match" in out["hookSpecificOutput"]["additionalContext"].lower()
+
+
 # ── Stop quality gate (advisory, never blocks) ───────────────────────────────
 def test_stop_quality_gate_never_blocks(tmp_path):
     hb.posttooluse_audit(_payload(tmp_path, tool_name="Write",

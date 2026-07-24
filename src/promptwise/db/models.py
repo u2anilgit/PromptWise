@@ -414,6 +414,35 @@ class MemoryManager:
                  "cost_usd": l.cost_usd, "saving_pct": l.saving_pct,
                  "lines": getattr(l, "lines", 0) or 0} for l in logs]
 
+    async def session_cost_report(self, since: str | None = None) -> list[dict]:
+        """Per-session cost rollup: group raw_cost_logs() by session_id.
+
+        Each process gets a real, distinct session_id (core/session_context.py's
+        CURRENT_SESSION_ID) as of the fix accompanying this method -- older rows
+        stamped session_id="default" simply collapse into one "default" bucket,
+        never backfilled."""
+        logs = await self.raw_cost_logs(since=since)
+        by_session: dict[str, dict] = {}
+        for l in logs:
+            sid = l["session_id"]
+            bucket = by_session.setdefault(sid, {
+                "session_id": sid, "calls": 0, "total_cost_usd": 0.0,
+                "total_input_tokens": 0.0, "total_output_tokens": 0.0,
+                "by_tool": {}, "first_ts": l["ts"], "last_ts": l["ts"],
+            })
+            bucket["calls"] += 1
+            bucket["total_cost_usd"] += l["cost_usd"]
+            bucket["total_input_tokens"] += l["input_tokens"]
+            bucket["total_output_tokens"] += l["output_tokens"]
+            bucket["by_tool"][l["tool"]] = bucket["by_tool"].get(l["tool"], 0) + 1
+            if l["ts"] < bucket["first_ts"]:
+                bucket["first_ts"] = l["ts"]
+            if l["ts"] > bucket["last_ts"]:
+                bucket["last_ts"] = l["ts"]
+        for bucket in by_session.values():
+            bucket["total_cost_usd"] = round(bucket["total_cost_usd"], 6)
+        return sorted(by_session.values(), key=lambda b: b["last_ts"], reverse=True)
+
     async def snapshot(self, since: str | None = None) -> dict:
         async with self.async_session() as session:
             stmt = select(CostLogModel)

@@ -4,6 +4,30 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## [1.9.0] — Session cost rollup, auto skill-match, device-scoped routing consent
+
+### Added
+- **Session-level cost rollup** — every `cost_logs` row previously hardcoded
+  `session_id="default"`, collapsing all spend into one bucket regardless of how
+  many real sessions ran. New `core/session_context.py` gives each MCP server
+  process (== one Claude Code session) a real, distinct `CURRENT_SESSION_ID`. New
+  `MemoryManager.session_cost_report()` groups `cost_logs` by session; new tool
+  `session_cost_report` (`current_session_only` defaults `true`) answers "what has
+  this session cost so far."
+- **Auto skill-match on every prompt** — `userpromptsubmit_policy` (the existing
+  `UserPromptSubmit` hook, already firing on every user message) now also runs
+  `suggest_skill`'s matching engine and surfaces a match via the same
+  `additionalContext` injection path already used for policy/injection warnings.
+  Purely additive to the existing hook function; fail-open like every other check
+  in it.
+- **Device-scoped routing consent** — `core/routing_consent.py`
+  (`check_routing_consent`/`grant_routing_consent` tools), mirroring
+  `security/risk_register.py`'s pattern: a small sqlite table in the same
+  `~/.promptwise/promptwise.db` every other device-scoped feature already uses.
+  Lets the assistant ask a routing question ("use Opus for this?") once per
+  device and remember the answer across all projects/sessions. Purely advisory
+  bookkeeping -- `Router.route()` itself is untouched and stays silent/automatic.
+
 ## [1.8.0] — Broader self-learning coverage: technique outcome-learning
 
 ### Added

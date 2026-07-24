@@ -5,7 +5,17 @@ from __future__ import annotations
 
 import json
 
+from promptwise.core.session_context import CURRENT_SESSION_ID
 from promptwise.core.tool_registry import ServerContext, tool
+
+
+@tool(name="session_cost_report", description="Per-session cost rollup: calls, cost, tokens, and tool breakdown grouped by session_id. Defaults to just the current session (current_session_only=true) -- 'what has this session cost so far'; set false to see the full multi-session breakdown. A process gets a real, distinct session_id at startup, so this is meaningful per Claude Code session, not one global bucket.",
+         schema={"type": "object", "properties": {"since": {"type": "string", "description": "ISO-8601 cutoff; omit for all history"}, "current_session_only": {"type": "boolean", "default": True}}})
+async def _handle_session_cost_report(ctx: ServerContext, arguments: dict) -> str:
+    rows = await ctx.memory.session_cost_report(since=arguments.get("since"))
+    if arguments.get("current_session_only", True):
+        rows = [r for r in rows if r["session_id"] == CURRENT_SESSION_ID]
+    return json.dumps({"current_session_id": CURRENT_SESSION_ID, "sessions": rows})
 
 
 @tool(name="track_roi", description="Calculate ROI ratio: value of time saved vs cost incurred",

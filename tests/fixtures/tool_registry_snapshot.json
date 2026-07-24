@@ -704,6 +704,32 @@
     }
   },
   {
+    "name": "check_routing_consent",
+    "description": "Check whether the assistant has device-scoped, ask-once consent for a routing question (e.g. key='opus' for 'use Opus for this?'). Device-scoped (~/.promptwise), not project-scoped -- persists across all projects on this machine. Purely advisory bookkeeping for the assistant's own behavior; has zero effect on Router.route()'s actual tier selection.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "default": "opus"
+        }
+      }
+    }
+  },
+  {
+    "name": "grant_routing_consent",
+    "description": "Record device-scoped, ask-once consent for a routing question (e.g. key='opus') so the assistant never asks again on this device. Call this after the user explicitly says yes. Purely advisory bookkeeping; has zero effect on Router.route()'s actual tier selection.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "default": "opus"
+        }
+      }
+    }
+  },
+  {
     "name": "monitor_budget",
     "description": "Check spend against budget limit",
     "inputSchema": {
@@ -841,6 +867,23 @@
       "required": [
         "code"
       ]
+    }
+  },
+  {
+    "name": "session_cost_report",
+    "description": "Per-session cost rollup: calls, cost, tokens, and tool breakdown grouped by session_id. Defaults to just the current session (current_session_only=true) -- 'what has this session cost so far'; set false to see the full multi-session breakdown. A process gets a real, distinct session_id at startup, so this is meaningful per Claude Code session, not one global bucket.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "since": {
+          "type": "string",
+          "description": "ISO-8601 cutoff; omit for all history"
+        },
+        "current_session_only": {
+          "type": "boolean",
+          "default": true
+        }
+      }
     }
   },
   {

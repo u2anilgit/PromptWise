@@ -168,8 +168,9 @@ async def _record_skill_execution(ctx: ServerContext, *, tool: str, skill_name: 
     if result.get("status") != "success":
         return
     try:
+        from promptwise.core.session_context import CURRENT_SESSION_ID
         await ctx.memory.record_cost(
-            tool=tool, session_id="default", model=result.get("model_used", ""),
+            tool=tool, session_id=CURRENT_SESSION_ID, model=result.get("model_used", ""),
             input_tokens=result.get("input_tokens", 0), output_tokens=result.get("output_tokens", 0),
             cost_usd=result.get("cost_usd", 0.0))
     except Exception:

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 
+from promptwise.core.session_context import CURRENT_SESSION_ID
 from promptwise.core.tool_registry import ServerContext, tool, _resolve_effort
 
 
@@ -22,7 +23,7 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
         stakes=arguments.get("stakes", "auto"), provider=arguments.get("provider", "claude"),
         monthly_budget_usd=arguments.get("monthly_budget_usd"), days_elapsed_in_month=arguments.get("days_elapsed_in_month"),
         provider_spend_usd=arguments.get("provider_spend_usd"))
-    await ctx.memory.record_cost(tool="route_request", session_id="default", model=r.recommended_model, cost_usd=r.estimated_input_cost_usd)
+    await ctx.memory.record_cost(tool="route_request", session_id=CURRENT_SESSION_ID, model=r.recommended_model, cost_usd=r.estimated_input_cost_usd)
     # Close the learning loop: record the decision as a neutral outcome row
     # (WP8.1). Fail-open — recording never changes or breaks the route.
     route_id = None
@@ -68,7 +69,7 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
          "required": ["text"]})
 async def _handle_rewrite_prompt(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.rewriter.rewrite(arguments.get("text", ""), role=arguments.get("role", "general"), model=arguments.get("model", "claude-sonnet-4-6"))
-    await ctx.memory.record_cost(tool="rewrite_prompt", session_id="default", model=arguments.get("model", "claude-sonnet-4-6"), input_tokens=r.raw_tokens, saving_pct=r.saving_pct)
+    await ctx.memory.record_cost(tool="rewrite_prompt", session_id=CURRENT_SESSION_ID, model=arguments.get("model", "claude-sonnet-4-6"), input_tokens=r.raw_tokens, saving_pct=r.saving_pct)
     return json.dumps({"rewritten": r.rewritten, "saving_pct": r.saving_pct, "warning": r.warning})
 
 

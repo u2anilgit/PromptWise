@@ -20,6 +20,24 @@ def _maybe_alert_budget(status) -> None:
         pass
 
 
+@tool(name="check_routing_consent", description="Check whether the assistant has device-scoped, ask-once consent for a routing question (e.g. key='opus' for 'use Opus for this?'). Device-scoped (~/.promptwise), not project-scoped -- persists across all projects on this machine. Purely advisory bookkeeping for the assistant's own behavior; has zero effect on Router.route()'s actual tier selection.",
+         schema={"type": "object", "properties": {"key": {"type": "string", "default": "opus"}}})
+async def _handle_check_routing_consent(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.routing_consent import RoutingConsent
+    key = arguments.get("key") or "opus"
+    granted = RoutingConsent().is_granted(key)
+    return json.dumps({"key": key, "granted": granted})
+
+
+@tool(name="grant_routing_consent", description="Record device-scoped, ask-once consent for a routing question (e.g. key='opus') so the assistant never asks again on this device. Call this after the user explicitly says yes. Purely advisory bookkeeping; has zero effect on Router.route()'s actual tier selection.",
+         schema={"type": "object", "properties": {"key": {"type": "string", "default": "opus"}}})
+async def _handle_grant_routing_consent(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.routing_consent import RoutingConsent
+    key = arguments.get("key") or "opus"
+    RoutingConsent().grant(key)
+    return json.dumps({"key": key, "granted": True})
+
+
 class BudgetExceededError(Exception):
     """Raised by monitor_budget only when BudgetGuardian is in opt-in
     "block" mode and spend has crossed the hard limit. Surfaced as an
