@@ -290,7 +290,7 @@ class MemoryManager:
         async with self.async_session() as session:
             stmt = (select(PromptModel)
                     .where(PromptModel.name.contains(query) | PromptModel.description.contains(query))
-                    .order_by(PromptModel.ts.desc()))
+                    .order_by(PromptModel.ts.desc(), text("rowid DESC")))
             result = await session.execute(stmt)
             prompts = result.scalars().all()
         return [{"name": p.name, "content": p.content, "version": p.version, "description": p.description, "tags": json.loads(p.tags)} for p in prompts]
