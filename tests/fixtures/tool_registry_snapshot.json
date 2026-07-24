@@ -1318,6 +1318,25 @@
     }
   },
   {
+    "name": "rollback_prompt",
+    "description": "Roll a named prompt back to an earlier version's content by writing it as a new, current registry entry -- existing history rows are never mutated or deleted",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    }
+  },
+  {
     "name": "get_session_stats",
     "description": "Get session usage statistics",
     "inputSchema": {

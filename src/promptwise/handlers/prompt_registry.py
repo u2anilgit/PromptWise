@@ -39,3 +39,15 @@ async def _handle_compare_prompts(ctx: ServerContext, arguments: dict) -> str:
     diff = "".join(difflib.unified_diff(pa["content"].splitlines(keepends=True), pb["content"].splitlines(keepends=True),
                                          fromfile=f"{name_val}@{va}", tofile=f"{name_val}@{vb}")) or "(no difference)"
     return json.dumps({"version_a": va, "version_b": vb, "token_delta": len(pb["content"])//4 - len(pa["content"])//4, "diff": diff})
+
+
+@tool(name="rollback_prompt", description="Roll a named prompt back to an earlier version's content by writing it as a new, current registry entry -- existing history rows are never mutated or deleted",
+         schema={"type": "object", "properties": {"name": {"type": "string"}, "version": {"type": "string"}}, "required": ["name", "version"]})
+async def _handle_rollback_prompt(ctx: ServerContext, arguments: dict) -> str:
+    name_val = arguments.get("name", "")
+    version_val = arguments.get("version", "")
+    result = await ctx.memory.rollback_prompt(name_val, version_val)
+    if result is None:
+        return json.dumps({"error": f"Version {version_val} of '{name_val}' not found"})
+    return json.dumps({"status": "rolled_back", "name": name_val, "restored_version": version_val,
+                        "restored_from_prompt_id": result["source_prompt_id"], "new_prompt_id": result["new_prompt_id"]})
