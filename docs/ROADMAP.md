@@ -277,10 +277,35 @@ Effort key: S = <1 day, M = 1-3 days, L = multi-day/needs its own spec.
 | Per-project data scoping (`cost_logs` migration) | Makes the dashboard-auth `Identity.projects` field real — schema change + ~30 call sites | L | Not started |
 | Deepen `sync_agent_config`/`check_portability`/etc. across Cursor, Copilot, Windsurf | The real "one plugin, every coding agent" seed — biggest differentiator, not yet built out | L | Not started |
 | Broader self-learning coverage | `suggest_technique` gains a third outcome-learning axis (categorical, not a ladder — `core/technique_adapter.py`), mirroring the tier/effort pattern | M | **Done** (v1.8.0) |
-| Gap-closure P2 (remaining governance items) | 2 of the original 8 already landed via P1 (compliance report card, AI-BOM fields) — needs a fresh re-scope pass before sizing what's left | Needs re-audit | Not started |
+| Gap-closure P2 (remaining governance items) | Re-scoped 2026-07-24 — see breakdown table below | Split, see below | Re-scoped |
 | ADR/decision-memory log | `record_decision`/`query_decisions`, mirrors the residual-risk register's pattern | S-M | **Done** (v1.5.0) |
 | Real static analysis wiring | `validate_output` gains opt-in `use_static_analysis` (ruff/eslint via subprocess, fail-open) | M | **Done** (v1.6.0) |
 | Advisory cross-provider routing | `compare_providers` now a real advisory comparison vs. OpenAI/Gemini reference pricing, structurally decoupled from actual routing | M | **Done** (v1.7.0) |
+
+### Gap-closure P2 re-scope (2026-07-24)
+Original 8 items from `docs/superpowers/plans/2026-07-16-governance-gap-closure.md`
+(gitignored), re-audited against the current codebase — 4 months of subsequent work
+(handlers split, gap-closure P0+P1, ADR tool, static analysis, technique
+outcome-learning, etc.) had already overtaken parts of this table. Checked each item
+by reading the actual current code, not by assuming the original estimate still holds.
+
+| # | Original item | Current status | Verdict |
+|---|---|---|---|
+| 10 | Reversible compression + cross-agent shared memory dedup | Not started | **Fold into candidate D** (local-embeddings, `docs/GAP_ANALYSIS_2026-07.md`) — same architecture, same new-dependency sign-off blocker. Don't track as a separate P2 item; it's the same decision. |
+| 11 | Session-level (multi-call workflow) cost rollup | `task_report` exists but only aggregates *all* tasks globally — no `session_id` grouping, confirmed by reading `TaskTracker.report()`. `cost_logs` already has a `session_id` column (`db/models.py`), so this is additive, not a schema change. | **Still open, ~3h holds up.** Real gap, genuinely S-M. |
+| 12 | Prompt version rollback + replay against captured traces | Not started — confirmed no rollback/version-history code in `save_prompt`/`compare_prompts`/prompt registry. | **Still open, ~4h holds up.** |
+| 13 | JIT/time-boxed scoped MCP permissions | Not started — `permission_tuner.py` has no expiry/TTL field. | **Still open, ~5h holds up.** |
+| 14 | Injection-detection corpus refresh workflow (offline, human-reviewed — not a live ML classifier) | Not started — `injection_benchmark.py` benchmarks against a fixed corpus but has no refresh workflow. | **Still open, ~8h holds up.** |
+| 15 | Streaming/partial-output validation with auto-fix | Not started. | **Recommend deprioritize/drop.** Real static-analysis wiring (v1.6.0, `use_static_analysis` on `validate_output`) already covers most of the same ground more simply (real linter output vs. a mid-stream architecture shift); the original plan itself flagged "confirm worth the complexity" before committing effort. |
+| 16 | Broaden `sync_agent_config` host coverage: Aider, Goose, OpenHands, Grok CLI | Not started — `config_emitter.py`'s `TARGETS` dict still has the same 8 hosts. | **Fold into the "deepen agent-sync" backlog item above** (Cursor/Copilot/Windsurf) rather than tracking separately — same file, same mechanical pattern, one task not two. |
+| 17 | Live in-session command interception, extending PreToolUse hooks | **Largely already done**, just not by this plan — `hooks/pretooluse_bash_guard.py` (denies destructive shell commands), `hooks/pretooluse_secret_scan.py`, and `hooks/tool_call_budget.py` (per-session tool-call ceiling) all exist and fail-open. | **Re-scope to a gap-fill audit, not a 6h build.** Check what the original gap analysis specifically wanted that these three hooks don't already cover before sizing anything. |
+
+**Net result: of the original 8, 2 fold into existing backlog items (10→D, 16→agent-sync
+deepening), 1 is already substantially done (17, needs only a small gap-fill audit), 1
+should be dropped/deprioritized (15), leaving 3 genuinely independent, still-open items:
+#11 (session cost rollup, S-M), #12 (prompt rollback/replay, M), #13 (JIT scoped
+permissions, M).** Brainstorm each independently at kickoff — no shared code between
+them.
 
 ### Feature candidates
 The 2026-07-08 gap analysis (`docs/GAP_ANALYSIS_2026-07.md`) produced 8 ranked phase
