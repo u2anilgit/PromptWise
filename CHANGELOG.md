@@ -4,6 +4,18 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## [1.6.0] — Real static analysis wiring
+
+### Added
+- **`validate_output` `use_static_analysis` opt-in** — `CodeValidator.validate()` can
+  now run a real linter (`core/static_analysis.py`: `ruff` for python, `eslint` for
+  javascript/typescript) via subprocess, in addition to the existing heuristic syntax/
+  import/hallucinated-API checks. Off by default (zero behavior change for existing
+  callers); fail-open if the binary isn't on PATH or the run times out (never blocks
+  or breaks the heuristic checks). Code under analysis is written to a temp file and
+  passed as a list argument, never through a shell, so it cannot be a shell-injection
+  vector. No new pyproject dependency -- both tools are PATH-resolved, opt-in externals.
+
 ## [1.5.0] — ADR / decision-memory log
 
 ### Added

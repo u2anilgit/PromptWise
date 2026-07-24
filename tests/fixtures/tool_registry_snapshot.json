@@ -806,7 +806,7 @@
   },
   {
     "name": "validate_output",
-    "description": "Validate generated code for syntax errors and hallucinated imports",
+    "description": "Validate generated code for syntax errors and hallucinated imports. Set use_static_analysis=true to also run a real linter (ruff for python, eslint for javascript/typescript) if installed on PATH -- opt-in, fail-open (silently skipped if the tool isn't available, never blocks the heuristic checks).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -816,6 +816,10 @@
         "language": {
           "type": "string",
           "default": "python"
+        },
+        "use_static_analysis": {
+          "type": "boolean",
+          "default": false
         },
         "route_id": {
           "type": "string",

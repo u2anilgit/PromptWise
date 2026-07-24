@@ -15,7 +15,7 @@ _KNOWN_THIRD = {"flask", "fastapi", "requests", "httpx", "pydantic", "sqlalchemy
 
 
 class CodeValidator:
-    def validate(self, code: str, language: str = "python") -> ValidationResult:
+    def validate(self, code: str, language: str = "python", use_static_analysis: bool = False) -> ValidationResult:
         if not code.strip():
             return ValidationResult(valid=True, issues=[], confidence=1.0, checks_run=["syntax", "imports", "api_patterns"])
 
@@ -39,6 +39,13 @@ class CodeValidator:
         for pat in _HALLUCINATED:
             if pat.search(code):
                 issues.append({"check": "api_patterns", "detail": f"suspected hallucinated API: {pat.pattern}"})
+
+        if use_static_analysis:
+            from promptwise.core.static_analysis import run_static_analysis
+            sa = run_static_analysis(code, language=language)
+            if sa.tool_available:
+                checks.append("static_analysis")
+                issues.extend(sa.issues)
 
         confidence = max(0.0, 1.0 - len(issues) * 0.2)
         valid = all(i["check"] != "syntax" for i in issues)
