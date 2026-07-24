@@ -281,6 +281,7 @@ Effort key: S = <1 day, M = 1-3 days, L = multi-day/needs its own spec.
 | Session-level cost rollup | `session_cost_report` tool, real per-process `CURRENT_SESSION_ID` replacing hardcoded `"default"` | S-M | **Done** (v1.9.0) |
 | Auto skill-match | `userpromptsubmit_policy` hook now surfaces a matching skill on every prompt automatically | S | **Done** (v1.9.0) |
 | Device-scoped routing consent | `check_routing_consent`/`grant_routing_consent`, ask-once-per-device bookkeeping | S | **Done** (v1.9.0) |
+| JIT/time-boxed scoped MCP permissions | `core/jit_permissions.py` grant store + `grant_jit_permission`/`revoke_jit_permission`/`list_jit_permissions` tools + `jit_permission_guard` PreToolUse hook (active grant → real auto-approve via new `permit`→`allow` hook action; expired grant → `ask`, reverts to normal prompting, never a permanent hard-block) | M | **Done** (v1.9.1) |
 | ADR/decision-memory log | `record_decision`/`query_decisions`, mirrors the residual-risk register's pattern | S-M | **Done** (v1.5.0) |
 | Real static analysis wiring | `validate_output` gains opt-in `use_static_analysis` (ruff/eslint via subprocess, fail-open) | M | **Done** (v1.6.0) |
 | Advisory cross-provider routing | `compare_providers` now a real advisory comparison vs. OpenAI/Gemini reference pricing, structurally decoupled from actual routing | M | **Done** (v1.7.0) |
@@ -297,7 +298,7 @@ by reading the actual current code, not by assuming the original estimate still 
 | 10 | Reversible compression + cross-agent shared memory dedup | Not started | **Fold into candidate D** (local-embeddings, `docs/GAP_ANALYSIS_2026-07.md`) — same architecture, same new-dependency sign-off blocker. Don't track as a separate P2 item; it's the same decision. |
 | 11 | Session-level (multi-call workflow) cost rollup | `task_report` exists but only aggregates *all* tasks globally — no `session_id` grouping, confirmed by reading `TaskTracker.report()`. `cost_logs` already has a `session_id` column (`db/models.py`), so this is additive, not a schema change. | **Still open, ~3h holds up.** Real gap, genuinely S-M. |
 | 12 | Prompt version rollback + replay against captured traces | Not started — confirmed no rollback/version-history code in `save_prompt`/`compare_prompts`/prompt registry. | **Still open, ~4h holds up.** |
-| 13 | JIT/time-boxed scoped MCP permissions | Not started — `permission_tuner.py` has no expiry/TTL field. | **Still open, ~5h holds up.** |
+| 13 | JIT/time-boxed scoped MCP permissions | **Done** (v1.9.1) — see the backlog table above. Built via brainstorming → writing-plans → subagent-driven-development; the final whole-branch review caught a real architectural gap the 4 task-level reviews missed (`hook_bridge.run()` had no way to actually auto-approve or hand back to the normal prompt, only silent-allow or hard-deny), fixed by adding `permit`/`ask` hook actions without changing the other 14 existing hooks' behavior. | **Done.** |
 | 14 | Injection-detection corpus refresh workflow (offline, human-reviewed — not a live ML classifier) | Not started — `injection_benchmark.py` benchmarks against a fixed corpus but has no refresh workflow. | **Still open, ~8h holds up.** |
 | 15 | Streaming/partial-output validation with auto-fix | Not started. | **Recommend deprioritize/drop.** Real static-analysis wiring (v1.6.0, `use_static_analysis` on `validate_output`) already covers most of the same ground more simply (real linter output vs. a mid-stream architecture shift); the original plan itself flagged "confirm worth the complexity" before committing effort. |
 | 16 | Broaden `sync_agent_config` host coverage: Aider, Goose, OpenHands, Grok CLI | Not started — `config_emitter.py`'s `TARGETS` dict still has the same 8 hosts. | **Fold into the "deepen agent-sync" backlog item above** (Cursor/Copilot/Windsurf) rather than tracking separately — same file, same mechanical pattern, one task not two. |
@@ -305,10 +306,12 @@ by reading the actual current code, not by assuming the original estimate still 
 
 **Net result: of the original 8, 2 fold into existing backlog items (10→D, 16→agent-sync
 deepening), 1 is already substantially done (17, needs only a small gap-fill audit), 1
-should be dropped/deprioritized (15), leaving 3 genuinely independent, still-open items:
-#11 (session cost rollup, S-M), #12 (prompt rollback/replay, M), #13 (JIT scoped
-permissions, M).** Brainstorm each independently at kickoff — no shared code between
-them.
+should be dropped/deprioritized (15). Of the 3 genuinely independent items, #11 (session
+cost rollup) shipped in v1.9.0 and #13 (JIT scoped permissions) shipped in v1.9.1 —
+leaving only #12 (prompt rollback/replay, M) and #14 (injection-detection corpus refresh
+workflow, ~8h — this one was omitted from an earlier version of this summary sentence
+despite being listed "still open" in the table above; corrected here) genuinely open.**
+Brainstorm each independently at kickoff — no shared code between them.
 
 ### Feature candidates
 The 2026-07-08 gap analysis (`docs/GAP_ANALYSIS_2026-07.md`) produced 8 ranked phase
