@@ -4,6 +4,20 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## [1.7.0] — Advisory-only cross-provider cost comparison
+
+### Added
+- **Real `compare_providers`** — was previously a stub (always returned a single
+  entry for the same Claude model despite its name). Now compares the same
+  estimated token count against a static, offline, user-editable reference-pricing
+  catalog (`core/external_pricing.py`, `config/external_models.yaml`: OpenAI
+  gpt-4o/gpt-4o-mini, Gemini gemini-2.0-flash/gemini-1.5-pro) for models in the
+  same tier. Every result carries `advisory: bool` so a reference price can never
+  be mistaken for a live one. Structurally decoupled from `Router.route()` and
+  `ModelRegistry` -- nothing in the actual routing path imports the external
+  catalog, so this can never influence which model gets called (guarded by a
+  regression test). `include_external` (default `true`) can turn it off.
+
 ## [1.6.0] — Real static analysis wiring
 
 ### Added

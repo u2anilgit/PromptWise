@@ -295,7 +295,7 @@
   },
   {
     "name": "compare_providers",
-    "description": "Compare cost of same request across providers",
+    "description": "Advisory cost comparison for the same estimated token count: the claude entry uses this project's live registry pricing (the real source of truth); non-claude entries (OpenAI/Gemini/etc, when include_external=true, the default) come from a static, offline, user-editable reference catalog (config/external_models.yaml) -- never live-fetched, never consulted by routing, purely informational. Each result is tagged advisory:true/false so callers never mistake a reference price for a live one.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -305,6 +305,10 @@
         "model": {
           "type": "string",
           "default": "claude-sonnet-4-6"
+        },
+        "include_external": {
+          "type": "boolean",
+          "default": true
         }
       },
       "required": [

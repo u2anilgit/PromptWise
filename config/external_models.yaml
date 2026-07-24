@@ -1,0 +1,37 @@
+# PromptWise — External Provider Reference Pricing (advisory only)
+#
+# NOT used by routing and NOT read by ModelRegistry/Router.route() -- this
+# file has zero effect on what model Claude Code actually calls.
+# `compare_providers` reads it to show an advisory cost comparison against
+# other providers' publicly listed per-token pricing, for the same estimated
+# token count as the Claude model being compared.
+#
+# Reference snapshot only -- never live-fetched (this project is
+# offline-first / no network by default, matching config/models.yaml's own
+# "local-first" contract). Prices drift over time; verify against each
+# provider's current pricing page before relying on these numbers for a real
+# budget decision. Edit freely, or delete rows you don't want surfaced.
+
+schema_version: 1
+
+models:
+  - provider: openai
+    model: gpt-4o
+    tier: balanced
+    input_per_mtok: 2.50
+    output_per_mtok: 10.00
+  - provider: openai
+    model: gpt-4o-mini
+    tier: fast
+    input_per_mtok: 0.15
+    output_per_mtok: 0.60
+  - provider: gemini
+    model: gemini-2.0-flash
+    tier: fast
+    input_per_mtok: 0.10
+    output_per_mtok: 0.40
+  - provider: gemini
+    model: gemini-1.5-pro
+    tier: powerful
+    input_per_mtok: 1.25
+    output_per_mtok: 5.00

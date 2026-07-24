@@ -219,7 +219,15 @@ class Router:
             monthly_budget_capped=monthly_capped,
         )
 
-    def compare_providers(self, text: str, model: str | None = None) -> list[dict]:
+    def compare_providers(self, text: str, model: str | None = None, include_external: bool = True) -> list[dict]:
+        """Advisory cost comparison for the same estimated token count.
+
+        The claude entry uses this project's live registry/config pricing (the
+        real source of truth). Non-claude entries, when include_external=True,
+        come from core/external_pricing.py's static reference catalog --
+        offline, user-editable, never live-fetched, and never consulted by
+        route() -- so this can never change which model actually gets called.
+        """
         model = model or self.config.default_model
         tokens = max(1, len(text) // 4)
         output_tokens = tokens * 2
@@ -232,7 +240,21 @@ class Router:
         in_rate = pr_in if pr_in is not None else m.rates.input_per_mtok
         out_rate = pr_out if pr_out is not None else m.rates.output_per_mtok
         cost = tokens * float(in_rate) / 1_000_000 + output_tokens * float(out_rate) / 1_000_000
-        return [{"provider": m.provider, "model": model, "total_cost_usd": round(cost, 8)}]
+        results = [{"provider": m.provider, "model": model, "total_cost_usd": round(cost, 8), "advisory": False}]
+
+        if include_external:
+            from promptwise.core.external_pricing import ExternalPricingCatalog
+            tier = self.registry.tier_of(model) or m.tier
+            for ext in ExternalPricingCatalog().for_tier(tier):
+                ext_cost = (tokens * float(ext["input_per_mtok"]) / 1_000_000
+                            + output_tokens * float(ext["output_per_mtok"]) / 1_000_000)
+                results.append({
+                    "provider": ext["provider"], "model": ext["model"],
+                    "total_cost_usd": round(ext_cost, 8), "advisory": True,
+                    "note": "static reference pricing from config/external_models.yaml -- "
+                            "verify against the provider's current pricing page",
+                })
+        return results
 
     def resolve_model(self, skill_name: str, budget_pct: float = 0.0) -> str:
         if budget_pct >= 95:

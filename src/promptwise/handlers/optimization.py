@@ -157,9 +157,13 @@ async def _handle_summarize_thread(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"summary": r.summary, "reset_prompt": r.reset_prompt, "saving_pct": r.saving_pct})
 
 
-@tool(name="compare_providers", description="Compare cost of same request across providers",
+@tool(name="compare_providers", description="Advisory cost comparison for the same estimated token count: the claude entry uses this project's live registry pricing (the real source of truth); non-claude entries (OpenAI/Gemini/etc, when include_external=true, the default) come from a static, offline, user-editable reference catalog (config/external_models.yaml) -- never live-fetched, never consulted by routing, purely informational. Each result is tagged advisory:true/false so callers never mistake a reference price for a live one.",
          schema={"type": "object", "properties": {
-             "text": {"type": "string"}, "model": {"type": "string", "default": "claude-sonnet-4-6"}},
+             "text": {"type": "string"}, "model": {"type": "string", "default": "claude-sonnet-4-6"},
+             "include_external": {"type": "boolean", "default": True}},
          "required": ["text"]})
 async def _handle_compare_providers(ctx: ServerContext, arguments: dict) -> str:
-    return json.dumps({"comparisons": ctx.router.compare_providers(arguments.get("text", ""), model=arguments.get("model", "claude-sonnet-4-6"))})
+    comparisons = ctx.router.compare_providers(
+        arguments.get("text", ""), model=arguments.get("model", "claude-sonnet-4-6"),
+        include_external=bool(arguments.get("include_external", True)))
+    return json.dumps({"comparisons": comparisons})
