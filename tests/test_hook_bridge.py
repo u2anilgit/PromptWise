@@ -273,3 +273,42 @@ def test_run_empty_stdin_fails_open(tmp_path):
 def test_run_malformed_json_fails_open():
     code = hb.run("pretooluse_scan", stdin=io.StringIO("{not json"), stdout=io.StringIO(), stderr=io.StringIO())
     assert code == 0
+
+
+# -- JIT time-boxed permission guard -----------------------------------------
+def test_jit_guard_allows_when_no_grant_history(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    d = hb.jit_permission_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
+    assert d.action == "allow"
+
+
+def test_jit_guard_allows_active_grant(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    from promptwise.core.jit_permissions import JITPermissions
+    JITPermissions().grant("Bash:git", ttl_minutes=60)
+    d = hb.jit_permission_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
+    assert d.action == "allow"
+
+
+def test_jit_guard_denies_expired_grant(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    from promptwise.core.jit_permissions import JITPermissions
+    jp = JITPermissions()
+    jp.grant("Bash:git", ttl_minutes=60)
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "promptwise.db"))
+    conn.execute("UPDATE jit_permissions SET expires_at = '2000-01-01T00:00:00Z' WHERE signature = ?",
+                 ("Bash:git",))
+    conn.commit()
+    conn.close()
+    d = hb.jit_permission_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
+    assert d.action == "deny"
+    assert "Bash:git" in d.reason
+
+
+def test_jit_guard_fails_open_on_error(tmp_path, monkeypatch):
+    def _boom():
+        raise RuntimeError("db unavailable")
+    monkeypatch.setattr("promptwise.db.models.get_db_path", _boom)
+    d = hb.jit_permission_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
+    assert d.action == "allow"

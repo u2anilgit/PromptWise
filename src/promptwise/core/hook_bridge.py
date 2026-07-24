@@ -526,6 +526,35 @@ def pretooluse_bash_guard(payload: dict) -> HookDecision:
         return HookDecision(action="allow", event="PreToolUse", extra={"hook_error": f"{type(e).__name__}: {e}"})
 
 
+def jit_permission_guard(payload: dict) -> HookDecision:
+    """PreToolUse(*) -- enforce time-boxed JIT permission grants (core/jit_permissions.py).
+    No grant history for this tool signature -> allow (no-op, untouched by this
+    hook). Active grant -> allow. Expired grant -> deny, so Claude Code falls
+    back to its normal permission prompt. Fail-open on any error."""
+    try:
+        from promptwise.core.jit_permissions import JITPermissions
+        from promptwise.core.permission_tuner import _command_signature
+        ti = _tool_input(payload)
+        rec = {
+            "tool_name": payload.get("tool_name", ""),
+            "command": ti.get("command") or ti.get("file_path") or "",
+        }
+        signature = _command_signature(rec)
+        jp = JITPermissions()
+        if not jp.has_record(signature):
+            return HookDecision(action="allow", event="PreToolUse")
+        if jp.is_active(signature):
+            return HookDecision(action="allow", event="PreToolUse")
+        return HookDecision(
+            action="deny", event="PreToolUse",
+            reason=f"PromptWise JIT grant for {signature} has expired -- "
+                   f"re-grant with grant_jit_permission if still needed.",
+            extra={"signature": signature},
+        )
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="PreToolUse", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
 def subagentstop_gate(payload: dict) -> HookDecision:
     """Govern a sub-agent's turn like the main loop: run the advisory quality gate
     and record an audit entry so delegated work is not ungoverned. Never blocks."""
@@ -604,6 +633,7 @@ _HANDLERS = {
     "scheduled_report_check": scheduled_report_check,
     "precompact_guard": precompact_guard,
     "pretooluse_bash_guard": pretooluse_bash_guard,
+    "jit_permission_guard": jit_permission_guard,
     "subagentstop_gate": subagentstop_gate,
     "failure_capture": failure_capture,
     "responsible_ai_check": responsible_ai_check,
