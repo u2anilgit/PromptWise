@@ -529,8 +529,11 @@ def pretooluse_bash_guard(payload: dict) -> HookDecision:
 def jit_permission_guard(payload: dict) -> HookDecision:
     """PreToolUse(*) -- enforce time-boxed JIT permission grants (core/jit_permissions.py).
     No grant history for this tool signature -> allow (no-op, untouched by this
-    hook). Active grant -> allow. Expired grant -> deny, so Claude Code falls
-    back to its normal permission prompt. Fail-open on any error."""
+    hook -- Claude Code's normal permission prompt still applies). Active grant
+    -> permit (an explicit auto-approve that actually suppresses the prompt).
+    Expired grant -> ask (explicitly hands back to Claude Code's normal
+    permission prompt, rather than a hard, effectively-permanent deny). Fail-open
+    on any error."""
     try:
         from promptwise.core.jit_permissions import JITPermissions
         from promptwise.core.permission_tuner import _command_signature
@@ -544,11 +547,12 @@ def jit_permission_guard(payload: dict) -> HookDecision:
         if not jp.has_record(signature):
             return HookDecision(action="allow", event="PreToolUse")
         if jp.is_active(signature):
-            return HookDecision(action="allow", event="PreToolUse")
+            return HookDecision(action="permit", event="PreToolUse")
         return HookDecision(
-            action="deny", event="PreToolUse",
-            reason=f"PromptWise JIT grant for {signature} has expired -- "
-                   f"re-grant with grant_jit_permission if still needed.",
+            action="ask", event="PreToolUse",
+            reason=f"PromptWise JIT grant for {signature} has expired -- falling back to the "
+                   f"normal permission prompt. Re-grant with grant_jit_permission, or call "
+                   f"revoke_jit_permission to clear this record entirely.",
             extra={"signature": signature},
         )
     except Exception as e:  # fail-open
@@ -654,11 +658,18 @@ def run(handler_key: str, *, stdin=None, stdout=None, stderr=None) -> int:
     Reads the Claude Code hook JSON on stdin, runs the handler, and emits a
     Claude-Code-compatible result:
       * block  -> reason on stderr, exit code 2 (Claude Code blocks the action)
-      * deny   -> permissionDecision JSON on stdout, exit 0 (holds under
+      * deny   -> permissionDecision:"deny" JSON on stdout, exit 0 (holds under
                   skipped permission prompts; used for PreToolUse Bash guard)
+      * permit -> permissionDecision:"allow" JSON on stdout, exit 0 (explicit
+                  auto-approve that actually suppresses the prompt; used for an
+                  active jit_permission_guard grant)
+      * ask    -> permissionDecision:"ask" JSON on stdout, exit 0 (explicitly
+                  hands back to Claude Code's normal permission prompt; used
+                  when a jit_permission_guard grant has expired)
       * warn   -> advisory JSON on stdout, exit 0
       * inject -> context JSON on stdout, exit 0 (feed text into the session)
-      * allow  -> exit 0 (silent)
+      * allow  -> exit 0 (silent; "no opinion" -- Claude Code's normal
+                  permission prompt still applies unchanged)
     ANY failure path returns exit 0 (fail-open).
     """
     stdin = stdin or sys.stdin
@@ -683,6 +694,24 @@ def run(handler_key: str, *, stdin=None, stdout=None, stderr=None) -> int:
                     "hookEventName": decision.event or "PreToolUse",
                     "permissionDecision": "deny",
                     "permissionDecisionReason": decision.reason or "PromptWise denied this action.",
+                }
+            }) + "\n")
+            return 0
+        if decision.action == "permit":
+            stdout.write(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": decision.event or "PreToolUse",
+                    "permissionDecision": "allow",
+                    "permissionDecisionReason": decision.reason or "PromptWise auto-approved this action.",
+                }
+            }) + "\n")
+            return 0
+        if decision.action == "ask":
+            stdout.write(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": decision.event or "PreToolUse",
+                    "permissionDecision": "ask",
+                    "permissionDecisionReason": decision.reason or "PromptWise deferred to the normal permission prompt.",
                 }
             }) + "\n")
             return 0

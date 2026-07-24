@@ -241,7 +241,7 @@ def test_all_handlers_fail_open_on_garbage(tmp_path):
     garbage = {"cwd": str(tmp_path), "tool_input": "not-a-dict", "prompt": 12345}
     for key in hb._HANDLERS:
         d = hb.dispatch(key, garbage)
-        assert d.action in ("allow", "warn", "block", "inject")  # never raises
+        assert d.action in ("allow", "warn", "block", "inject", "permit", "ask")  # never raises
 
 
 def test_unknown_handler_allows():
@@ -282,15 +282,15 @@ def test_jit_guard_allows_when_no_grant_history(tmp_path, monkeypatch):
     assert d.action == "allow"
 
 
-def test_jit_guard_allows_active_grant(tmp_path, monkeypatch):
+def test_jit_guard_permits_active_grant(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
     from promptwise.core.jit_permissions import JITPermissions
     JITPermissions().grant("Bash:git", ttl_minutes=60)
     d = hb.jit_permission_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
-    assert d.action == "allow"
+    assert d.action == "permit"
 
 
-def test_jit_guard_denies_expired_grant(tmp_path, monkeypatch):
+def test_jit_guard_asks_on_expired_grant(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
     from promptwise.core.jit_permissions import JITPermissions
     jp = JITPermissions()
@@ -302,8 +302,10 @@ def test_jit_guard_denies_expired_grant(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     d = hb.jit_permission_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
-    assert d.action == "deny"
+    assert d.action == "ask"
     assert "Bash:git" in d.reason
+    assert "revoke_jit_permission" in d.reason
+    assert "grant_jit_permission" in d.reason
 
 
 def test_jit_guard_fails_open_on_error(tmp_path, monkeypatch):
@@ -312,3 +314,34 @@ def test_jit_guard_fails_open_on_error(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.db.models.get_db_path", _boom)
     d = hb.jit_permission_guard(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
     assert d.action == "allow"
+
+
+def test_run_jit_permit_emits_allow_permission_json_exit_0(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    from promptwise.core.jit_permissions import JITPermissions
+    JITPermissions().grant("Bash:git", ttl_minutes=60)
+    payload = json.dumps(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
+    out = io.StringIO()
+    code = hb.run("jit_permission_guard", stdin=io.StringIO(payload), stdout=out, stderr=io.StringIO())
+    assert code == 0
+    body = out.getvalue()
+    assert "permissionDecision" in body and "allow" in body
+
+
+def test_run_jit_expired_emits_ask_permission_json_exit_0(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+    from promptwise.core.jit_permissions import JITPermissions
+    jp = JITPermissions()
+    jp.grant("Bash:git", ttl_minutes=60)
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "promptwise.db"))
+    conn.execute("UPDATE jit_permissions SET expires_at = '2000-01-01T00:00:00Z' WHERE signature = ?",
+                 ("Bash:git",))
+    conn.commit()
+    conn.close()
+    payload = json.dumps(_payload(tmp_path, tool_name="Bash", tool_input={"command": "git status"}))
+    out = io.StringIO()
+    code = hb.run("jit_permission_guard", stdin=io.StringIO(payload), stdout=out, stderr=io.StringIO())
+    assert code == 0
+    body = out.getvalue()
+    assert "permissionDecision" in body and "ask" in body

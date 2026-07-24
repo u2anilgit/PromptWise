@@ -73,7 +73,7 @@ async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
         learning_db=arguments.get("learning_db")))
 
 
-@tool(name="grant_jit_permission", description="Grant a time-boxed permission for a tool signature (e.g. 'Bash:git'), auto-expiring after ttl_minutes (default 60, max 480/8h). Independent of .mcp.json; enforced by the PreToolUse JIT guard hook, which allows while active and denies once expired.",
+@tool(name="grant_jit_permission", description="Grant a time-boxed permission for a tool signature (e.g. 'Bash:git'), auto-expiring after ttl_minutes (default 60, max 480/8h). Independent of .mcp.json; enforced by the PreToolUse JIT guard hook, which auto-approves while active and falls back to the normal permission prompt once expired. Note: matching is coarse (first command token only, e.g. 'Bash:git' matches any git invocation) -- the same grain permission_tuner's suggestions use; grant narrowly-scoped, short-lived permissions for commands you trust broadly, not ones where the arguments matter.",
          schema={"type": "object", "properties": {
              "signature": {"type": "string", "description": "tool signature, e.g. 'Bash:git' or 'mcp__promptwise__run_governor'"},
              "ttl_minutes": {"type": "integer", "default": 60, "minimum": 1, "maximum": 480}},
