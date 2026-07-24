@@ -336,7 +336,7 @@ from promptwise.handlers.scheduled_export import _handle_export_org_report  # no
 from promptwise.handlers.governor import _handle_run_governor, _handle_governor_undo  # noqa: F401
 from promptwise.handlers.orchestration import _handle_orchestrate_tasks, _handle_run_autonomous  # noqa: F401
 from promptwise.handlers.roi import _handle_track_roi, _handle_get_roi_report, _handle_cost_report  # noqa: F401
-from promptwise.handlers.prompt_registry import _handle_save_prompt, _handle_search_prompts, _handle_compare_prompts, _handle_rollback_prompt  # noqa: F401
+from promptwise.handlers.prompt_registry import _handle_save_prompt, _handle_search_prompts, _handle_compare_prompts, _handle_rollback_prompt, _handle_replay_prompt_version  # noqa: F401
 from promptwise.handlers.memory_session import _handle_get_memory_context, _handle_query_memory, _handle_ping_session, _handle_check_session_timeout  # noqa: F401
 from promptwise.handlers.skills import _handle_invoke_skill, _handle_list_skills, _handle_skill_chain, _handle_suggest_skill  # noqa: F401
 from promptwise.handlers.session_data import _handle_get_session_stats, _handle_clear_history, _handle_export_stats, _handle_reload_config  # noqa: F401

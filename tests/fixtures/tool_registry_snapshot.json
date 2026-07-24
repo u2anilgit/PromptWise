@@ -1337,6 +1337,50 @@
     }
   },
   {
+    "name": "replay_prompt_version",
+    "description": "Replay a registered prompt version's content through the eval harness's rubric cases to score its quality (offline record/dry-run by default), optionally diffing against another version for regression comparison",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "compare_version": {
+          "type": "string",
+          "default": ""
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        },
+        "cases_path": {
+          "type": "string",
+          "default": ""
+        },
+        "tiers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bar": {
+          "type": "number",
+          "default": 0.6
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    }
+  },
+  {
     "name": "get_session_stats",
     "description": "Get session usage statistics",
     "inputSchema": {
