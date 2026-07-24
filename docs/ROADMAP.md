@@ -278,6 +278,9 @@ Effort key: S = <1 day, M = 1-3 days, L = multi-day/needs its own spec.
 | Deepen `sync_agent_config`/`check_portability`/etc. across Cursor, Copilot, Windsurf | The real "one plugin, every coding agent" seed — biggest differentiator, not yet built out | L | Not started |
 | Broader self-learning coverage | `suggest_technique` gains a third outcome-learning axis (categorical, not a ladder — `core/technique_adapter.py`), mirroring the tier/effort pattern | M | **Done** (v1.8.0) |
 | Gap-closure P2 (remaining governance items) | Re-scoped 2026-07-24 — see breakdown table below | Split, see below | Re-scoped |
+| Session-level cost rollup | `session_cost_report` tool, real per-process `CURRENT_SESSION_ID` replacing hardcoded `"default"` | S-M | **Done** (v1.9.0) |
+| Auto skill-match | `userpromptsubmit_policy` hook now surfaces a matching skill on every prompt automatically | S | **Done** (v1.9.0) |
+| Device-scoped routing consent | `check_routing_consent`/`grant_routing_consent`, ask-once-per-device bookkeeping | S | **Done** (v1.9.0) |
 | ADR/decision-memory log | `record_decision`/`query_decisions`, mirrors the residual-risk register's pattern | S-M | **Done** (v1.5.0) |
 | Real static analysis wiring | `validate_output` gains opt-in `use_static_analysis` (ruff/eslint via subprocess, fail-open) | M | **Done** (v1.6.0) |
 | Advisory cross-provider routing | `compare_providers` now a real advisory comparison vs. OpenAI/Gemini reference pricing, structurally decoupled from actual routing | M | **Done** (v1.7.0) |
