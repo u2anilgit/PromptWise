@@ -297,7 +297,7 @@ by reading the actual current code, not by assuming the original estimate still 
 |---|---|---|---|
 | 10 | Reversible compression + cross-agent shared memory dedup | Not started | **Fold into candidate D** (local-embeddings, `docs/GAP_ANALYSIS_2026-07.md`) — same architecture, same new-dependency sign-off blocker. Don't track as a separate P2 item; it's the same decision. |
 | 11 | Session-level (multi-call workflow) cost rollup | `task_report` exists but only aggregates *all* tasks globally — no `session_id` grouping, confirmed by reading `TaskTracker.report()`. `cost_logs` already has a `session_id` column (`db/models.py`), so this is additive, not a schema change. | **Still open, ~3h holds up.** Real gap, genuinely S-M. |
-| 12 | Prompt version rollback + replay against captured traces | Not started — confirmed no rollback/version-history code in `save_prompt`/`compare_prompts`/prompt registry. | **Still open, ~4h holds up.** |
+| 12 | Prompt version rollback + replay against captured traces | **Done** — rescoped: no trace-capture store exists (`AuditLog` is metadata-only, `ExactCache` is TTL-only), so replay runs a registered prompt version through the existing `core/eval_harness.py` rubric-case machinery instead of captured traces. Rollback is insert-only (latest-`ts` row wins, no schema migration). `MemoryManager.get_prompt_version`/`rollback_prompt` (data layer) + `rollback_prompt`/`replay_prompt_version` MCP tools. A real bug (`ORDER BY ts DESC` with no tiebreaker — same-microsecond writes made "most recent" nondeterministic) was found and fixed in review with a `rowid DESC` secondary sort. | **Done.** |
 | 13 | JIT/time-boxed scoped MCP permissions | **Done** (v1.9.1) — see the backlog table above. Built via brainstorming → writing-plans → subagent-driven-development; the final whole-branch review caught a real architectural gap the 4 task-level reviews missed (`hook_bridge.run()` had no way to actually auto-approve or hand back to the normal prompt, only silent-allow or hard-deny), fixed by adding `permit`/`ask` hook actions without changing the other 14 existing hooks' behavior. | **Done.** |
 | 14 | Injection-detection corpus refresh workflow (offline, human-reviewed — not a live ML classifier) | Not started — `injection_benchmark.py` benchmarks against a fixed corpus but has no refresh workflow. | **Still open, ~8h holds up.** |
 | 15 | Streaming/partial-output validation with auto-fix | Not started. | **Recommend deprioritize/drop.** Real static-analysis wiring (v1.6.0, `use_static_analysis` on `validate_output`) already covers most of the same ground more simply (real linter output vs. a mid-stream architecture shift); the original plan itself flagged "confirm worth the complexity" before committing effort. |
@@ -307,10 +307,11 @@ by reading the actual current code, not by assuming the original estimate still 
 **Net result: of the original 8, 2 fold into existing backlog items (10→D, 16→agent-sync
 deepening), 1 is already substantially done (17, needs only a small gap-fill audit), 1
 should be dropped/deprioritized (15). Of the 3 genuinely independent items, #11 (session
-cost rollup) shipped in v1.9.0 and #13 (JIT scoped permissions) shipped in v1.9.1 —
-leaving only #12 (prompt rollback/replay, M) and #14 (injection-detection corpus refresh
-workflow, ~8h — this one was omitted from an earlier version of this summary sentence
-despite being listed "still open" in the table above; corrected here) genuinely open.**
+cost rollup) shipped in v1.9.0, #13 (JIT scoped permissions) shipped in v1.9.1, and #12
+(prompt rollback/replay, rescoped to eval-harness-backed replay) shipped 2026-07-25 —
+leaving only #14 (injection-detection corpus refresh workflow, ~8h — this one was omitted
+from an earlier version of this summary sentence despite being listed "still open" in the
+table above; corrected here) genuinely open.**
 Brainstorm each independently at kickoff — no shared code between them.
 
 ### Feature candidates
