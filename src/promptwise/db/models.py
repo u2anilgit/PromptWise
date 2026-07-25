@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from sqlalchemy import String, Float, Text, create_engine
+from sqlalchemy import String, Float, Text, create_engine, text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.future import select
@@ -290,10 +290,35 @@ class MemoryManager:
         async with self.async_session() as session:
             stmt = (select(PromptModel)
                     .where(PromptModel.name.contains(query) | PromptModel.description.contains(query))
-                    .order_by(PromptModel.ts.desc()))
+                    .order_by(PromptModel.ts.desc(), text("rowid DESC")))
             result = await session.execute(stmt)
             prompts = result.scalars().all()
         return [{"name": p.name, "content": p.content, "version": p.version, "description": p.description, "tags": json.loads(p.tags)} for p in prompts]
+
+    async def get_prompt_version(self, name: str, version: str) -> dict | None:
+        async with self.async_session() as session:
+            stmt = (select(PromptModel)
+                    .where(PromptModel.name == name, PromptModel.version == version)
+                    .order_by(PromptModel.ts.desc(), text("rowid DESC")))
+            row = (await session.execute(stmt)).scalars().first()
+        if row is None:
+            return None
+        return {"name": row.name, "content": row.content, "version": row.version,
+                "description": row.description, "tags": json.loads(row.tags),
+                "ts": row.ts, "prompt_id": row.prompt_id}
+
+    async def rollback_prompt(self, name: str, version: str) -> dict | None:
+        source = await self.get_prompt_version(name, version)
+        if source is None:
+            return None
+        new_id = str(uuid.uuid4())
+        ts = datetime.now(timezone.utc).isoformat()
+        async with self.async_session() as session:
+            async with session.begin():
+                session.add(PromptModel(prompt_id=new_id, name=name, content=source["content"],
+                                         version=source["version"], description=source["description"],
+                                         tags=json.dumps(source["tags"]), ts=ts))
+        return {"source_prompt_id": source["prompt_id"], "new_prompt_id": new_id, "ts": ts}
 
     async def log_roi_stat(self, developer: str, role: str, tokens_saved: float, cost_usd: float, hours_saved: float, skill: str = "", project_id: str = "") -> None:
         async with self.async_session() as session:
