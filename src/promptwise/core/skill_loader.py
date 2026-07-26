@@ -5,6 +5,7 @@ import yaml
 
 from pathlib import Path
 
+from promptwise.core.text_match import contains_keyword
 from promptwise.types import Skill
 
 
@@ -55,7 +56,7 @@ class SkillLoader:
         for skill in self.skills.values():
             if skill.roles and role and role not in skill.roles:
                 continue
-            score = sum(len(t) for t in skill.triggers if t.lower() in text_lower)
+            score = sum(len(t) for t in skill.triggers if contains_keyword(text_lower, t.lower()))
             if score > max_score:
                 max_score = score
                 best = skill

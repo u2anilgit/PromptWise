@@ -151,13 +151,22 @@ def userpromptsubmit_policy(payload: dict) -> HookDecision:
         except Exception:
             pass  # policy optional / fail-open
 
-        # 2) injection / secret scan of the prompt itself (advisory).
+        # 2) injection / secret scan of the prompt itself (advisory). Secrets
+        # get their own note (was previously silently dropped here -- a user
+        # pasting a live API key into the prompt itself got zero warning even
+        # though SecurityScanner correctly classified it).
         try:
             from promptwise.security.scanner import SecurityScanner
             res = SecurityScanner().check(prompt)
-            inj = [v for v in (res.violations or []) if v.get("check") in ("injection", "syntax")]
+            violations = res.violations or []
+            inj = [v for v in violations if v.get("check") in ("injection", "syntax")]
             if inj:
                 notes.append(f"possible prompt-injection ({len(inj)} pattern(s))")
+            secret_hits = [v for v in violations if v.get("check") == "secrets"]
+            if secret_hits:
+                notes.append(
+                    f"possible secret/credential pasted into the prompt "
+                    f"({len(secret_hits)} pattern(s)) -- consider redacting/rotating it")
         except Exception:
             pass
 

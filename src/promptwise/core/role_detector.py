@@ -1,5 +1,6 @@
 import re
 
+from promptwise.core.text_match import contains_keyword
 from promptwise.types import RoleDetectionResult
 
 _ROLES = {
@@ -109,7 +110,6 @@ class RoleDetector:
     def detect(self, prompt: str, context: dict | None = None) -> RoleDetectionResult:
         context = context or {}
         prompt_lower = prompt.lower()
-        tokens = set(prompt_lower.split())
 
         scores: dict[str, tuple[float, list[str]]] = {}
 
@@ -118,11 +118,9 @@ class RoleDetector:
             matched_keywords: list[str] = []
 
             for keyword in role_config.get("keywords", []):
-                for token in tokens:
-                    if keyword in token:
-                        score += 1.0
-                        matched_keywords.append(keyword)
-                        break
+                if contains_keyword(prompt_lower, keyword):
+                    score += 1.0
+                    matched_keywords.append(keyword)
 
             for pattern in role_config.get("patterns", []):
                 try:
@@ -141,7 +139,12 @@ class RoleDetector:
 
         ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
 
-        if not ranked:
+        # No role scored above zero -- every candidate is tied at the floor, so
+        # picking ranked[0] would just surface whichever role happens to sort
+        # first (dict/insertion order), misreported as a real detection at
+        # confidence 0. Report "general" instead; a 0-score "detection" is not
+        # a detection.
+        if not ranked or ranked[0][1][0] <= 0:
             return RoleDetectionResult(primary_role="general", confidence=0.0, secondary_roles=[], keywords_matched=[], rationale="No role signals detected")
 
         primary_role, (primary_score, primary_keywords) = ranked[0]

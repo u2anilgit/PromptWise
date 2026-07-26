@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from promptwise.config import AppConfig
 from promptwise.core.adaptive_router import AdaptiveRouter
 from promptwise.core.model_registry import ModelRegistry
+from promptwise.core.text_match import any_keyword
 from promptwise.types import RouteResult
 
 # Adaptive routing is on by default; these values disable it (fail-open to static).
@@ -308,19 +309,19 @@ class Router:
 
     def _detect_intent(self, text: str) -> str:
         t = text.lower()
-        if any(kw in t for kw in ("extract", "parse", "pull", "get all")):
+        if any_keyword(t, ("extract", "parse", "pull", "get all")):
             return "extract"
-        if any(kw in t for kw in ("classify", "categorize", "label", "tag")):
+        if any_keyword(t, ("classify", "categorize", "label", "tag")):
             return "classify"
-        if any(kw in t for kw in ("summarize", "tl;dr", "brief", "summary")):
+        if any_keyword(t, ("summarize", "tl;dr", "brief", "summary")):
             return "summarize"
-        if any(kw in t for kw in ("code", "function", "implement", "write a", "class", "def ")):
+        if any_keyword(t, ("code", "function", "implement", "class", "def ")):
             return "code"
-        if any(kw in t for kw in ("analyze", "compare", "why", "how does")):
+        if any_keyword(t, ("analyze", "compare", "why", "how does")):
             return "analysis"
-        if any(kw in t for kw in ("research", "find", "search", "what is")):
+        if any_keyword(t, ("research", "find", "search", "what is")):
             return "research"
-        if any(kw in t for kw in ("loop", "iterate", "repeat", "batch")):
+        if any_keyword(t, ("loop", "iterate", "repeat", "batch")):
             return "agent_loop"
         if "?" in t:
             return "question"
@@ -328,9 +329,9 @@ class Router:
 
     def _detect_stakes(self, text: str) -> str:
         t = text.lower()
-        if any(kw in t for kw in ("production", "deploy", "customer", "revenue", "security", "critical")):
+        if any_keyword(t, ("production", "deploy", "customer", "revenue", "security", "critical")):
             return "high"
-        if any(kw in t for kw in ("test", "draft", "wip", "idea", "maybe", "rough")):
+        if any_keyword(t, ("test", "draft", "wip", "idea", "maybe", "rough")):
             return "low"
         return "medium"
 

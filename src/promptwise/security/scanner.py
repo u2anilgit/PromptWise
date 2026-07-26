@@ -12,6 +12,17 @@ _SECRET_PATTERNS = [
     # Spaced assignment with optional quotes: API_KEY = "sk-...", password: 'hunter2pass'.
     # Requires an explicit ':' or '=' separator so plain identifiers (passwordHasher) don't match.
     re.compile(r'(?i)(api[_-]?key|secret|password|token)\s*[:=]\s*["\']?[a-z0-9\-_]{8,}'),
+    # Bare vendor-prefixed tokens with no separator before the value -- the
+    # patterns above all require an explicit separator right after the
+    # prefix, which a value dropped mid-sentence does not have. Each prefix
+    # is a well-known vendor format specific enough that ordinary prose or
+    # code identifiers will not collide with it.
+    re.compile(r'\bsk-(ant-|proj-)?[a-zA-Z0-9_-]{16,}\b'),
+    re.compile(r'\bgh[ptous]_[a-zA-Z0-9]{20,}\b'),
+    re.compile(r'\bgithub_pat_[a-zA-Z0-9_]{20,}\b'),
+    re.compile(r'\bAKIA[0-9A-Z]{16}\b'),
+    re.compile(r'\bAIza[0-9A-Za-z_-]{30,}\b'),
+    re.compile(r'\bxox[baprs]-[0-9A-Za-z-]{10,}\b'),
 ]
 _DESTRUCTIVE_PATTERNS = [
     re.compile(r'\brm\s+-rf\b'), re.compile(r'\bdrop\s+table\b', re.I),
@@ -108,13 +119,13 @@ class SecurityScanner:
                 confidence += weight
         return bool(found), round(min(1.0, confidence), 3), found
 
-    # ── indirect prompt-injection canary (Rebuff-style) ──────────────────
+    # â”€â”€ indirect prompt-injection canary (Rebuff-style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def issue_canary(self, prefix: str = "pw-canary") -> str:
         """Mint a fresh, hard-to-guess canary token.
 
         Embed it into content that will flow through tool output / RAG with
         ``embed_canary``; if it later surfaces in model output
-        (``check_canary_leak``) the injected content leaked back out — the
+        (``check_canary_leak``) the injected content leaked back out â€” the
         exfiltration signature of an indirect prompt injection.
         """
         return f"{prefix}-{_secrets.token_hex(12)}"
@@ -129,7 +140,7 @@ class SecurityScanner:
 
     def check_canary_leak(self, output: str, token: str) -> bool:
         """True iff a previously-issued canary ``token`` appears in model
-        ``output`` — i.e. tool-output/RAG content leaked back into the
+        ``output`` â€” i.e. tool-output/RAG content leaked back into the
         response. Empty token means nothing to check."""
         return bool(token) and token in (output or "")
 
@@ -144,7 +155,7 @@ class SecurityScanner:
         redacted = text
         for label, pattern in _PII_PATTERNS:
             if label == "credit_card":
-                # Only count/redact runs that pass the Luhn checksum — the bare
+                # Only count/redact runs that pass the Luhn checksum â€” the bare
                 # 13-16 digit regex otherwise false-positives on order numbers.
                 valid = [m.group(0) for m in pattern.finditer(text) if _luhn_valid(m.group(0))]
                 if valid:
@@ -246,7 +257,7 @@ class SecurityScanner:
                           "severity": "high",
                           "description": "Insecure deserialization (pickle/marshal/unsafe yaml.load) "
                                          "on untrusted data. Use a safe loader."})
-        # A10: SSRF — request on a non-literal (variable) URL.
+        # A10: SSRF â€” request on a non-literal (variable) URL.
         if re.search(r"(?i)\b(requests\.(get|post|put|delete|head|patch)|urlopen)"
                      r"\s*\(\s*(?!['\"])[A-Za-z_]", code):
             vulns.append({"category": "A10:2021-Server-Side Request Forgery (SSRF)",
