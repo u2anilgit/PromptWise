@@ -325,7 +325,7 @@ class Router:
             return "agent_loop"
         if "?" in t:
             return "question"
-        return "auto"
+        return "general"
 
     def _detect_stakes(self, text: str) -> str:
         t = text.lower()
