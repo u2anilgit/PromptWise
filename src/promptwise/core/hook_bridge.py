@@ -177,6 +177,39 @@ def userpromptsubmit_policy(payload: dict) -> HookDecision:
         except Exception:
             pass
 
+        # 4) auto model-tier advisory: cheap, no I/O, safe to run every turn.
+        # Reuses the live Router/registry (config/models.yaml), so it always
+        # reflects the current model line-up and per-tier pricing -- never a
+        # hardcoded model id. Only noted when Router itself would pick the
+        # "powerful" (most expensive) tier -- the one case worth a second look
+        # before spending on it -- so routine fast/balanced-tier prompts (the
+        # overwhelming majority) stay quiet.
+        try:
+            from promptwise.core.router import Router
+            router = Router()
+            r = router.route(text=prompt, intent="auto", stakes="auto", provider="claude")
+            if r.recommended_model and router.registry.tier_of(r.recommended_model) == "powerful":
+                notes.append(
+                    f"model routing: {r.intent_detected}/{r.stakes_detected} -> "
+                    f"'{r.recommended_model}' (powerful tier, ~${r.estimated_input_cost_usd:.4f} est.) "
+                    f"-- route_request/optimize_context not called this turn; a cheaper tier may suffice")
+        except Exception:
+            pass
+
+        # 5) context-optimization advisory: flag prompts large enough that
+        # optimize_context/compress_prompt would meaningfully shrink them.
+        # Uses the same length-based estimate Router.route() uses internally;
+        # threshold picked so routine chat turns stay quiet and only genuinely
+        # large pastes/dumps trigger the suggestion.
+        try:
+            approx_count = max(1, len(prompt) // 4)
+            if approx_count > 1500:
+                notes.append(
+                    f"large prompt (~{approx_count} est. tokens) -- consider "
+                    f"optimize_context or compress_prompt before sending")
+        except Exception:
+            pass
+
         if blocked:
             return HookDecision(action="block", event="UserPromptSubmit",
                                 reason="PromptWise policy: " + "; ".join(notes), extra={"notes": notes})
