@@ -309,13 +309,17 @@ class Router:
 
     def _detect_intent(self, text: str) -> str:
         t = text.lower()
-        if any_keyword(t, ("extract", "parse", "pull", "get all")):
+        # "pull" alone matched "pull request"/"pull the latest", misrouting
+        # code-review asks to the cheap "extract" bucket -- "pull out" is the
+        # actual extract-shaped phrasing.
+        if any_keyword(t, ("extract", "parse", "pull out", "get all")):
             return "extract"
         if any_keyword(t, ("classify", "categorize", "label", "tag")):
             return "classify"
         if any_keyword(t, ("summarize", "tl;dr", "brief", "summary")):
             return "summarize"
-        if any_keyword(t, ("code", "function", "implement", "class", "def ")):
+        if any_keyword(t, ("code", "function", "implement", "class", "def ",
+                           "pull request", "code review", "review pr")):
             return "code"
         if any_keyword(t, ("analyze", "compare", "why", "how does")):
             return "analysis"
@@ -323,6 +327,20 @@ class Router:
             return "research"
         if any_keyword(t, ("loop", "iterate", "repeat", "batch")):
             return "agent_loop"
+        # Architecture/system-design work is inherently high-complexity
+        # regardless of how "stakes" is worded (a greenfield design doc rarely
+        # says "production" or "critical") -- so this gets its own bucket
+        # rather than depending on the stakes=="high" AND clause below.
+        if any_keyword(t, ("architecture", "microservices", "distributed system",
+                           "system design", "event-driven", "multi-region",
+                           "scalable system")):
+            return "architecture"
+        # Small, mechanical edits -- explicitly cheap regardless of stakes
+        # wording, mirroring the "architecture" bucket's reasoning in the
+        # opposite direction.
+        if any_keyword(t, ("typo", "rename variable", "small fix",
+                           "minor change", "one-line fix", "quick fix")):
+            return "trivial"
         if "?" in t:
             return "question"
         return "general"
@@ -337,6 +355,10 @@ class Router:
 
     # ── static tier heuristic (the always-available default) ─────────────────
     def _static_tier(self, intent: str, stakes: str) -> str:
+        if intent == "architecture":
+            return "powerful"
+        if intent == "trivial":
+            return "fast"
         if stakes == "high" and intent in ("analysis", "code", "research", "agent_loop"):
             return "powerful"
         if intent in ("extract", "classify", "summarize", "question"):
