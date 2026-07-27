@@ -10,6 +10,7 @@ Acceptance:
 Attack strings in the corpus are assembled from split fragments in the module
 itself, so this test file needs no contiguous trigger literals.
 """
+import json
 import urllib.request
 
 from promptwise.security.injection_benchmark import (
@@ -64,3 +65,29 @@ def test_live_pint_fetch_gated_off_by_default():
 
     # With allow_network False the loader returns no live cases regardless of url.
     assert ib._maybe_fetch_pint("https://example.com/pint.json", allow_network=False) == []
+
+
+def test_default_corpus_file_loaded_automatically(tmp_path, monkeypatch):
+    from promptwise.security import injection_benchmark as ib
+    from promptwise.security.scanner import SecurityScanner
+
+    extra_corpus = tmp_path / "injection_corpus.json"
+    marker_text = "zzz-unique-marker-not-in-builtin " + "zzz"
+    extra_corpus.write_text(
+        json.dumps({"cases": [{"text": marker_text, "is_attack": True, "family": "custom"}]})
+    )
+    monkeypatch.setattr(ib, "_DEFAULT_CORPUS_PATH", extra_corpus)
+
+    report = ib.benchmark_injection_detector(SecurityScanner())
+    # BenchmarkReport uses 'total' field for the total case count
+    assert report.total == len(ib.builtin_corpus()) + 1
+
+
+def test_missing_default_corpus_file_is_fine(tmp_path, monkeypatch):
+    from promptwise.security import injection_benchmark as ib
+    from promptwise.security.scanner import SecurityScanner
+
+    monkeypatch.setattr(ib, "_DEFAULT_CORPUS_PATH", tmp_path / "does_not_exist.json")
+
+    report = ib.benchmark_injection_detector(SecurityScanner())
+    assert report.total == len(ib.builtin_corpus())
