@@ -163,3 +163,78 @@ async def _handle_review_corpus_candidates(ctx: ServerContext, arguments: dict) 
             "incorrect": len(results) - correct,
         },
     })
+
+
+@tool(
+    name="promote_corpus_candidates",
+    description="Merge human-reviewed candidate cases into the live injection corpus (corpus/injection_corpus.json). Only ids in approve_ids (or, if approve_ids is omitted, every candidate not listed in reject_ids) are merged. Records an append-only corpus_history row with before/after precision/recall/F1. Requires a non-empty reviewer name -- this is a human-review gate, not an automated classifier.",
+    schema={
+        "type": "object",
+        "properties": {
+            "path": {"type": "string"},
+            "approve_ids": {"type": "array", "items": {"type": "string"}, "default": []},
+            "reject_ids": {"type": "array", "items": {"type": "string"}, "default": []},
+            "reviewer": {"type": "string"},
+        },
+        "required": ["path", "reviewer"],
+    },
+)
+async def _handle_promote_corpus_candidates(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.security.corpus_store import CorpusStore
+    from promptwise.security.injection_benchmark import (
+        _DEFAULT_CORPUS_PATH,
+        benchmark_injection_detector,
+    )
+
+    reviewer = arguments.get("reviewer", "").strip()
+    if not reviewer:
+        return json.dumps({"error": "reviewer is required"})
+
+    path = arguments.get("path", "")
+    candidates = _load_candidates(path)
+    approve_ids = arguments.get("approve_ids") or None
+    reject_ids = set(arguments.get("reject_ids") or [])
+
+    if approve_ids is not None:
+        approve_set = set(approve_ids)
+        approved = [c for c in candidates if c["id"] in approve_set]
+    else:
+        approved = [c for c in candidates if c["id"] not in reject_ids]
+    rejected = [c["id"] for c in candidates if c not in approved]
+
+    before = benchmark_injection_detector(ctx.security).to_dict()
+
+    existing = {"cases": []}
+    if _DEFAULT_CORPUS_PATH.exists():
+        try:
+            existing = json.loads(_DEFAULT_CORPUS_PATH.read_text())
+        except Exception:
+            existing = {"cases": []}
+    existing_cases = existing.get("cases", []) if isinstance(existing, dict) else existing
+    merged_cases = existing_cases + [
+        {"text": c["text"], "is_attack": bool(c.get("is_attack", False)), "family": c.get("family", "")}
+        for c in approved
+    ]
+    _DEFAULT_CORPUS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _DEFAULT_CORPUS_PATH.write_text(json.dumps({"cases": merged_cases}, indent=2))
+
+    after = benchmark_injection_detector(ctx.security).to_dict()
+
+    store = CorpusStore()
+    history_id = store.append_history(
+        action="promote",
+        reviewer=reviewer,
+        candidate_path=path,
+        approved_ids=[c["id"] for c in approved],
+        rejected_ids=rejected,
+        before=before,
+        after=after,
+    )
+
+    return json.dumps({
+        "promoted_ids": [c["id"] for c in approved],
+        "rejected_ids": rejected,
+        "before": before,
+        "after": after,
+        "history_id": history_id,
+    })
