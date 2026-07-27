@@ -30,6 +30,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+_DEFAULT_CORPUS_PATH = Path(__file__).resolve().parents[3] / "corpus" / "injection_corpus.json"
+
+
 def _j(*parts: str) -> str:
     return "".join(parts)
 
@@ -188,6 +191,8 @@ def benchmark_injection_detector(
 
     if cases is None:
         cases = builtin_corpus()
+        if _DEFAULT_CORPUS_PATH.exists():
+            cases = cases + load_corpus(_DEFAULT_CORPUS_PATH)
         if corpus_path:
             cases = cases + load_corpus(corpus_path)
         cases = cases + _maybe_fetch_pint(pint_url, allow_network=allow_network)
