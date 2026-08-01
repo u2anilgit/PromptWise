@@ -1905,7 +1905,7 @@
     "name": "export_audit"
   },
   {
-    "description": "Compile one governance source (policy + packs + method) into every agent's native rules file (CLAUDE.md, AGENTS.md, .cursor/rules, copilot-instructions, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules). Non-destructive: only the managed block is regenerated; user edits are preserved",
+    "description": "Compile one governance source (policy + packs + method) into every agent's native rules file (CLAUDE.md, AGENTS.md, .cursor/rules, copilot-instructions, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, CONVENTIONS.md for aider, .goosehints for Goose, .openhands/microagents/repo.md for OpenHands; Grok Build/Grok CLI reads CLAUDE.md/AGENTS.md natively, no separate file needed). Non-destructive: only the managed block is regenerated; user edits are preserved",
     "inputSchema": {
       "properties": {
         "adopt": {
@@ -2102,7 +2102,7 @@
     "name": "lint_agent_config"
   },
   {
-    "description": "Cross-host portability check (Phase 7 \u00a77.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
+    "description": "Cross-host portability check (Phase 7 \u00a77.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, aider, goose, openhands, grok) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
     "inputSchema": {
       "properties": {
         "emit_ci": {

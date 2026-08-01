@@ -164,6 +164,36 @@ def test_windsurf_sync_is_non_destructive(tmp_path):
     assert "my note" in text
 
 
+def test_aider_is_a_real_target(tmp_path):
+    b = GovernanceBundle(project="acme", policy_summary=["Budget cap $5/day"])
+    res = ConfigEmitter().sync(b, tmp_path, targets=["aider"])
+    assert res == {"CONVENTIONS.md": "written"}
+    text = (tmp_path / "CONVENTIONS.md").read_text(encoding="utf-8")
+    assert "Budget cap $5/day" in text
+    assert "aider.conf.yml" in text  # needs an explicit read: line, unlike CLAUDE.md
+
+
+def test_goose_is_a_real_target(tmp_path):
+    b = GovernanceBundle(project="acme", policy_summary=["Budget cap $5/day"])
+    res = ConfigEmitter().sync(b, tmp_path, targets=["goose"])
+    assert res == {".goosehints": "written"}
+    assert "Budget cap $5/day" in (tmp_path / ".goosehints").read_text(encoding="utf-8")
+
+
+def test_openhands_is_a_real_target(tmp_path):
+    b = GovernanceBundle(project="acme", policy_summary=["Budget cap $5/day"])
+    res = ConfigEmitter().sync(b, tmp_path, targets=["openhands"])
+    assert res == {".openhands/microagents/repo.md": "written"}
+    text = (tmp_path / ".openhands" / "microagents" / "repo.md").read_text(encoding="utf-8")
+    assert "Budget cap $5/day" in text
+
+
+def test_grok_aliases_to_claude(tmp_path):
+    b = GovernanceBundle(project="acme")
+    res = ConfigEmitter().sync(b, tmp_path, targets=["grok"])
+    assert "CLAUDE.md" in res  # grok reads CLAUDE.md natively, no separate file
+
+
 def test_cursor_frontmatter_is_profile_driven():
     cur = ConfigEmitter().render(GovernanceBundle(project="acme"), "cursor")
     assert cur.startswith("---\n")
