@@ -8,14 +8,16 @@ packs — emitted in the formats every agent already reads.
 > Built on open standards, not against them. PromptWise is a *conductor*, not a replacement
 > for Cursor / Copilot / Claude Code.
 
-**Works with:** Claude Code · Codex · Cursor · Gemini CLI · Copilot · any MCP host
+**Works with:** Claude Code · Claude Desktop (tools only, no hooks) · Codex · Cursor ·
+Gemini CLI · Copilot · Windsurf · JetBrains AI Assistant · Cline · Aider · Goose ·
+OpenHands · Grok Build/Grok CLI (reads CLAUDE.md natively) · any MCP host
 **Standards:** MCP · SKILL.md · AGENTS.md
 
 [![CI](https://github.com/u2anilgit/PromptWise/actions/workflows/ci.yml/badge.svg)](https://github.com/u2anilgit/PromptWise/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Skill packs](https://img.shields.io/badge/skill%20packs-81-7C5BD4.svg)
-![MCP tools](https://img.shields.io/badge/MCP%20tools-90-4C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-105-4C5BD4.svg)
 
 📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -39,7 +41,7 @@ them have:
   the full payload is the point.
 - **Role intelligence** — 81 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
 - **Compliance gating** — auditable PRD→architecture→story→commit chain for regulated teams.
-- **Runtime enforcement** — Claude Code lifecycle hooks auto-run security/policy/audit checks and can *block* (secret writes, runaway loops), turning advisory governance into enforced governance. Fail-open: a hook error never wedges the session. See `hooks/`.
+- **Runtime enforcement** — Claude Code lifecycle hooks auto-run security/policy/audit checks on every Write/Edit and tool call. A flagged write defers to Claude Code's normal allow/deny prompt (never a hard, opaque block) and is logged silently either way; standing exceptions are time-boxed JIT grants (`grant_jit_permission`), scoped to one file or a whole project. Destructive shell commands and runaway tool-call loops still hard-deny. Fail-open throughout: a hook error never wedges the session. See `hooks/`.
 - **Red-team regression harness** — a durable, offline attack/benign corpus run against the security scanner, diffed against a stored baseline to catch both missed detections and false-positive regressions (`run_red_team_harness`). All scanning is air-gapped by default — no unconditional network calls.
 - **Continuous learning** — corrections become durable, searchable rules (FTS5) replayed before relevant work; packs self-optimize offline. Local-first, air-gapped safe.
 - **Workflow planning** — classify a task → an ordered chain of PromptWise's *own* skill packs (PRD → design → stories → TDD → review). Fully self-contained, no external tools.
@@ -50,7 +52,7 @@ them have:
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (90)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (105)
         ├─▶ SKILL.md packs → 81 portable packs in skill_packs/
         ├─▶ Lifecycle hooks→ enforce security/policy/audit at runtime (hooks/)
         └─▶ AGENTS.md      → project context + active constitution
@@ -150,37 +152,60 @@ cd vscode-extension && npm install && node --test test/*.test.ts
 
 ## Status
 
-**Early-stage, building in public.** v1.3 ships the engine, eight native IDE/CLI
-config emitters (Claude, Codex/AGENTS.md, Cursor, Copilot, Cline, Gemini, Windsurf,
-JetBrains AI Assistant) plus a single-file web-agent bundle for ChatGPT/Gemini/
-Claude.ai web chat, the 81
-skill packs (incl. the `agile/` method personas), the self-contained workflow planner, the
-governed agile method (quality gates, policy-as-code, hash-chained audit trail), the runtime
-enforcement hooks layer, a continuous learning loop with offline skill auto-optimization,
-an autonomous governor (policy-gated, reversible, advise-by-default) with a budget-guardian
-overlay, a durable eval + red-team regression harness (offline, baseline-diffed, pass/fail
-gated), MCP supply-chain auditing, a searchable trace, diagram generators, and a
-task/effort/usage tracker. New in v1.3: a **reasoning-effort axis** (low/medium/high,
-independent of model tier, with its own outcome-learning adapter mirroring the model-tier
-router), a **response-size cap** at the `call_tool` choke point so no tool response is
-ever unbounded, and **cost + audit logging for skill invocations** (`invoke_skill`/
-`skill_chain` results were computed but never persisted before — now every successful
-execution shows up in cost reports and the audit trail). The 90 MCP tools are registered
-through a decorator-based tool registry (one source of truth per tool — no hand-synced
-definition/handler pair to drift, now organized into a `handlers/` package of 20 category
-files instead of one monolithic `server.py`), and an optional local VS Code panel
-(`vscode-extension/`) surfaces budget, security, and governance at a glance over the same
-MCP server, zero external services. Everything runs directly from PromptWise — local-first,
-no third-party integrations, air-gapped by default.
+**Early-stage, building in public.** Package version `1.9.0` in `pyproject.toml`
+(the changelog trails a few shipped features — see `docs/ROADMAP.md` for the live,
+accurate ledger); 105 MCP tools, 81 portable skill packs, ~950 tests, registered
+through a decorator-based tool registry (one source of truth per tool, organized into a
+`handlers/` package of 20 category files instead of one monolithic `server.py`).
+Everything runs directly from PromptWise — local-first, no third-party integrations,
+air-gapped by default.
 
-New in v1.4: a **compliance report card** (OWASP LLM Top 10 2025 / NIST AI RMF / MITRE
-ATLAS), an **OpenTelemetry GenAI exporter** (stdlib-only, no new dependency), **policy
-inheritance** (`extends:` org → team → project, tighten-only), **SIEM-streamable audit
-sinks** (webhook/syslog), **within-tier cost-aware model routing** (prefers a cheaper
-active model in the same quality tier under moderate budget pressure, before ever
-collapsing to the cheapest tier), and **dashboard auth/RBAC** — the dashboard now binds
-`127.0.0.1` by default (fixed an accidental LAN-exposure default) and a non-loopback bind
-requires configured credentials, opt-in and zero-friction for solo use.
+**Core engine:** model-tier routing with budget awareness, a reasoning-effort axis
+(low/medium/high, independent of tier, with its own outcome-learning adapter), a
+response-size cap at the `call_tool` choke point so no tool response is ever unbounded,
+context-budget engineering (compression/caching/batching/handoff), and cost + audit
+logging for every skill invocation.
+
+**Cross-agent portability — one governance source, 11 native emitters:** Claude,
+Codex/AGENTS.md, Cursor, Copilot, Cline, Gemini, Windsurf, JetBrains AI Assistant,
+Aider (`CONVENTIONS.md`), Goose (`.goosehints`), OpenHands
+(`.openhands/microagents/repo.md`) — plus Grok Build/Grok CLI, which needs no emitter
+of its own since it natively auto-reads CLAUDE.md/AGENTS.md. `detect_agents()` probes
+all of them (bar Grok, which has no marker file to detect) so `propose_agent_config`'s
+auto-target-selection actually sees every host you've configured. Also: a single-file
+web-agent bundle (`export_web_bundle`) for ChatGPT/Gemini/Claude.ai web chat, where
+there's no IDE/CLI/MCP surface to emit into.
+
+**Governance & security:** the runtime enforcement hooks layer (`hooks/`) — a flagged
+Write/Edit defers to Claude Code's normal allow/deny prompt instead of a hard block,
+logs silently either way, and standing exceptions are time-boxed JIT grants scoped to
+a file or a whole project; destructive shell commands and runaway tool-call loops still
+hard-deny. A compliance report card (OWASP LLM Top 10 2025 / NIST AI RMF / MITRE ATLAS),
+an OpenTelemetry GenAI exporter, policy inheritance (`extends:` org → team → project,
+tighten-only), SIEM-streamable audit sinks, within-tier cost-aware model routing, and
+dashboard auth/RBAC (binds `127.0.0.1` by default; non-loopback requires credentials).
+An append-only, human-reviewed injection-detection corpus refresh workflow
+(`review_corpus_candidates`/`promote_corpus_candidates`, before/after precision-recall
+diffed on every promotion) keeps the prompt-injection detector's benchmark corpus
+current without turning it into a live, unaudited ML classifier. A durable eval +
+red-team regression harness (offline, baseline-diffed, pass/fail gated), MCP
+supply-chain auditing, a searchable trace, and prompt version rollback/replay round out
+the governance surface.
+
+**Method & learning:** the governed agile method (analyst→pm→architect→po planning,
+per-story sm→dev→qa loop, quality gates, policy-as-code, hash-chained audit trail), the
+self-contained workflow planner, a continuous learning loop with offline skill
+auto-optimization, an autonomous governor (policy-gated, reversible, advise-by-default)
+with a budget-guardian overlay, diagram generators, and a task/effort/usage tracker. An
+optional local VS Code panel (`vscode-extension/`) surfaces budget, security, and
+governance at a glance over the same MCP server, zero external services.
+
+**Known gaps, sized but not built:** remote/mobile MCP access (server is stdio-only
+today; ChatGPT-Desktop-style connectors and mobile apps need a hosted HTTP/SSE
+transport, auth, and per-user state — a real architecture shift, not config) and
+cost-conscious routing over deprecated/prior-gen models (the registry already retains
+deprecated model pricing; the router just never reaches for it — a small, well-scoped
+addition once the default-on-vs-opt-in question is settled).
 
 ## License
 
