@@ -221,7 +221,7 @@ Detail: `PHASE17_ROADMAP.md`.
   replaced with formatted stat tiles (progress bar, badges, placeholders) reusing the
   existing `viewModel.ts` data shapes.
 
-### In progress — governance/FinOps deep-dive: bug fixes + effort-axis routing (branch `p0-p1-bugfix-effort-axis`, pushed 2026-07-22, NOT yet merged) — 623 → 643 tests on the branch
+### Done — governance/FinOps deep-dive: bug fixes + effort-axis routing (branch `p0-p1-bugfix-effort-axis`, merged to main v1.3.0 — confirmed via `git log`: `3e5b765` wires effort_adapter/effort_map into production; `core/effort_adapter.py` and `core/response_budget.py` both exist on main)
 A 5-agent parallel research pass across Coding Intelligence, AI FinOps/ROI, Governance/
 Compliance, AI Risk Management, and Model/Effort+Context-optimization produced a spec
 (`docs/superpowers/specs/2026-07-21-governance-finops-dashboard-design.md`, gitignored)
@@ -239,8 +239,11 @@ dashboard) and P3 (competitive-depth features) are separate follow-on plans, not
   paths now read real spend via new `_memory_manager`/`_real_budget_status` helpers.
 - Deleted `docs/integration/MULTI_PLATFORM.md` — fabricated doc (nonexistent
   `adapters`/`role_detector.RoleDetector`/`auto_role_applier` modules), flagged in the
-  2026-07-16 gap-closure plan and never actually removed until now. (5 other docs still
-  link to it — pre-existing, out-of-scope debt, not yet cleaned up.)
+  2026-07-16 gap-closure plan and never actually removed until now. Checked 2026-08-01:
+  the "5 other docs still link to it" claim was stale — no live markdown link (`[..](..)`)
+  to it exists anywhere in the tracked (non-gitignored) tree; the handful of mentions
+  left are plain-text filenames in past-tense changelog/roadmap prose (this file,
+  `CHANGELOG.md`) plus gitignored `docs/superpowers/` plan scratch files. Nothing to fix.
 - Fixed `run_eval`'s misleading description (claimed A/B quality testing; it only
   estimates cost) — caught and fixed a knock-on golden-snapshot-test regression this
   introduced, since the description fix wasn't covered by a full-suite run at the time.
@@ -252,18 +255,11 @@ dashboard) and P3 (competitive-depth features) are separate follow-on plans, not
   (per-provider label→param resolution), `task_graph.py`'s `plan_waves` and
   `agile_planner.AgileStep` both now carry a per-task effort label.
 
-**Still pending (4 of 13 tasks):**
-- `core/effort_adapter.py` — the outcome-learning loop over effort (mirrors
-  `adaptive_router.py`'s `OutcomeStore`/Bayesian blend), the largest remaining task.
-- Wire the effort axis into `route_request`'s response — depends on the adapter above.
-- Response-size cap at the `call_tool` choke point (`core/response_budget.py`) — no
-  PromptWise tool response was ever size-bounded before.
-- Wire `invoke_skill`/`skill_chain` into `cost_logs` + the audit trail — both already
-  return real per-call cost/model data that was never persisted.
-
-Resume via `superpowers:subagent-driven-development` against the plan file above,
-starting at Task 7; progress ledger at
-`.worktrees/p0-p1-bugfix-effort-axis/.superpowers/sdd/progress.md`.
+**Remaining 4 of 13 tasks (effort_adapter, route_request wiring, response-size cap,
+invoke_skill/skill_chain cost_logs wiring) all shipped** — verified 2026-08-01 by
+`git log` (`3e5b765`, `e795ad0`, `8d03dc6`) and file presence
+(`core/effort_adapter.py`, `core/response_budget.py`). This section was stale; the
+branch fully landed. No remaining work here.
 
 ---
 
