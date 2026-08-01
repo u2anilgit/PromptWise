@@ -84,6 +84,40 @@ def detect_agents(repo_root: str | Path = ".") -> DetectionResult:
     if (root / "GEMINI.md").is_file():
         probe("gemini").add("GEMINI.md", PRIMARY)
 
+    # --- windsurf: .windsurfrules ---
+    if (root / ".windsurfrules").is_file():
+        probe("windsurf").add(".windsurfrules", PRIMARY)
+
+    # --- jetbrains: .aiassistant/ dir (rule "type" lives in IDE settings, not
+    # a specific filename, so directory presence is the only file-level signal) ---
+    if (root / ".aiassistant").is_dir():
+        probe("jetbrains").add(".aiassistant/", SECONDARY)
+
+    # --- cline: .clinerules ---
+    if (root / ".clinerules").is_file():
+        probe("cline").add(".clinerules", PRIMARY)
+
+    # --- aider: CONVENTIONS.md -- SECONDARY, not PRIMARY: the filename is a
+    # community convention also read by Cursor/Cline/Claude Code, not unique
+    # to aider, so its presence alone is weaker evidence than e.g. CLAUDE.md ---
+    if (root / "CONVENTIONS.md").is_file():
+        probe("aider").add("CONVENTIONS.md", SECONDARY)
+
+    # --- goose: .goosehints ---
+    if (root / ".goosehints").is_file():
+        probe("goose").add(".goosehints", PRIMARY)
+
+    # --- openhands: .openhands/microagents/repo.md, or .openhands/ dir alone ---
+    if (root / ".openhands" / "microagents" / "repo.md").is_file():
+        probe("openhands").add(".openhands/microagents/repo.md", PRIMARY)
+    elif (root / ".openhands").is_dir():
+        probe("openhands").add(".openhands/", SECONDARY)
+
+    # NOTE: no "grok" probe. Grok Build/Grok CLI has no rules file of its own
+    # -- it natively auto-reads CLAUDE.md/AGENTS.md (see config_emitter.py's
+    # _TARGET_ALIASES) -- so its presence isn't independently detectable; a
+    # repo with CLAUDE.md correctly surfaces as "claude" already.
+
     matched = [p for p in probes.values() if p.hits]
 
     if not matched:

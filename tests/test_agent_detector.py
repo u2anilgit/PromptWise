@@ -70,6 +70,61 @@ def test_gemini_md_detected(tmp_path: Path):
     assert "gemini" in result.targets
 
 
+def test_windsurfrules_detected(tmp_path: Path):
+    (tmp_path / ".windsurfrules").write_text("# windsurf", encoding="utf-8")
+    result = detect_agents(tmp_path)
+    assert "windsurf" in result.targets
+
+
+def test_jetbrains_dir_detected(tmp_path: Path):
+    (tmp_path / ".aiassistant").mkdir()
+    result = detect_agents(tmp_path)
+    assert "jetbrains" in result.targets
+
+
+def test_clinerules_detected(tmp_path: Path):
+    (tmp_path / ".clinerules").write_text("# cline", encoding="utf-8")
+    result = detect_agents(tmp_path)
+    assert "cline" in result.targets
+
+
+def test_conventions_md_detected_as_aider(tmp_path: Path):
+    (tmp_path / "CONVENTIONS.md").write_text("# conventions", encoding="utf-8")
+    result = detect_agents(tmp_path)
+    assert "aider" in result.targets
+    assert result.confidence["aider"] < 0.9  # weaker signal, not a unique-to-aider filename
+
+
+def test_goosehints_detected(tmp_path: Path):
+    (tmp_path / ".goosehints").write_text("# goose", encoding="utf-8")
+    result = detect_agents(tmp_path)
+    assert "goose" in result.targets
+
+
+def test_openhands_repo_md_detected(tmp_path: Path):
+    d = tmp_path / ".openhands" / "microagents"
+    d.mkdir(parents=True)
+    (d / "repo.md").write_text("# openhands", encoding="utf-8")
+    result = detect_agents(tmp_path)
+    assert "openhands" in result.targets
+    assert result.confidence["openhands"] == 0.9
+
+
+def test_openhands_dir_alone_is_secondary(tmp_path: Path):
+    (tmp_path / ".openhands").mkdir()
+    result = detect_agents(tmp_path)
+    assert "openhands" in result.targets
+    assert result.confidence["openhands"] < 0.9
+
+
+def test_grok_has_no_probe(tmp_path: Path):
+    # Grok reads CLAUDE.md natively -- no separate marker file, so it must
+    # never appear as an independently-detected target.
+    (tmp_path / "CLAUDE.md").write_text("# claude", encoding="utf-8")
+    result = detect_agents(tmp_path)
+    assert "grok" not in result.targets
+
+
 def test_multiple_agents_ranked_by_confidence(tmp_path: Path):
     (tmp_path / "CLAUDE.md").write_text("# claude", encoding="utf-8")
     (tmp_path / "AGENTS.md").write_text("# agents", encoding="utf-8")
