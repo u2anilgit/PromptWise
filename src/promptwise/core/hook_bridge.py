@@ -91,9 +91,48 @@ def _policy_path() -> Path:
 
 
 # ── handlers (each fail-open) ────────────────────────────────────────────────
+def _scan_signatures(payload: dict) -> tuple[str, str]:
+    """(file-scope, project-scope) JIT-permission signatures for a security-scan
+    exception. File scope covers just this path; project scope covers every
+    write in this project."""
+    ti = _tool_input(payload)
+    file_path = ti.get("file_path") or "?"
+    project = _project_name(payload) or "?"
+    return f"SecurityScan:file:{file_path}", f"SecurityScan:project:{project}"
+
+
+def _log_security_finding(payload: dict, res, decision_action: str) -> None:
+    """Append-only, silent audit trail of every scan hit -- independent of
+    whether the write was ultimately allowed, exempted, or deferred to the
+    user. Never raises; never shown to the user inline."""
+    try:
+        import time
+        ti = _tool_input(payload)
+        rec = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "file_path": ti.get("file_path") or "",
+            "risk_score": getattr(res, "risk_score", None),
+            "violations": res.violations,
+            "decision": decision_action,
+        }
+        f = _state_dir(payload) / "security_findings.jsonl"
+        with f.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec) + "\n")
+    except Exception:
+        pass
+
+
 def pretooluse_scan(payload: dict) -> HookDecision:
-    """Block a Write/Edit whose content trips the security scanner (secrets,
-    destructive commands, supply-chain, injection)."""
+    """Flag a Write/Edit whose content trips the security scanner (secrets,
+    destructive commands, supply-chain, injection). Every hit is logged
+    silently to .promptwise/security_findings.jsonl regardless of outcome.
+
+    A scan that would otherwise hard-block never wedges the session: if the
+    user has granted a JIT exception (grant_jit_permission) for this file or
+    the whole project, it's auto-approved and logged. Otherwise the decision
+    defers to Claude Code's normal permission prompt ("ask") instead of a
+    hard error, so the user can approve/deny inline or grant an exception for
+    next time."""
     try:
         from promptwise.security.scanner import SecurityScanner
         text = _edited_text(_tool_input(payload))
@@ -107,12 +146,31 @@ def pretooluse_scan(payload: dict) -> HookDecision:
             pass
         if getattr(res, "blocked", False):
             details = "; ".join(v.get("check", "?") for v in (res.violations or [])) or res.details
+            file_sig, project_sig = _scan_signatures(payload)
+            try:
+                from promptwise.core.jit_permissions import JITPermissions
+                jp = JITPermissions()
+                exempted = jp.is_active(file_sig) or jp.is_active(project_sig)
+            except Exception:
+                exempted = False
+            if exempted:
+                _log_security_finding(payload, res, "allow (exempted)")
+                return HookDecision(action="allow", event="PreToolUse",
+                                     extra={"risk_score": res.risk_score, "exempted": True})
+            _log_security_finding(payload, res, "ask")
             return HookDecision(
-                action="block", event="PreToolUse",
-                reason=f"PromptWise blocked write: {details} (risk {res.risk_score}).",
-                extra={"risk_score": res.risk_score, "violations": res.violations},
+                action="ask", event="PreToolUse",
+                reason=(
+                    f"PromptWise security scan flagged this write: {details} (risk {res.risk_score}). "
+                    f"Approve to proceed once. To stop being asked: grant_jit_permission("
+                    f"signature=\"{file_sig}\") for just this file, or grant_jit_permission("
+                    f"signature=\"{project_sig}\") for the whole project."
+                ),
+                extra={"risk_score": res.risk_score, "violations": res.violations,
+                       "file_signature": file_sig, "project_signature": project_sig},
             )
         if res.violations:
+            _log_security_finding(payload, res, "warn")
             return HookDecision(
                 action="warn", event="PreToolUse",
                 reason=f"PromptWise security concerns: {res.details} (risk {res.risk_score}).",

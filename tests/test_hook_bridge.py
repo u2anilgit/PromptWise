@@ -16,7 +16,7 @@ def test_pretooluse_blocks_secret_write(tmp_path):
     p = _payload(tmp_path, tool_name="Write",
                  tool_input={"file_path": "x.py", "content": 'API_KEY = "sk-abcdef1234567890"'})
     d = hb.pretooluse_scan(p)
-    assert d.action == "block"
+    assert d.action == "ask"
     assert "risk" in d.reason.lower() or d.extra.get("risk_score", 0) >= 0.7
 
 
@@ -24,7 +24,31 @@ def test_pretooluse_blocks_destructive_write(tmp_path):
     p = _payload(tmp_path, tool_name="Edit",
                  tool_input={"file_path": "deploy.sh", "new_string": "rm -rf / --no-preserve-root"})
     d = hb.pretooluse_scan(p)
-    assert d.action == "block"
+    assert d.action == "ask"
+
+
+def test_pretooluse_blocked_write_logs_finding_silently(tmp_path):
+    p = _payload(tmp_path, tool_name="Write",
+                 tool_input={"file_path": "x.py", "content": 'API_KEY = "sk-abcdef1234567890"'})
+    hb.pretooluse_scan(p)
+    log = tmp_path / ".promptwise" / "security_findings.jsonl"
+    assert log.exists()
+    rec = json.loads(log.read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert rec["decision"] == "ask"
+    assert rec["file_path"] == "x.py"
+
+
+def test_pretooluse_respects_active_jit_exemption(tmp_path, monkeypatch):
+    from promptwise.core.jit_permissions import JITPermissions
+    db = tmp_path / "jit.db"
+    monkeypatch.setattr("promptwise.core.jit_permissions._default_db", lambda: db)
+    p = _payload(tmp_path, tool_name="Write",
+                 tool_input={"file_path": "x.py", "content": 'API_KEY = "sk-abcdef1234567890"'})
+    file_sig, _project_sig = hb._scan_signatures(p)
+    JITPermissions(db_path=db).grant(file_sig, ttl_minutes=5)
+    d = hb.pretooluse_scan(p)
+    assert d.action == "allow"
+    assert d.extra.get("exempted") is True
 
 
 def test_pretooluse_allows_clean_write(tmp_path):
@@ -249,13 +273,14 @@ def test_unknown_handler_allows():
 
 
 # ── run() CLI: exit codes + stdin parsing ────────────────────────────────────
-def test_run_block_returns_exit_2(tmp_path):
+def test_run_flagged_write_asks_instead_of_blocking(tmp_path):
     payload = json.dumps(_payload(tmp_path, tool_name="Write",
                                   tool_input={"file_path": "x.py", "content": 'password = "hunter2pass"'}))
     out, err = io.StringIO(), io.StringIO()
     code = hb.run("pretooluse_scan", stdin=io.StringIO(payload), stdout=out, stderr=err)
-    assert code == 2
-    assert err.getvalue().strip()
+    assert code == 0
+    body = json.loads(out.getvalue())
+    assert body["hookSpecificOutput"]["permissionDecision"] == "ask"
 
 
 def test_run_allow_returns_exit_0(tmp_path):
