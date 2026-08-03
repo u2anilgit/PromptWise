@@ -31,6 +31,12 @@ it compiles its intelligence **down to those three formats** and adds the layer 
 them have:
 
 - **Model routing** — right tier (Haiku/Sonnet/Opus) per task, with budget awareness.
+- **Preflight pipeline** — every prompt, in every connected host, gets one combined
+  pass before work starts: rewrite advisory, secret/injection scan, task-type
+  classification (bugfix/docs/refactor/enhancement/new-code), model/tier routing,
+  and an opt-in shortlist of the last 2-3 current models per tier. Advisory-only by
+  design (an MCP server can't force a host to swap models mid-turn) — surfaces as
+  session context, never blocks. See `core/preflight.py`.
 - **Reasoning-effort routing** — low/medium/high, independent of model tier — plus an
   outcome-learning adapter (mirrors the model-tier router's design) that blends in past
   results once there's enough evidence, fail-open to the static pick otherwise.
@@ -52,7 +58,7 @@ them have:
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (105)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (106)
         ├─▶ SKILL.md packs → 81 portable packs in skill_packs/
         ├─▶ Lifecycle hooks→ enforce security/policy/audit at runtime (hooks/)
         └─▶ AGENTS.md      → project context + active constitution
