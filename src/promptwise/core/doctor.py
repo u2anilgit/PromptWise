@@ -10,7 +10,14 @@ Both are safe to run repeatedly and never raise.
 from __future__ import annotations
 
 import json
+from datetime import date, datetime
 from pathlib import Path
+
+# Newest release_date in config/models.yaml older than this is flagged
+# (advisory only -- never fails doctor) so the curated "last N models"
+# shortlist (core/preflight.py, opt-in via PROMPTWISE_MODEL_RETENTION)
+# doesn't silently rot.
+_MODEL_CATALOG_STALE_DAYS = 120
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -86,7 +93,26 @@ def run_diagnostics(cwd: str | Path | None = None) -> dict:
     except Exception as e:
         checks.append(_check("model registry loads", False, f"{type(e).__name__}: {e}"))
 
-    # 6) learning store writable
+    # 6) model catalog freshness (advisory only -- never fails overall health)
+    try:
+        from promptwise.core.model_registry import ModelRegistry
+        reg = ModelRegistry()
+        dates = [reg.release_date_of(a) for a in reg.all_current()]
+        dates = [d for d in dates if d]
+        if dates:
+            newest = max(dates)
+            age_days = (date.today() - datetime.fromisoformat(newest).date()).days
+            stale = age_days > _MODEL_CATALOG_STALE_DAYS
+            checks.append(_check(
+                "model catalog freshness", True,
+                f"newest current model release_date {newest} ({age_days}d ago)"
+                + (f" -- stale (>{_MODEL_CATALOG_STALE_DAYS}d), review config/models.yaml" if stale else "")))
+        else:
+            checks.append(_check("model catalog freshness", True, "no release_date on current models to check"))
+    except Exception as e:
+        checks.append(_check("model catalog freshness", True, f"skipped: {type(e).__name__}: {e}"))
+
+    # 7) learning store writable
     try:
         from promptwise.core.learning_store import LearningStore
         LearningStore()  # opens/creates ~/.promptwise/learning.db

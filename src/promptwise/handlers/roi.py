@@ -18,6 +18,13 @@ async def _handle_session_cost_report(ctx: ServerContext, arguments: dict) -> st
     return json.dumps({"current_session_id": CURRENT_SESSION_ID, "sessions": rows})
 
 
+@tool(name="project_cost_report", description="Per-project cost rollup: calls, cost, tokens, and tool breakdown grouped by project_id. Rows logged without a project_id (the default -- no caller passes one yet, Identity.projects/dashboard scoping unenforced) collapse into an 'unscoped' bucket.",
+         schema={"type": "object", "properties": {"since": {"type": "string", "description": "ISO-8601 cutoff; omit for all history"}}})
+async def _handle_project_cost_report(ctx: ServerContext, arguments: dict) -> str:
+    rows = await ctx.memory.project_cost_report(since=arguments.get("since"))
+    return json.dumps({"projects": rows})
+
+
 @tool(name="track_roi", description="Calculate ROI ratio: value of time saved vs cost incurred",
          schema={"type": "object", "properties": {
              "session_id": {"type": "string"}, "total_cost_usd": {"type": "number"}, "tokens_saved": {"type": "integer"}, "calls": {"type": "integer"}},

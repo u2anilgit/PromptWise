@@ -183,3 +183,16 @@ class ModelRegistry:
                 continue
             out.append(m["alias"])
         return out
+
+    def top_n_current(self, tier: str | None = None, n: int = 3) -> list[str]:
+        """Newest N current aliases for a tier (all providers), newest first.
+        Same "current + release_date desc" ordering as resolve()/current_alias(),
+        just not truncated to one -- the "last N best models" shortlist."""
+        tier_l = (tier or "").lower()
+        candidates = [
+            m for m in self._models
+            if str(m.get("status", "current")).lower() == "current"
+            and (not tier_l or self._tier_of(m).lower() == tier_l)
+        ]
+        candidates.sort(key=lambda m: (str(m.get("release_date", "")), str(m.get("alias", ""))), reverse=True)
+        return [m["alias"] for m in candidates[:n]]

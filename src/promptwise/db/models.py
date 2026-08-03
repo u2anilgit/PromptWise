@@ -34,6 +34,10 @@ class CostLogModel(Base):
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     saving_pct: Mapped[float] = mapped_column(Float, default=0.0)
     lines: Mapped[float] = mapped_column(Float, default=0.0)
+    # Nullable: None = unscoped (pre-migration rows, or callers that don't
+    # pass one). Backs Identity.projects (dashboard/auth.py) once a caller
+    # scopes cost reporting to a project -- unenforced until then.
+    project_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
 
 class MemoryEntryModel(Base):
@@ -148,6 +152,17 @@ class EvalBaselineModel(Base):
     ts: Mapped[str] = mapped_column(String(50), nullable=False)
 
 
+async def _ensure_cost_logs_project_id(conn) -> None:
+    """Existing DBs predate the project_id column; Base.metadata.create_all
+    only creates missing TABLES, not missing columns on an existing table.
+    Add it if absent -- nullable, so no backfill and no data loss."""
+    def _cols(sync_conn):
+        return [row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(cost_logs)").fetchall()]
+    cols = await conn.run_sync(_cols)
+    if cols and "project_id" not in cols:
+        await conn.exec_driver_sql("ALTER TABLE cost_logs ADD COLUMN project_id VARCHAR(100)")
+
+
 def get_db_path() -> Path:
     db_dir = Path.home() / ".promptwise"
     db_dir.mkdir(parents=True, exist_ok=True)
@@ -162,6 +177,7 @@ async def init_db(db_path: Path | str | None = None) -> str:
     engine = create_async_engine(db_url, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_cost_logs_project_id(conn)
     await engine.dispose()
     return str(db_path)
 
@@ -232,6 +248,7 @@ class MemoryManager:
     async def init(self) -> None:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await _ensure_cost_logs_project_id(conn)
 
     async def log(self, *, session_id: str, tool: str, summary: str, cost_usd: float = 0.0, tags: list[str] | None = None) -> MemoryEntry:
         entry_id = str(uuid.uuid4())
@@ -419,25 +436,28 @@ class MemoryManager:
                  "tier": r.tier, "score": r.score, "verdict": r.verdict, "mode": r.mode,
                  "signals": json.loads(r.signals), "ts": r.ts} for r in rows]
 
-    async def record_cost(self, *, session_id: str, tool: str, model: str, input_tokens: float = 0, output_tokens: float = 0, cost_usd: float = 0, saving_pct: float = 0, lines: float = 0) -> None:
+    async def record_cost(self, *, session_id: str, tool: str, model: str, input_tokens: float = 0, output_tokens: float = 0, cost_usd: float = 0, saving_pct: float = 0, lines: float = 0, project_id: str | None = None) -> None:
         async with self.async_session() as session:
             async with session.begin():
-                session.add(CostLogModel(log_id=str(uuid.uuid4()), session_id=session_id, ts=datetime.now(timezone.utc).isoformat(), tool=tool, model=model, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd, saving_pct=saving_pct, lines=lines))
+                session.add(CostLogModel(log_id=str(uuid.uuid4()), session_id=session_id, ts=datetime.now(timezone.utc).isoformat(), tool=tool, model=model, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd, saving_pct=saving_pct, lines=lines, project_id=project_id))
 
-    async def raw_cost_logs(self, since: str | None = None) -> list[dict]:
-        """Raw cost events (optionally since an ISO cutoff) for the dashboard's
-        retention/rollup layer."""
+    async def raw_cost_logs(self, since: str | None = None, project_id: str | None = None) -> list[dict]:
+        """Raw cost events (optionally since an ISO cutoff, optionally scoped
+        to one project_id) for the dashboard's retention/rollup layer."""
         async with self.async_session() as session:
             stmt = select(CostLogModel)
             if since:
                 stmt = stmt.where(CostLogModel.ts >= since)
+            if project_id:
+                stmt = stmt.where(CostLogModel.project_id == project_id)
             stmt = stmt.order_by(CostLogModel.ts)
             result = await session.execute(stmt)
             logs = result.scalars().all()
         return [{"ts": l.ts, "session_id": l.session_id, "tool": l.tool, "model": l.model,
                  "input_tokens": l.input_tokens, "output_tokens": l.output_tokens,
                  "cost_usd": l.cost_usd, "saving_pct": l.saving_pct,
-                 "lines": getattr(l, "lines", 0) or 0} for l in logs]
+                 "lines": getattr(l, "lines", 0) or 0,
+                 "project_id": getattr(l, "project_id", None)} for l in logs]
 
     async def session_cost_report(self, since: str | None = None) -> list[dict]:
         """Per-session cost rollup: group raw_cost_logs() by session_id.
@@ -467,6 +487,33 @@ class MemoryManager:
         for bucket in by_session.values():
             bucket["total_cost_usd"] = round(bucket["total_cost_usd"], 6)
         return sorted(by_session.values(), key=lambda b: b["last_ts"], reverse=True)
+
+    async def project_cost_report(self, since: str | None = None) -> list[dict]:
+        """Per-project cost rollup, grouping raw_cost_logs() by project_id.
+        Rows with project_id=None (the default -- no caller passes one yet)
+        collapse into a single "unscoped" bucket, mirroring how
+        session_cost_report handled pre-migration "default" session rows."""
+        logs = await self.raw_cost_logs(since=since)
+        by_project: dict[str, dict] = {}
+        for l in logs:
+            pid = l["project_id"] or "unscoped"
+            bucket = by_project.setdefault(pid, {
+                "project_id": pid, "calls": 0, "total_cost_usd": 0.0,
+                "total_input_tokens": 0.0, "total_output_tokens": 0.0,
+                "by_tool": {}, "first_ts": l["ts"], "last_ts": l["ts"],
+            })
+            bucket["calls"] += 1
+            bucket["total_cost_usd"] += l["cost_usd"]
+            bucket["total_input_tokens"] += l["input_tokens"]
+            bucket["total_output_tokens"] += l["output_tokens"]
+            bucket["by_tool"][l["tool"]] = bucket["by_tool"].get(l["tool"], 0) + 1
+            if l["ts"] < bucket["first_ts"]:
+                bucket["first_ts"] = l["ts"]
+            if l["ts"] > bucket["last_ts"]:
+                bucket["last_ts"] = l["ts"]
+        for bucket in by_project.values():
+            bucket["total_cost_usd"] = round(bucket["total_cost_usd"], 6)
+        return sorted(by_project.values(), key=lambda b: b["last_ts"], reverse=True)
 
     async def snapshot(self, since: str | None = None) -> dict:
         async with self.async_session() as session:

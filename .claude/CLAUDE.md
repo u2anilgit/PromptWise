@@ -12,3 +12,7 @@ grant_jit_permission(signature="SecurityScan:project:<name>")   # exempt the who
 Grants are time-boxed (default 60min, max 480min/8h) and auto-revert to the normal prompt on expiry. `list_jit_permissions()` / `revoke_jit_permission(signature=...)` manage them.
 
 Note: `.claude/settings.json` `permissions.allow` patterns (e.g. `Write(src/*)`) control Claude Code's own permission engine, not this hook — the hook always runs regardless and is the thing that used to hard-block.
+
+## Cross-agent preflight pipeline (2026-08-03+)
+
+`userpromptsubmit_policy` now runs a combined pass (`core/preflight.py::run_preflight`) on every prompt: rewrite advisory, secret/injection scan, task-type classification (bugfix/docs/refactor/enhancement/new_code), model/tier routing, and an opt-in shortlist of the last 2-3 current models per tier. All advisory — an MCP server cannot force a host to swap its active model mid-turn, so this surfaces via `additionalContext` (the `warn` hook action), same channel as before. The model shortlist is off by default (`PROMPTWISE_MODEL_RETENTION=on` to enable); `doctor` flags when `config/models.yaml`'s newest `release_date` is >120 days old. Cross-provider suggestions are text-only, never dispatched. Design: `docs/superpowers/specs/2026-08-03-preflight-pipeline-design.md`.

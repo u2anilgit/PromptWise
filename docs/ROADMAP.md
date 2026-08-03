@@ -15,11 +15,23 @@ within-tier cost-aware routing, dashboard auth/RBAC, executive dashboard,
 SOC2/ISO42001/EU-AI-Act compliance mapping, Ed25519 compliance-bundle
 signing, residual-risk register, ADR/decision-memory log, real static-analysis
 wiring (`validate_output`), and advisory-only cross-provider cost comparison
-(`compare_providers`). `main` is at **795 Python tests**, package version
-`1.7.0`. No planned finale — the series is open-ended. See "Open items" below
-for what's left; only one older feature candidate remains fully parked: **D**
+(`compare_providers`). Since then: JIT-scoped MCP permissions, prompt
+rollback/replay, injection-corpus refresh, `pretooluse_scan` block→ask fix,
+deeper agent-sync (Aider/Goose/OpenHands/Grok emitters + 9-host detection
+probes), and (2026-08-03) the combined `core/preflight.py` pass — rewrite
+advisory, security scan, task-type classification, model/tier routing, and an
+opt-in last-2/3-current-models shortlist, folded into the existing
+`userpromptsubmit_policy` hook so every prompt in every host PromptWise emits
+hook configs for gets one advisory pass — plus per-project cost scoping
+(`cost_logs.project_id`, `project_cost_report`). Package version `1.9.3`. No
+planned finale — the series is open-ended. See "Open items" below for what's
+left; only one older feature candidate remains fully parked: **D**
 (local-embeddings, needs dependency sign-off) — explicitly deferred/skipped by
-the user, pick up only if asked.
+the user, pick up only if asked. Remote/mobile MCP access is a second
+deliberately-parked item: `dashboard/auth.py` states outright that "the MCP
+tool layer has no inbound listener and is intentionally out of scope" —
+reversing that needs a network-facing-transport/auth/hosting decision, not a
+mechanical build, so it's flagged rather than built.
 
 Standing guardrails (all phases): local-first, air-gap-safe, no new infrastructure, no
 new pip dependencies, no branded/competitor model ids (tiers/families only), hooks &
@@ -270,7 +282,9 @@ Effort key: S = <1 day, M = 1-3 days, L = multi-day/needs its own spec.
 
 | Task | Outcome | Effort | Status |
 |---|---|---|---|
-| Per-project data scoping (`cost_logs` migration) | Makes the dashboard-auth `Identity.projects` field real — schema change + ~30 call sites | L | Not started |
+| Per-project data scoping (`cost_logs` migration) | **Done** (2026-08-03) — `cost_logs.project_id` (nullable, auto-migrated onto existing DBs via `_ensure_cost_logs_project_id`), `record_cost`/`raw_cost_logs` take `project_id`, new `project_cost_report` tool. Dashboard-side enforcement against `Identity.projects` still not wired — that's the "~30 call sites" part, deferred until a caller actually needs project-scoped auth, not just data. | L | **Done** (schema+API; dashboard enforcement not yet wired) |
+| Cross-agent preflight pipeline: rewrite+security+task-type+routing in one pass, opt-in last-2/3-model shortlist | **Done** (2026-08-03) — `core/preflight.py::run_preflight`, wired into `userpromptsubmit_policy`. Model shortlist gated behind `PROMPTWISE_MODEL_RETENTION` (default off — no sign-off yet on always showing it); `ModelRegistry.top_n_current()`; `doctor` gained a model-catalog-staleness advisory check. Cross-provider suggestion is advisory-text-only, no dispatch (`transports/http.py`'s provider calls are simulated stubs, not real network — real dispatch is a separate credential/network-egress decision, explicitly not built). See `docs/superpowers/specs/2026-08-03-preflight-pipeline-design.md`. | M | **Done.** |
+| Remote/mobile MCP access | `dashboard/auth.py`'s own docstring: "the MCP tool layer has no inbound listener and is intentionally out of scope" — a deliberate existing architecture decision, not an oversight. Needs a new network-facing transport (`server.py` is stdio-only today) + auth model + hosting decision before any build starts. | L | Not started — flagged, needs explicit sign-off before scoping |
 | Deepen `sync_agent_config`/`check_portability`/etc. across Cursor, Copilot, Windsurf | **Done** (2026-08-01) — `agent_detector.py`'s `detect_agents()` now probes windsurf (`.windsurfrules`), jetbrains (`.aiassistant/` dir), cline (`.clinerules`), aider (`CONVENTIONS.md`, SECONDARY confidence — shared community filename, not unique to aider), goose (`.goosehints`), openhands (`.openhands/microagents/repo.md` PRIMARY or `.openhands/` dir SECONDARY). No probe added for grok — it has no marker file of its own (reads CLAUDE.md/AGENTS.md natively), so it's correctly undetectable as a distinct target; a CLAUDE.md hit already surfaces as "claude". 9 new tests. | M | **Done.** |
 | Broader self-learning coverage | `suggest_technique` gains a third outcome-learning axis (categorical, not a ladder — `core/technique_adapter.py`), mirroring the tier/effort pattern | M | **Done** (v1.8.0) |
 | Gap-closure P2 (remaining governance items) | Re-scoped 2026-07-24 — see breakdown table below | Split, see below | Re-scoped |
@@ -292,7 +306,7 @@ by reading the actual current code, not by assuming the original estimate still 
 | # | Original item | Current status | Verdict |
 |---|---|---|---|
 | 10 | Reversible compression + cross-agent shared memory dedup | Not started | **Fold into candidate D** (local-embeddings, `docs/GAP_ANALYSIS_2026-07.md`) — same architecture, same new-dependency sign-off blocker. Don't track as a separate P2 item; it's the same decision. |
-| 11 | Session-level (multi-call workflow) cost rollup | `task_report` exists but only aggregates *all* tasks globally — no `session_id` grouping, confirmed by reading `TaskTracker.report()`. `cost_logs` already has a `session_id` column (`db/models.py`), so this is additive, not a schema change. | **Still open, ~3h holds up.** Real gap, genuinely S-M. |
+| 11 | Session-level (multi-call workflow) cost rollup | **Done** (v1.9.0, `75aa1bb`) — `session_cost_report` tool + real per-process `CURRENT_SESSION_ID` (see backlog table above). This row was left stale after that shipped; the net-result summary below already listed it correctly. | **Done.** |
 | 12 | Prompt version rollback + replay against captured traces | **Done** — rescoped: no trace-capture store exists (`AuditLog` is metadata-only, `ExactCache` is TTL-only), so replay runs a registered prompt version through the existing `core/eval_harness.py` rubric-case machinery instead of captured traces. Rollback is insert-only (latest-`ts` row wins, no schema migration). `MemoryManager.get_prompt_version`/`rollback_prompt` (data layer) + `rollback_prompt`/`replay_prompt_version` MCP tools. A real bug (`ORDER BY ts DESC` with no tiebreaker — same-microsecond writes made "most recent" nondeterministic) was found and fixed in review with a `rowid DESC` secondary sort. | **Done.** |
 | 13 | JIT/time-boxed scoped MCP permissions | **Done** (v1.9.1) — see the backlog table above. Built via brainstorming → writing-plans → subagent-driven-development; the final whole-branch review caught a real architectural gap the 4 task-level reviews missed (`hook_bridge.run()` had no way to actually auto-approve or hand back to the normal prompt, only silent-allow or hard-deny), fixed by adding `permit`/`ask` hook actions without changing the other 14 existing hooks' behavior. | **Done.** |
 | 14 | Injection-detection corpus refresh workflow (offline, human-reviewed — not a live ML classifier) | **Done** (v1.9.2) — `security/corpus_store.py` (append-only sqlite history table), `corpus/injection_corpus.json` (external default corpus), `review_corpus_candidates` MCP tool (dry-run scoring), `promote_corpus_candidates` MCP tool (merge + audit trail). All 5 tests pass; full suite green. | **Done.** |

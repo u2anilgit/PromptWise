@@ -17,7 +17,7 @@ OpenHands · Grok Build/Grok CLI (reads CLAUDE.md natively) · any MCP host
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Skill packs](https://img.shields.io/badge/skill%20packs-81-7C5BD4.svg)
-![MCP tools](https://img.shields.io/badge/MCP%20tools-105-4C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-106-4C5BD4.svg)
 
 📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -152,9 +152,9 @@ cd vscode-extension && npm install && node --test test/*.test.ts
 
 ## Status
 
-**Early-stage, building in public.** Package version `1.9.0` in `pyproject.toml`
+**Early-stage, building in public.** Package version `1.9.3` in `pyproject.toml`
 (the changelog trails a few shipped features — see `docs/ROADMAP.md` for the live,
-accurate ledger); 105 MCP tools, 81 portable skill packs, ~950 tests, registered
+accurate ledger); 106 MCP tools, 81 portable skill packs, ~950 tests, registered
 through a decorator-based tool registry (one source of truth per tool, organized into a
 `handlers/` package of 20 category files instead of one monolithic `server.py`).
 Everything runs directly from PromptWise — local-first, no third-party integrations,
