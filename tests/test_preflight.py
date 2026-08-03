@@ -65,21 +65,47 @@ def test_run_preflight_flags_large_prompt():
     assert any("large prompt" in n for n in result.notes)
 
 
-def test_run_preflight_model_shortlist_off_by_default(monkeypatch):
+def _with_registry(monkeypatch, tmp_path):
+    reg_dir = tmp_path / "config"
+    reg_dir.mkdir()
+    (reg_dir / "models.yaml").write_text(REG, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+
+# Adaptive default (sign-off 2026-08-04): the shortlist rides the SAME
+# trigger the existing tier advisory already uses -- powerful tier only,
+# not a separate always-on/off toggle. PROMPTWISE_MODEL_RETENTION can still
+# force it on/off explicitly.
+
+def test_run_preflight_model_shortlist_quiet_at_fast_balanced_tier(monkeypatch, tmp_path):
     monkeypatch.delenv("PROMPTWISE_MODEL_RETENTION", raising=False)
-    result = run_preflight("implement a new caching layer for the API")
+    _with_registry(monkeypatch, tmp_path)
+    result = run_preflight("what time is it")  # routes fast/balanced, not powerful
     assert result.model_shortlist == []
 
 
-def test_run_preflight_model_shortlist_opt_in(monkeypatch, tmp_path):
-    monkeypatch.setenv("PROMPTWISE_MODEL_RETENTION", "on")
-    reg_path = tmp_path / "models.yaml"
-    reg_path.write_text(REG, encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
+def test_run_preflight_model_shortlist_adaptive_at_powerful_tier(monkeypatch, tmp_path):
+    monkeypatch.delenv("PROMPTWISE_MODEL_RETENTION", raising=False)
+    _with_registry(monkeypatch, tmp_path)
     result = run_preflight(
         "design a production-critical distributed microservices architecture")
-    if result.recommended_model:
-        assert isinstance(result.model_shortlist, list)
+    assert result.recommended_model
+    assert result.model_shortlist == ["pow-cur-new", "pow-cur-old"]
+
+
+def test_run_preflight_model_shortlist_forced_on_overrides_tier(monkeypatch, tmp_path):
+    monkeypatch.setenv("PROMPTWISE_MODEL_RETENTION", "on")
+    _with_registry(monkeypatch, tmp_path)
+    result = run_preflight("what time is it")
+    assert result.model_shortlist != []
+
+
+def test_run_preflight_model_shortlist_forced_off_overrides_powerful_tier(monkeypatch, tmp_path):
+    monkeypatch.setenv("PROMPTWISE_MODEL_RETENTION", "off")
+    _with_registry(monkeypatch, tmp_path)
+    result = run_preflight(
+        "design a production-critical distributed microservices architecture")
+    assert result.model_shortlist == []
 
 
 def test_run_preflight_cross_provider_advisory_only():

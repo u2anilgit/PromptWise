@@ -1,5 +1,5 @@
 """core.preflight -- one combined pass over a user prompt: rewrite advisory,
-security scan, task-type classification, model/tier routing, and (opt-in) a
+security scan, task-type classification, model/tier routing, and an adaptive
 shortlist of the last 2-3 current models for the routed tier.
 
 Designed to be called from hook_bridge.py::userpromptsubmit_policy, which
@@ -20,10 +20,16 @@ from promptwise.core.rewriter import Rewriter
 from promptwise.core.text_match import any_keyword
 from promptwise.security.scanner import SecurityScanner
 
-# Model-shortlist advisory is opt-in: no sign-off yet on always surfacing it
-# (see ROADMAP model-retention entry). Same on/off token convention as
-# router.py's _ADAPTIVE_OFF.
+# Model-shortlist visibility: sign-off decision (2026-08-04) was to make this
+# adaptive to routing context rather than a fixed on/off default -- default
+# (env var unset) surfaces the shortlist only when the routed tier is
+# "powerful", i.e. only riding the same trigger the existing tier advisory
+# already uses, so fast/balanced-tier prompts (the overwhelming majority)
+# stay exactly as quiet as before. PROMPTWISE_MODEL_RETENTION still lets a
+# user override explicitly: "off" suppresses it even at powerful tier, "on"
+# forces it at every tier.
 _RETENTION_ON = ("1", "on", "true", "yes")
+_RETENTION_OFF = ("0", "off", "false", "no")
 
 _TASK_TYPE_RULES: list[tuple[str, list[str]]] = [
     ("bugfix", ["bug", "fix", "broken", "error", "crash", "failing", "regression", "traceback"]),
@@ -41,8 +47,15 @@ _REWRITE_SAVING_THRESHOLD = 15.0
 _SHORTLIST_SIZE = 3
 
 
-def _retention_enabled() -> bool:
-    return os.environ.get("PROMPTWISE_MODEL_RETENTION", "off").lower() in _RETENTION_ON
+def _retention_mode() -> str:
+    """"on" (always show) / "off" (never show) / "adaptive" (default -- show
+    only at powerful tier, mirroring the existing tier-advisory trigger)."""
+    raw = os.environ.get("PROMPTWISE_MODEL_RETENTION", "").strip().lower()
+    if raw in _RETENTION_ON:
+        return "on"
+    if raw in _RETENTION_OFF:
+        return "off"
+    return "adaptive"
 
 
 def classify_task_type(text: str) -> str:
@@ -142,15 +155,21 @@ def run_preflight(prompt: str, *, host: str = "claude-code",
     except Exception:
         pass
 
-    # 5) model shortlist (opt-in) -- last N current models for the routed tier
-    if _retention_enabled() and router is not None and recommended_model:
-        try:
-            tier = router.registry.tier_of(recommended_model)
-            model_shortlist = router.registry.top_n_current(tier, n=_SHORTLIST_SIZE) if tier else []
-            if model_shortlist:
-                notes.append(f"current {tier}-tier models (newest first): {', '.join(model_shortlist)}")
-        except Exception:
-            pass
+    # 5) model shortlist -- last N current models for the routed tier.
+    # Adaptive by default: only surfaces at "powerful" tier (same trigger the
+    # tier advisory above already uses), so it rides existing quiet/noisy
+    # behavior instead of adding a new always-on or always-off toggle.
+    if router is not None and recommended_model:
+        mode = _retention_mode()
+        tier = router.registry.tier_of(recommended_model)
+        show = mode == "on" or (mode == "adaptive" and tier == "powerful")
+        if show:
+            try:
+                model_shortlist = router.registry.top_n_current(tier, n=_SHORTLIST_SIZE) if tier else []
+                if model_shortlist:
+                    notes.append(f"current {tier}-tier models (newest first): {', '.join(model_shortlist)}")
+            except Exception:
+                pass
 
     # 6) cross-provider suggestion -- advisory only, no dispatch (see design
     # doc: transports/http.py's provider calls are simulated stubs today,

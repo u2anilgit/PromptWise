@@ -15,7 +15,8 @@ from pathlib import Path
 
 # Newest release_date in config/models.yaml older than this is flagged
 # (advisory only -- never fails doctor) so the curated "last N models"
-# shortlist (core/preflight.py, opt-in via PROMPTWISE_MODEL_RETENTION)
+# shortlist (core/preflight.py, adaptive by default -- powerful tier only --
+# override via PROMPTWISE_MODEL_RETENTION=on/off)
 # doesn't silently rot.
 _MODEL_CATALOG_STALE_DAYS = 120
 
