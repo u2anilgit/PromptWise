@@ -61,7 +61,8 @@ def test_stats_reports_hits_and_entries(tmp_path, monkeypatch):
     out = json.loads(_call("cache_stats", {}))
     assert out["entries"] == 1
     assert out["hits"] == 1
-    assert set(out) == {"entries", "hits", "misses", "hit_rate", "by_category"}
+    assert set(out) == {"entries", "hits", "misses", "hit_rate", "by_category",
+                        "semantic_embeddings_stored", "semantic_available"}
 
 
 def test_stats_purges_expired_by_default(tmp_path):

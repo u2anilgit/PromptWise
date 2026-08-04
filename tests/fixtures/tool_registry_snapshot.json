@@ -176,7 +176,7 @@
   },
   {
     "name": "cache_lookup",
-    "description": "Exact-match lookup in the local result cache (ExactCache): given identical (tool, request) input to a prior cache_store call, return the stored result instead of recomputing. Hash-based only, no embeddings/similarity threshold. Offline.",
+    "description": "Lookup in the local result cache: exact-match (hash-based) always tried first and always wins. On an exact miss, if the optional embeddings extra is installed and ready, falls back to a semantic near-miss match (cosine similarity, static 0.95 default threshold) over previously-stored requests for the same tool -- otherwise behaves exactly like the exact-match-only cache. Offline; semantic fallback is local ONNX inference only, never an LLM call.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -186,6 +186,13 @@
         },
         "request": {
           "description": "the request payload to hash (string or object)"
+        },
+        "min_similarity": {
+          "type": "number",
+          "default": 0.95,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "similarity floor for the semantic fallback (ignored on an exact hit)"
         }
       },
       "required": [
@@ -196,7 +203,7 @@
   },
   {
     "name": "cache_store",
-    "description": "Store a result in the local exact-match cache (ExactCache) for later cache_lookup hits. Refuses to store (reports why) if category is medical/legal/financial/personalized/health, or if the request/result contains PII or secrets per security.scanner. Offline.",
+    "description": "Store a result in the local cache for later cache_lookup hits (exact match, plus a semantic-fallback embedding when the optional embeddings extra is installed and ready). Refuses to store (reports why) if category is medical/legal/financial/personalized/health, or if the request/result contains PII or secrets per security.scanner -- same guard whether or not embeddings are available.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -229,7 +236,7 @@
   },
   {
     "name": "cache_stats",
-    "description": "Hit/miss/entry-count/hit-rate report for the local exact-match cache (ExactCache), broken down by category. Purges expired entries first by default.",
+    "description": "Hit/miss/entry-count/hit-rate report for the local cache, broken down by category, plus semantic-fallback counters (embeddings stored, whether the semantic fallback is currently available). Purges expired entries first by default.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -238,6 +245,14 @@
           "default": true
         }
       }
+    }
+  },
+  {
+    "name": "embedding_status",
+    "description": "Local embedding provider health: whether the optional [embeddings] extra is installed, which model is configured, whether it's already cached locally, whether network is permitted for a first-time download, and whether the provider is ready to serve embeddings right now. Never loads the model or makes a network call just to report status. Use this to troubleshoot cache_lookup/cache_store's semantic fallback or query_memory's hybrid ranking.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
     }
   },
   {
@@ -1038,7 +1053,7 @@
   },
   {
     "name": "query_memory",
-    "description": "Query cross-session episodic and semantic memory",
+    "description": "Query cross-session episodic and semantic memory. Keyword-ranked (term overlap + recency) by default; automatically reranked via hybrid BM25-style/vector Reciprocal Rank Fusion when the optional embeddings extra is installed and ready, falling back to pure keyword ranking otherwise -- same result shape either way.",
     "inputSchema": {
       "type": "object",
       "properties": {

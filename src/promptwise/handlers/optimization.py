@@ -100,18 +100,22 @@ async def _handle_plan_cache(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"breakpoints": r.breakpoints, "savings_pct": r.savings_pct})
 
 
-@tool(name="cache_lookup", description="Exact-match lookup in the local result cache (ExactCache): given identical (tool, request) input to a prior cache_store call, return the stored result instead of recomputing. Hash-based only, no embeddings/similarity threshold. Offline.",
+@tool(name="cache_lookup", description="Lookup in the local result cache: exact-match (hash-based) always tried first and always wins. On an exact miss, if the optional embeddings extra is installed and ready, falls back to a semantic near-miss match (cosine similarity, static 0.95 default threshold) over previously-stored requests for the same tool -- otherwise behaves exactly like the exact-match-only cache. Offline; semantic fallback is local ONNX inference only, never an LLM call.",
          schema={"type": "object", "properties": {
              "tool": {"type": "string", "description": "name of the tool/skill this result belongs to"},
-             "request": {"description": "the request payload to hash (string or object)"}},
+             "request": {"description": "the request payload to hash (string or object)"},
+             "min_similarity": {"type": "number", "default": 0.95, "minimum": 0, "maximum": 1,
+                                "description": "similarity floor for the semantic fallback (ignored on an exact hit)"}},
          "required": ["tool", "request"]})
 async def _handle_cache_lookup(ctx: ServerContext, arguments: dict) -> str:
-    from promptwise.core.exact_cache import ExactCache
-    r = ExactCache().get(arguments.get("tool", ""), arguments.get("request"))
+    from promptwise.core.semantic_cache import SemanticCache
+    r = SemanticCache().get(
+        arguments.get("tool", ""), arguments.get("request"),
+        min_similarity=arguments.get("min_similarity", 0.95))
     return json.dumps(r.to_dict())
 
 
-@tool(name="cache_store", description="Store a result in the local exact-match cache (ExactCache) for later cache_lookup hits. Refuses to store (reports why) if category is medical/legal/financial/personalized/health, or if the request/result contains PII or secrets per security.scanner. Offline.",
+@tool(name="cache_store", description="Store a result in the local cache for later cache_lookup hits (exact match, plus a semantic-fallback embedding when the optional embeddings extra is installed and ready). Refuses to store (reports why) if category is medical/legal/financial/personalized/health, or if the request/result contains PII or secrets per security.scanner -- same guard whether or not embeddings are available.",
          schema={"type": "object", "properties": {
              "tool": {"type": "string", "description": "name of the tool/skill this result belongs to"},
              "request": {"description": "the request payload to hash (string or object)"},
@@ -120,22 +124,29 @@ async def _handle_cache_lookup(ctx: ServerContext, arguments: dict) -> str:
              "ttl_seconds": {"type": "integer", "description": "override the default 1h TTL; 0 means no expiry"}},
          "required": ["tool", "request", "result"]})
 async def _handle_cache_store(ctx: ServerContext, arguments: dict) -> str:
-    from promptwise.core.exact_cache import ExactCache
-    r = ExactCache().put(
+    from promptwise.core.semantic_cache import SemanticCache
+    r = SemanticCache().put(
         arguments.get("tool", ""), arguments.get("request"), arguments.get("result"),
         category=arguments.get("category", ""), ttl_seconds=arguments.get("ttl_seconds"))
     return json.dumps(r.to_dict())
 
 
-@tool(name="cache_stats", description="Hit/miss/entry-count/hit-rate report for the local exact-match cache (ExactCache), broken down by category. Purges expired entries first by default.",
+@tool(name="cache_stats", description="Hit/miss/entry-count/hit-rate report for the local cache, broken down by category, plus semantic-fallback counters (embeddings stored, whether the semantic fallback is currently available). Purges expired entries first by default.",
          schema={"type": "object", "properties": {
              "purge_expired": {"type": "boolean", "default": True}}})
 async def _handle_cache_stats(ctx: ServerContext, arguments: dict) -> str:
-    from promptwise.core.exact_cache import ExactCache
-    cache = ExactCache()
+    from promptwise.core.semantic_cache import SemanticCache
+    cache = SemanticCache()
     if arguments.get("purge_expired", True):
-        cache.purge_expired()
+        cache.exact.purge_expired()
     return json.dumps(cache.stats())
+
+
+@tool(name="embedding_status", description="Local embedding provider health: whether the optional [embeddings] extra is installed, which model is configured, whether it's already cached locally, whether network is permitted for a first-time download, and whether the provider is ready to serve embeddings right now. Never loads the model or makes a network call just to report status. Use this to troubleshoot cache_lookup/cache_store's semantic fallback or query_memory's hybrid ranking.",
+         schema={"type": "object", "properties": {}})
+async def _handle_embedding_status(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.embeddings.provider import EmbeddingProvider
+    return json.dumps(EmbeddingProvider().status())
 
 
 @tool(name="batch_prompts", description="Batch multiple tasks into one prompt to reduce overhead",

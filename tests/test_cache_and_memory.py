@@ -1,5 +1,7 @@
 """Safe enhancements — plan_cache min-token gate + real savings; memory upsert/ranking."""
 import asyncio
+import json
+import typing
 
 from promptwise.config import load_config
 from promptwise.core.cache_planner import CachePlanner
@@ -92,3 +94,50 @@ def test_query_facts_ranks_by_overlap(tmp_path):
     facts = asyncio.run(go())
     # 'beta' mentions database twice -> ranked first
     assert facts[0]["key"] == "beta"
+
+
+# ── query_memory tool: hybrid reranking wiring (Phase 19 / D2.3) ──────────────
+class _MemCtx:
+    def __init__(self, memory):
+        self.memory = memory
+
+
+def test_query_memory_falls_back_to_keyword_ranking_without_embeddings(tmp_path):
+    # No embeddings extra installed in this test env -> hybrid reranking
+    # fails open and query_memory's output is untouched from today's
+    # keyword-only (term overlap + recency) ranking.
+    from promptwise import server as srv
+
+    mm = _mm(tmp_path)
+
+    async def go():
+        await mm.save_fact("alpha", "database connection pooling note", scope="org")
+        await mm.save_fact("beta", "database sharding and database replicas", scope="org")
+        ctx = typing.cast(srv.ServerContext, _MemCtx(mm))
+        return await srv._HANDLERS["query_memory"](ctx, {"query": "database"})
+
+    out = json.loads(asyncio.run(go()))
+    assert [f["key"] for f in out["facts"]] == ["beta", "alpha"]
+
+
+def test_query_memory_never_raises_if_reranking_throws(tmp_path, monkeypatch):
+    # Belt-and-braces: even if hybrid_memory.rerank_facts_hybrid itself
+    # raised for some unforeseen reason, query_memory must still return the
+    # keyword-ranked result rather than propagating an error to the caller.
+    from promptwise import server as srv
+    import promptwise.core.hybrid_memory as hm
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated reranking failure")
+
+    monkeypatch.setattr(hm, "rerank_facts_hybrid", _boom)
+
+    mm = _mm(tmp_path)
+
+    async def go():
+        await mm.save_fact("k", "v", scope="org")
+        ctx = typing.cast(srv.ServerContext, _MemCtx(mm))
+        return await srv._HANDLERS["query_memory"](ctx, {"query": "v"})
+
+    out = json.loads(asyncio.run(go()))
+    assert out["facts"][0]["key"] == "k"

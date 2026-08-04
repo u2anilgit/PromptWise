@@ -16,10 +16,16 @@ async def _handle_get_memory_context(ctx: ServerContext, arguments: dict) -> str
     return json.dumps([{"entry_id": e.entry_id, "tool": e.tool, "summary": e.summary, "ts": e.ts} for e in entries])
 
 
-@tool(name="query_memory", description="Query cross-session episodic and semantic memory",
+@tool(name="query_memory", description="Query cross-session episodic and semantic memory. Keyword-ranked (term overlap + recency) by default; automatically reranked via hybrid BM25-style/vector Reciprocal Rank Fusion when the optional embeddings extra is installed and ready, falling back to pure keyword ranking otherwise -- same result shape either way.",
          schema={"type": "object", "properties": {"query": {"type": "string"}, "scope": {"type": "string", "enum": ["session", "org"], "default": "org"}}, "required": ["query"]})
 async def _handle_query_memory(ctx: ServerContext, arguments: dict) -> str:
-    facts = await ctx.memory.query_facts(arguments.get("query", ""))
+    query = arguments.get("query", "")
+    facts = await ctx.memory.query_facts(query)
+    try:
+        from promptwise.core.hybrid_memory import rerank_facts_hybrid
+        facts = rerank_facts_hybrid(query, facts)
+    except Exception:
+        pass  # fail open: keyword ranking from query_facts stands unchanged
     return json.dumps({"facts": facts})
 
 
