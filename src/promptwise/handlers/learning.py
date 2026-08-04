@@ -9,20 +9,21 @@ import json
 from promptwise.core.tool_registry import ServerContext, tool
 
 
-@tool(name="capture_learning", description="Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline.",
+@tool(name="capture_learning", description="Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline. Pass supersedes=<id> to atomically mark an earlier learning superseded (it stops appearing in search()/recent(), never deleted) -- use when this correction replaces a stale prior one rather than adding a new, unrelated fact.",
          schema={"type": "object", "properties": {
              "category": {"type": "string", "description": "e.g. 'style', 'security', 'api-misuse'"},
              "mistake": {"type": "string", "description": "what went wrong"},
              "correction": {"type": "string", "description": "the fix / the rule going forward"},
              "project": {"type": "string", "default": ""},
-             "tags": {"type": "array", "items": {"type": "string"}}},
+             "tags": {"type": "array", "items": {"type": "string"}},
+             "supersedes": {"type": "integer", "description": "id of an earlier learning this one replaces"}},
          "required": ["category", "mistake", "correction"]})
 async def _handle_capture_learning(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.learning_store import LearningStore
     learning = LearningStore().capture(
         category=arguments.get("category", ""), mistake=arguments.get("mistake", ""),
         correction=arguments.get("correction", ""), project=arguments.get("project", ""),
-        tags=arguments.get("tags", []))
+        tags=arguments.get("tags", []), supersedes=arguments.get("supersedes"))
     return json.dumps({"captured": learning.to_dict()})
 
 

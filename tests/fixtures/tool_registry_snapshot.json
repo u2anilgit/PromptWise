@@ -2192,7 +2192,7 @@
   },
   {
     "name": "capture_learning",
-    "description": "Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline.",
+    "description": "Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline. Pass supersedes=<id> to atomically mark an earlier learning superseded (it stops appearing in search()/recent(), never deleted) -- use when this correction replaces a stale prior one rather than adding a new, unrelated fact.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2217,6 +2217,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "supersedes": {
+          "type": "integer",
+          "description": "id of an earlier learning this one replaces"
         }
       },
       "required": [

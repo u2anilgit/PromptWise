@@ -244,7 +244,18 @@ class ExactCache:
 
     # ── read ─────────────────────────────────────────────────────────────────
     def get(self, tool: str, request: Any, *, ts: float | None = None) -> CacheGetResult:
-        key = hash_request(tool, request)
+        return self._get_by_key(hash_request(tool, request), ts=ts)
+
+    def get_by_key(self, cache_key: str, *, ts: float | None = None) -> CacheGetResult:
+        """Look up a cache entry directly by its key, bypassing hash_request.
+        Additive helper for core/semantic_cache.py (Phase 19): a semantic
+        match finds a candidate by similarity, not by recomputing the exact
+        hash of the *current* request text, so it needs to fetch the
+        original entry by the key it was stored under. Counts toward the
+        same hit/miss counters and TTL-expiry behavior as get()."""
+        return self._get_by_key(cache_key, ts=ts)
+
+    def _get_by_key(self, key: str, *, ts: float | None = None) -> CacheGetResult:
         now = time.time() if ts is None else ts
         conn = self._connect()
         try:
