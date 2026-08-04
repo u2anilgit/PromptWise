@@ -28,6 +28,21 @@ def test_bootstrap_sync_agents_writes_detected_hosts(tmp_path):
     assert "agent_sync_error" not in result
 
 
+def test_bootstrap_sync_agents_includes_skill_pack_surface(tmp_path):
+    (tmp_path / ".claude").mkdir()
+    fam_dir = tmp_path / "skill_packs" / "testfam"
+    fam_dir.mkdir(parents=True)
+    (fam_dir / "some_skill.md").write_text("---\nname: some_skill\n---\nbody\n", encoding="utf-8")
+
+    result = bootstrap(cwd=tmp_path, sync_agents=True)
+
+    assert result["ok"] is True
+    assert "claude" in result["synced_agents"]
+    written = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "testfam" in written
+    assert "Governance surface fingerprint" in written
+
+
 def test_bootstrap_sync_agents_failure_is_non_fatal(tmp_path, monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("detector exploded")

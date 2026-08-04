@@ -146,10 +146,11 @@ def bootstrap(cwd: str | Path | None = None, sync_agents: bool = False) -> dict:
             base = Path(cwd) if cwd else Path.cwd()
             try:
                 from promptwise.core.agent_detector import detect_agents
-                from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
+                from promptwise.core.config_emitter import ConfigEmitter
+                from promptwise.core.portability_check import build_surface_bundle
 
                 detection = detect_agents(str(base))
-                bundle = GovernanceBundle(project=base.name or "this project")
+                bundle = build_surface_bundle(base, project=base.name or "this project")
                 written = ConfigEmitter().sync(
                     bundle, base, targets=detection.targets, mode="apply"
                 )
