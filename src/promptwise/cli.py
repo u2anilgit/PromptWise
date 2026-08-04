@@ -203,12 +203,19 @@ def _run_statusline() -> None:
     print(render_status())
 
 
-def _run_bootstrap() -> None:
+def _run_bootstrap(sync_agents: bool = False) -> None:
     from promptwise.core.doctor import bootstrap
-    res = bootstrap()
+    res = bootstrap(sync_agents=sync_agents)
     if res.get("ok"):
         made = res.get("created") or []
         print(f"Bootstrapped state at {res['state_dir']}" + (f" (created: {', '.join(made)})" if made else " (already present)"))
+        if "synced_agents" in res:
+            agents = res["synced_agents"]
+            print(f"Synced agent configs for: {', '.join(agents) if agents else '(none detected)'}")
+            for path, status in res.get("agent_files", {}).items():
+                print(f"  {status}: {path}")
+        elif "agent_sync_error" in res:
+            print(f"Agent sync skipped (non-fatal): {res['agent_sync_error']}")
     else:
         print(f"Bootstrap failed: {res.get('error')}")
         raise SystemExit(1)
@@ -239,7 +246,8 @@ def main() -> None:
     doc = sub.add_parser("doctor", help="Health-check the plugin (hooks, DB, modules, policy)")
     doc.add_argument("--json", action="store_true", help="Emit the raw report as JSON")
 
-    sub.add_parser("bootstrap", help="Create local state (.promptwise/ + learning DB) on first run")
+    bs = sub.add_parser("bootstrap", help="Create local state (.promptwise/ + learning DB) on first run")
+    bs.add_argument("--sync-agents", action="store_true", help="Also detect and sync native config files for every AI agent found in this repo (Claude Code, Codex, Cursor, Aider, ...)")
 
     sub.add_parser("statusline", help="Print an at-a-glance status line (budget %% used, last scan)")
 
@@ -262,7 +270,7 @@ def main() -> None:
     elif args.command == "doctor":
         _run_doctor(getattr(args, "json", False))
     elif args.command == "bootstrap":
-        _run_bootstrap()
+        _run_bootstrap(getattr(args, "sync_agents", False))
     elif args.command == "statusline":
         _run_statusline()
     elif args.command == "scaffold":
