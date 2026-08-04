@@ -329,12 +329,19 @@ The 2026-07-08 gap analysis (`docs/GAP_ANALYSIS_2026-07.md`) produced 8 ranked p
 candidates (A–H). **A, B, C, E, F, G, H are all done** (Phases 13–17 above as wave 1,
 plus F and H documented above). Only one remains:
 - **D — local-embeddings decision** (semantic cache + hybrid BM25/vector memory +
-  fact-supersession, 6-8d, Opus) — needs a new pip dependency, **explicit sign-off
-  required** before starting, breaks the standing no-new-deps guardrail. User
-  explicitly deferred/skipped this candidate (2026-07-10) — pick up only if asked.
+  fact-supersession, 6-8d, Opus) — needs a new pip dependency, breaks the standing
+  no-new-deps guardrail. Deferred 2026-07-10; revisited 2026-08-04 with a real
+  audience-impact review (solo/indie vs small-mid team vs enterprise) and sized
+  against measured numbers (fastembed/ONNX path: ~230MB deps + ~65-130MB model,
+  no PyTorch) rather than estimates — **signed off, opt-in only, base install
+  unchanged**. Plan: `docs/PHASE19_ROADMAP.md`. Split into D1 (fact-supersession,
+  no new dependency, can start independently) and D2 (embeddings themselves,
+  gated on the sign-off above). Not started — this is the pre-build plan, not
+  the implementation.
 
 See `docs/GAP_ANALYSIS_2026-07.md` for full analysis, and non-goals (fairness-metric
-parity, bi-temporal memory). Brainstorm before opening D as a `PHASE<N>_ROADMAP.md`.
+parity, bi-temporal memory). `docs/PHASE19_ROADMAP.md` is D's pre-build plan, matching
+the convention Phases 13–17 used before their own implementation started.
 
 Each future phase: brainstorm → its own `PHASE<N>_ROADMAP.md` → implement (parallel wave
 of isolated worktrees where files are disjoint; safety-critical/core work lands alone) →
