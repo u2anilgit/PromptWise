@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # not a silent regeneration of this list.
 EXPECTED_CORE_DEPENDENCIES = {
     "mcp>=2.0.0,<3.0",
+    "sse-starlette>=2.0,<3.0",
     "aiosqlite>=0.20",
     "aiohttp>=3.8",
     "flask>=2.0",

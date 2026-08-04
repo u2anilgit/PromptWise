@@ -56,7 +56,7 @@ def test_zero_tool_cost_explicit_is_same_as_omitted():
 # ── MCP tool surface: monitor_budget wires tool_cost_usd through ────────────
 def test_monitor_budget_tool_schema_has_tool_cost_param():
     tool = next(t for t in s._TOOL_DEFS if t.name == "monitor_budget")
-    assert "tool_cost_usd" in tool.input_schema["properties"]
+    assert "tool_cost_usd" in tool.inputSchema["properties"]
 
 
 def test_monitor_budget_handler_surfaces_cost_breakdown():

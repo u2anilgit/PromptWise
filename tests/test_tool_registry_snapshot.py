@@ -18,7 +18,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "tool_registry_snapshot.json"
 def test_tool_defs_match_golden_snapshot():
     golden = json.loads(FIXTURE.read_text(encoding="utf-8"))
     current = [
-        {"name": t.name, "description": t.description, "inputSchema": t.input_schema}
+        {"name": t.name, "description": t.description, "inputSchema": t.inputSchema}
         for t in s._TOOL_DEFS
     ]
     assert current == golden

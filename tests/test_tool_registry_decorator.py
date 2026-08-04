@@ -22,7 +22,7 @@ def test_register_adds_tool_and_handler():
     entry = registry.entries["ping"]
     assert entry.tool.name == "ping"
     assert entry.tool.description == "ping"
-    assert entry.tool.input_schema == {"type": "object", "properties": {}}
+    assert entry.tool.inputSchema == {"type": "object", "properties": {}}
     assert entry.handler is _handle_ping
 
 

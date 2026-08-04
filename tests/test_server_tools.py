@@ -47,7 +47,7 @@ def test_dropped_framework_tool_absent():
 
 def test_every_tool_has_object_schema():
     for t in s._TOOL_DEFS:
-        assert t.input_schema.get("type") == "object", t.name
+        assert t.inputSchema.get("type") == "object", t.name
 
 
 def test_tool_count_floor():
