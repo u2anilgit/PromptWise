@@ -158,9 +158,9 @@ cd vscode-extension && npm install && node --test test/*.test.ts
 
 ## Status
 
-**Early-stage, building in public.** Package version `1.9.3` in `pyproject.toml`
+**Early-stage, building in public.** Package version `1.10.0` in `pyproject.toml`
 (the changelog trails a few shipped features — see `docs/ROADMAP.md` for the live,
-accurate ledger); 107 MCP tools, 81 portable skill packs, ~950 tests, registered
+accurate ledger); 107 MCP tools, 81 portable skill packs, ~1050 tests, registered
 through a decorator-based tool registry (one source of truth per tool, organized into a
 `handlers/` package of 20 category files instead of one monolithic `server.py`).
 Everything runs directly from PromptWise — local-first, no third-party integrations,
@@ -181,6 +181,12 @@ all of them (bar Grok, which has no marker file to detect) so `propose_agent_con
 auto-target-selection actually sees every host you've configured. Also: a single-file
 web-agent bundle (`export_web_bundle`) for ChatGPT/Gemini/Claude.ai web chat, where
 there's no IDE/CLI/MCP surface to emit into.
+
+**Zero-manual-step onboarding:** `python -m promptwise bootstrap --sync-agents` detects
+every host present in a repo and writes their native config in one command — the
+skill-pack surface (active pack families + drift fingerprint) is included automatically,
+and Codex additionally gets its MCP server registered directly in a repo-scoped
+`.codex/config.toml`, no separate manual step required.
 
 **Governance & security:** the runtime enforcement hooks layer (`hooks/`) — a flagged
 Write/Edit defers to Claude Code's normal allow/deny prompt instead of a hard block,

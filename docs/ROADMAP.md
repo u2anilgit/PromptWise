@@ -23,7 +23,7 @@ advisory, security scan, task-type classification, model/tier routing, and an
 opt-in last-2/3-current-models shortlist, folded into the existing
 `userpromptsubmit_policy` hook so every prompt in every host PromptWise emits
 hook configs for gets one advisory pass — plus per-project cost scoping
-(`cost_logs.project_id`, `project_cost_report`). Package version `1.9.3`. No
+(`cost_logs.project_id`, `project_cost_report`). Package version `1.10.0`. No
 planned finale — the series is open-ended. See "Open items" below for what's
 left; only one older feature candidate remains fully parked: **D**
 (local-embeddings, needs dependency sign-off) — explicitly deferred/skipped by
@@ -32,6 +32,27 @@ deliberately-parked item: `dashboard/auth.py` states outright that "the MCP
 tool layer has no inbound listener and is intentionally out of scope" —
 reversing that needs a network-facing-transport/auth/hosting decision, not a
 mechanical build, so it's flagged rather than built.
+
+**2026-08-04:** dependency fixes surfaced by a from-scratch install (missing
+`sse-starlette` transitive dep, `mcp` version constraint corrected from an
+unreleased `>=2.0.0` floor to the installable `>=1.9,<2.0` line, `Tool.inputSchema`
+SDK rename in 5 stale tests) — all fixed and verified against the real `mcp`
+2.0.0 package (incompatible with `fastapi`'s starlette cap, confirmed by
+attempting the upgrade, not assumed). Then a multi-agent-onboarding round:
+`promptwise bootstrap --sync-agents` (detects hosts, syncs their native
+config in one command instead of requiring a separate `sync_agent_config`
+MCP call), a fix so that sync actually populates the skill-pack surface
+(family names + drift fingerprint) via the existing `build_surface_bundle()`
+helper instead of an empty bundle, Codex MCP server registration in a
+repo-scoped `.codex/config.toml` (`sync_codex_mcp()`, deliberately not
+routed through the HTML-comment-based managed-block merge since TOML has no
+matching comment syntax), and Groq added to the advisory external-pricing
+catalog. Antigravity MCP wiring was researched but deliberately held back:
+its config lives only at `~/.gemini/config/mcp_config.json` (home-directory
+scoped, no project-level override found), a materially bigger blast radius
+than every other emitter here (all repo-scoped, git-tracked, reversible) —
+needs explicit sign-off before building, same as the still-parked PyPI
+publish decision.
 
 Standing guardrails (all phases): local-first, air-gap-safe, no new infrastructure, no
 new pip dependencies, no branded/competitor model ids (tiers/families only), hooks &
