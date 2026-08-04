@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "promptwise"
-version = "1.9.3"
+version = "1.10.0"
 description = "The governance & intelligence layer for AI agents — routing, cost, security/compliance, responsible-AI, workflow planning, a governed agile method (personas + quality gates + audit trail), diagrams, task tracking, and 81 portable skill packs."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,6 +39,14 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+]
+# Phase 19 / candidate D -- local embeddings (semantic cache near-miss
+# fallback, hybrid BM25/vector memory retrieval). Opt-in only: the base
+# `pip install promptwise` install is unaffected by this group's presence.
+# See docs/PHASE19_ROADMAP.md for the full design and the audience-impact
+# review this extras group was signed off against (2026-08-04).
+embeddings = [
+    "fastembed>=0.4,<1.0",
 ]
 
 [project.scripts]

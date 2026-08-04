@@ -36,7 +36,7 @@ Any other MCP host: point it at the bundled `.mcp.json` (see INSTALL.md).
 Prompt engineering & registry, Workflow planning, Agile method & governance, Security &
 compliance, Cost/budget/ROI, Governance intelligence & learning, Task tracker, Diagrams,
 Roles & skill packs, Session/memory/config. See `skills/promptwise/SKILL.md` for the full
-106-tool command reference.
+107-tool command reference.
 
 You don't need to memorize tool names — **describe the goal** and the hub routes to the
 right tool. Examples that auto-trigger: "which model should I use", "this prompt is too

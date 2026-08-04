@@ -9,9 +9,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 DEV=0
+EMBEDDINGS=0
 for arg in "$@"; do
   case "$arg" in
     --dev) DEV=1 ;;
+    --embeddings) EMBEDDINGS=1 ;;
   esac
 done
 
@@ -29,8 +31,26 @@ fi
 
 echo "PromptWise install: using $("$PYTHON_BIN" --version)"
 
-if [ "$DEV" = "1" ]; then
-  "$PYTHON_BIN" -m pip install -e ".[dev]"
+# Extras group selection -- combine [dev] and [embeddings] if both flags
+# are passed. Base install (no flags) is unaffected either way: this
+# only ever adds to the pip install target, never changes the default.
+EXTRAS=""
+if [ "$DEV" = "1" ] && [ "$EMBEDDINGS" = "1" ]; then
+  EXTRAS="[dev,embeddings]"
+elif [ "$DEV" = "1" ]; then
+  EXTRAS="[dev]"
+elif [ "$EMBEDDINGS" = "1" ]; then
+  EXTRAS="[embeddings]"
+fi
+
+if [ "$EMBEDDINGS" = "1" ]; then
+  echo "PromptWise install: embeddings mode. Installing ~300MB of local ML dependencies (fastembed/onnxruntime) for semantic cache + memory search. First real use downloads a small model (~100MB, one time, needs network) then runs fully offline -- nothing is sent to a third party at runtime. To go back to lightweight mode: pip uninstall fastembed onnxruntime."
+else
+  echo "PromptWise install: lightweight mode (no embeddings). Local semantic cache + smarter memory search are available as an optional extra -- re-run with --embeddings to enable. Adds ~300MB, local and offline after first use. Skipping this changes nothing above."
+fi
+
+if [ -n "$EXTRAS" ]; then
+  "$PYTHON_BIN" -m pip install -e ".$EXTRAS"
 else
   "$PYTHON_BIN" -m pip install -e .
 fi

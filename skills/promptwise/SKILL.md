@@ -17,7 +17,7 @@ Tool/pack counts below reflect the current registry — if in doubt, `list_skill
 the MCP tool list are the source of truth, not this number.
 
 ```
-PromptWise — command groups (106 MCP tools · 81 skill packs):
+PromptWise — command groups (107 MCP tools · 81 skill packs):
 
   Optimization
   route_request        Pick the right model (Haiku/Sonnet/Opus) for a task, budget-aware
@@ -25,7 +25,8 @@ PromptWise — command groups (106 MCP tools · 81 skill packs):
   optimize_context     Compress large context to a token budget
   compress_prompt      Caveman compression for verbose prompts
   plan_cache           Design prompt-cache breakpoints for repeated calls
-  cache_lookup/store/stats  Exact-match local result cache (hash-based, TTL, never-cache guard)
+  cache_lookup/store/stats  Local result cache: exact-match first, semantic near-miss fallback when the optional [embeddings] extra is installed
+  embedding_status      Local embedding provider health: installed? cached? ready? (opt-in [embeddings] extra)
   batch_prompts        Merge 2–5 small tasks into one call
   summarize_thread     Compress a long thread for fresh-chat handoff
   compare_providers    Advisory cost comparison across Claude / OpenAI / Gemini reference pricing
@@ -121,7 +122,7 @@ PromptWise — command groups (106 MCP tools · 81 skill packs):
   ping_session              Record activity (reset idle clock)
   check_session_timeout      active / warn / expired
   get_memory_context         Retrieve prior-session memory
-  query_memory               Search session memory
+  query_memory               Search session memory (keyword-ranked; hybrid keyword+vector reranking when the optional [embeddings] extra is installed)
   clear_history              Delete records older than N days
   reload_config              Hot-reload pricing / providers / roles
   validate_output            Check generated code before presenting (heuristic + optional real linter)

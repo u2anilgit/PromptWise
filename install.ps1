@@ -4,7 +4,8 @@ Installs the package and registers the MCP server. No network access beyond
 pip's own package index; nothing here phones out on your behalf.
 #>
 param(
-    [switch]$Dev
+    [switch]$Dev,
+    [switch]$Embeddings
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,8 +25,20 @@ if (-not $PythonBin) {
 
 Write-Host "PromptWise install: using $(& $PythonBin --version)"
 
-if ($Dev) {
+if ($Embeddings) {
+    Write-Host "PromptWise install: embeddings mode. Installing ~300MB of local ML dependencies (fastembed/onnxruntime) for semantic cache + memory search. First real use downloads a small model (~100MB, one time, needs network) then runs fully offline -- nothing is sent to a third party at runtime. To go back to lightweight mode: pip uninstall fastembed onnxruntime."
+} else {
+    Write-Host "PromptWise install: lightweight mode (no embeddings). Local semantic cache + smarter memory search are available as an optional extra -- re-run with -Embeddings to enable. Adds ~300MB, local and offline after first use. Skipping this changes nothing above."
+}
+
+# Extras group selection -- combine [dev] and [embeddings] if both switches
+# are passed. Base install (no switches) is unaffected either way.
+if ($Dev -and $Embeddings) {
+    & $PythonBin -m pip install -e ".[dev,embeddings]"
+} elseif ($Dev) {
     & $PythonBin -m pip install -e ".[dev]"
+} elseif ($Embeddings) {
+    & $PythonBin -m pip install -e ".[embeddings]"
 } else {
     & $PythonBin -m pip install -e .
 }

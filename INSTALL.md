@@ -12,11 +12,25 @@ cd PromptWise
 ## 2. Install
 
 ```bash
-pip install -e .            # runtime
-pip install -e ".[dev]"     # + pytest for development
+pip install -e .                    # runtime (lightweight, no embeddings)
+pip install -e ".[dev]"             # + pytest for development
+pip install -e ".[embeddings]"      # + local semantic cache / hybrid memory search
 ```
 
 This installs the engine and the `promptwise` / `promptwise-server` console scripts.
+
+### Optional: local embeddings (semantic cache + hybrid memory search)
+
+By default PromptWise never installs embedding dependencies — `cache_lookup`/
+`cache_store` are exact-match only and `query_memory` is keyword-ranked only,
+same as always. Opting in via `pip install -e ".[embeddings]"` (or
+`./install.sh --embeddings` / `./install.ps1 -Embeddings`) adds ~300MB of
+local ML dependencies (`fastembed`/`onnxruntime`, no PyTorch) that run fully
+offline — the first real embedding call downloads a small model (~100MB,
+one-time, needs network) and every call after that is local ONNX inference,
+never a network or LLM call. Nothing changes for anyone who skips this; run
+the `embedding_status` tool any time to check whether it's installed and
+ready. See `docs/PHASE19_ROADMAP.md` for the full design.
 
 ### From a built distribution (no editable checkout)
 
@@ -77,7 +91,7 @@ PYTHONPATH=src python -c "import promptwise.server as s; print(len(s._TOOL_DEFS)
 PYTHONPATH=src python -c "from pathlib import Path; from promptwise.core import SkillLoader; sl=SkillLoader(Path('skill_packs')); sl.load_skills(); print(len(sl.skills),'packs')"
 ```
 
-Expected: `106 tools` and `81 packs`.
+Expected: `107 tools` and `81 packs`.
 
 ## Data location
 

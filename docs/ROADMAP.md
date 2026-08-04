@@ -326,18 +326,21 @@ Brainstorm each independently at kickoff — no shared code between them.
 
 ### Feature candidates
 The 2026-07-08 gap analysis (`docs/GAP_ANALYSIS_2026-07.md`) produced 8 ranked phase
-candidates (A–H). **A, B, C, E, F, G, H are all done** (Phases 13–17 above as wave 1,
-plus F and H documented above). Only one remains:
+candidates (A–H). **A, B, C, D, E, F, G, H are all done** (Phases 13–17 above as wave 1,
+plus F and H documented above). All candidates closed:
 - **D — local-embeddings decision** (semantic cache + hybrid BM25/vector memory +
-  fact-supersession, 6-8d, Opus) — needs a new pip dependency, breaks the standing
+  fact-supersession) — needed a new pip dependency, breaking the standing
   no-new-deps guardrail. Deferred 2026-07-10; revisited 2026-08-04 with a real
   audience-impact review (solo/indie vs small-mid team vs enterprise) and sized
   against measured numbers (fastembed/ONNX path: ~230MB deps + ~65-130MB model,
   no PyTorch) rather than estimates — **signed off, opt-in only, base install
   unchanged**. Plan: `docs/PHASE19_ROADMAP.md`. Split into D1 (fact-supersession,
-  no new dependency, can start independently) and D2 (embeddings themselves,
-  gated on the sign-off above). Not started — this is the pre-build plan, not
-  the implementation.
+  no new dependency) and D2 (embeddings themselves, gated on the sign-off above).
+  **Shipped 2026-08-04 as v1.10.0** — fact supersession, local embedding provider,
+  semantic cache fallback on `cache_lookup`/`cache_store`, hybrid RRF reranking on
+  `query_memory`, new `embedding_status` tool, `[embeddings]` installer extra with
+  `--embeddings`/`-Embeddings` install flags. 1038 tests passing, including
+  dedicated guardrails for the base-install-unchanged requirement.
 
 See `docs/GAP_ANALYSIS_2026-07.md` for full analysis, and non-goals (fairness-metric
 parity, bi-temporal memory). `docs/PHASE19_ROADMAP.md` is D's pre-build plan, matching

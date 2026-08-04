@@ -4,6 +4,42 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## [1.10.0] — Local embeddings (opt-in): semantic cache + hybrid memory, fact supersession
+
+Phase 19 / candidate D, gated behind a new opt-in `[embeddings]` installer
+extra — the base install is byte-for-byte unchanged unless you ask for it
+(`pip install -e ".[embeddings]"` / `./install.sh --embeddings` /
+`./install.ps1 -Embeddings`). See `docs/PHASE19_ROADMAP.md` for the full
+design and the audience-impact review this was signed off against.
+
+### Added
+- **Fact supersession** — `capture_learning` accepts an optional
+  `supersedes=<id>`, atomically marking a prior learning superseded in the
+  same write (mirrors `decision_store.py`'s existing pattern). Superseded
+  learnings stop appearing in `search`/`recent`/`replay_learnings` by
+  default but are never deleted; full history stays available via
+  `learning_insights`. No new dependency.
+- **Local embedding provider** (`src/promptwise/embeddings/provider.py`,
+  optional `[embeddings]` extra, `fastembed`/ONNX-runtime, not PyTorch) —
+  fails open when the extra isn't installed or the model isn't ready; only
+  ever calls out to the network for a one-time model download, and only
+  when explicitly permitted. Never touches cost tracking or the router —
+  embedding text is local compute, not an LLM call.
+- **Semantic cache fallback** — `cache_lookup`/`cache_store` still do an
+  exact-match lookup first and it still always wins; on an exact miss, if
+  the embeddings extra is installed and ready, they now also try a
+  cosine-similarity near-miss match (conservative 0.95 default threshold)
+  against previously-cached requests for the same tool. Same never-cache
+  category/PII/secrets guard either way.
+- **Hybrid memory retrieval** — `query_memory` automatically reranks its
+  keyword-ranked results via Reciprocal Rank Fusion with vector similarity
+  when embeddings are ready, falling back to pure keyword ranking
+  otherwise. No signature change, same result shape.
+- **New tool: `embedding_status`** — reports whether the `[embeddings]`
+  extra is installed, which model is configured, whether it's cached
+  locally, and whether the provider is ready, without loading the model
+  or making a network call just to check.
+
 ## [1.9.0] — Session cost rollup, auto skill-match, device-scoped routing consent
 
 ### Added

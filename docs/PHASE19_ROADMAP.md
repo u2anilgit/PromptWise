@@ -1,5 +1,12 @@
 # PromptWise — Phase 19 Roadmap (Candidate D: Local Embeddings)
 
+**Status (2026-08-04): shipped.** D1 (fact supersession) and D2
+(embedding provider, semantic cache, hybrid memory retrieval,
+`embedding_status`, packaging/installer wiring) are all implemented,
+tested (1038 tests passing, including dedicated guardrail tests for
+19.6), and committed. See CHANGELOG.md's `[1.10.0]` entry for the
+user-facing summary.
+
 Real semantic cache + hybrid (BM25 + vector) memory retrieval + fact
 supersession, gated behind an **opt-in installer extra** — the standing
 "no new pip dependencies" guardrail is deliberately broken here, with
@@ -38,7 +45,7 @@ Reviewed against three audience segments before sizing:
 Net: ship it, opt-in, with the packaging discipline in 19.4 as the actual
 guardrail that makes "no audience loss" true rather than aspirational.
 
-## 19.1 — Split: D1 (no new dependency) vs D2 (new dependency)
+## 19.1 — Split: D1 (no new dependency) vs D2 (new dependency) — done
 
 The 2026-07 gap analysis already identified that part of candidate D
 needs no new dependency at all. Splitting it out matters because D1 can
@@ -60,7 +67,7 @@ on the new dependency and sized at 6-8 dev-days / Opus-tier in the
 original gap analysis — unchanged assessment, this phase does not shrink
 that estimate, it scopes it precisely.
 
-## 19.2 — Embedding provider (D2)
+## 19.2 — Embedding provider (D2) — done
 
 New `src/promptwise/embeddings/provider.py`. Guarded import, exactly like
 `core/static_analysis.py`'s fail-open pattern for external linters:
@@ -103,7 +110,7 @@ installed, and is why nothing in the base install has to change.
   their existing non-semantic path — never a hard error, never a silent
   network call.
 
-## 19.3 — Consumers (D2)
+## 19.3 — Consumers (D2) — done
 
 **Semantic cache** — new `core/semantic_cache.py`, additive sibling to
 Phase 15's `core/exact_cache.py` (which stays untouched, same pattern
@@ -136,7 +143,7 @@ two retrieval methods, which matters since BM25 and cosine-similarity
 scores aren't on comparable scales. Falls back to pure FTS5/BM25 (today's
 behavior, unchanged) whenever `_EMBEDDINGS_AVAILABLE` is `False`.
 
-## 19.4 — Packaging & installer UX
+## 19.4 — Packaging & installer UX — done
 
 This is the part that actually enforces "no audience loss" — reviewed
 here for sign-off on wording before it's wired into `install.sh`/
@@ -198,7 +205,7 @@ a default install's SBOM output is unaffected by construction. Worth a
 regression test asserting this explicitly (extras-group deps must not
 appear in a base-install SBOM run).
 
-## 19.5 — MCP tool surface (D2)
+## 19.5 — MCP tool surface (D2) — done
 
 Prefer extending existing tools over adding new ones, to avoid tool-count
 bloat for what is, from a caller's perspective, a quality upgrade to
@@ -214,7 +221,7 @@ existing behavior rather than a new capability:
   the one genuinely new capability (introspection), not a rename of
   existing behavior.
 
-## 19.6 — Guardrails
+## 19.6 — Guardrails — done
 
 - Base install byte-for-byte unchanged — enforced by a test that asserts
   `pyproject.toml`'s core `dependencies` list is untouched by this phase.
