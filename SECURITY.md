@@ -5,11 +5,14 @@ the product, so we hold the codebase to the same bar it enforces for others.
 
 ## Supported versions
 
+Early-stage, pre-1.0-stability, single-maintainer project: only the latest released
+version on `main` is supported. Please report against the current version; older
+tagged releases do not receive backported fixes.
+
 | Version | Supported |
 |---------|-----------|
-| 1.2.x   | ✅ |
-| 1.1.x   | ✅ |
-| < 1.1   | ❌ |
+| latest (currently 1.9.x) | ✅ |
+| older releases | ❌ |
 
 ## Reporting a vulnerability
 

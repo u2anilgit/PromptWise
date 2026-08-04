@@ -8,7 +8,8 @@ Early-stage and built in public — contributions, issues, and ideas welcome.
 git clone https://github.com/u2anilgit/PromptWise.git
 cd PromptWise
 pip install -e ".[dev]"
-pytest            # if/when tests are present
+pytest            # ~950 tests: packs, planner, agile method, governance,
+                  # enforcement hooks, learning loop, policy intel, tracker, tools
 ```
 
 The MCP server runs with `python -m promptwise.server` (needs `PYTHONPATH=src`, or

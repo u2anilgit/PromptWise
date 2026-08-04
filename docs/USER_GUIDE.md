@@ -1,9 +1,9 @@
 # PromptWise User Guide
 
-A practical walkthrough: install, drive the `/promptwise` hub, work with the 72 skill
+A practical walkthrough: install, drive the `/promptwise` hub, work with the 81 skill
 packs, and real examples for routing, diagrams, task tracking, the governed agile method,
-and security. The local engine runs without API keys or third-party tools (executing a
-skill's prompt via `invoke_skill` uses your configured model).
+security, and governance. The local engine runs without API keys or third-party tools
+(executing a skill's prompt via `invoke_skill` uses your configured model).
 
 - Install: [INSTALL.md](../INSTALL.md)
 - Configure: [CONFIGURATION.md](../CONFIGURATION.md)
@@ -33,8 +33,10 @@ Any other MCP host: point it at the bundled `.mcp.json` (see INSTALL.md).
 ## 2. The `/promptwise` hub
 
 `/promptwise` (no argument) prints the full menu grouped by purpose: Optimization,
-Workflow planning, Task tracker, Diagrams, Roles & skill packs, Security & compliance,
-Cost/budget/ROI, Session/memory/config.
+Prompt engineering & registry, Workflow planning, Agile method & governance, Security &
+compliance, Cost/budget/ROI, Governance intelligence & learning, Task tracker, Diagrams,
+Roles & skill packs, Session/memory/config. See `skills/promptwise/SKILL.md` for the full
+106-tool command reference.
 
 You don't need to memorize tool names — **describe the goal** and the hub routes to the
 right tool. Examples that auto-trigger: "which model should I use", "this prompt is too
@@ -44,7 +46,7 @@ long", "draw the architecture", "track effort on this task", "scan this code".
 
 ## 3. Working with skill packs
 
-72 portable `SKILL.md` packs live in `skill_packs/`, grouped by category: `agile/`, `ai/`,
+81 portable `SKILL.md` packs live in `skill_packs/`, grouped by category: `agile/`, `ai/`,
 `dev/`, `devops/`, `diagrams/`, `docs/`, `industry/`, `security/`, `testing/`.
 
 Tools to use them:
@@ -128,4 +130,4 @@ task_report
   system prompt.
 - Data lives in `~/.promptwise/promptwise.db` — delete to reset.
 - Changed config? `reload_config` — no restart.
-- Verify locally: `PYTHONPATH=src python -m pytest tests -q` (22 tests).
+- Verify locally: `PYTHONPATH=src python -m pytest tests -q` (~950 tests).
