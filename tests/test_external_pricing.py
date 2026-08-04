@@ -15,6 +15,16 @@ def test_catalog_loads_bundled_reference_pricing():
         assert m["output_per_mtok"] is not None
 
 
+def test_catalog_includes_groq_reference_pricing():
+    cat = ExternalPricingCatalog()
+    groq = [m for m in cat.all() if m["provider"] == "groq"]
+    assert len(groq) >= 2
+    for m in groq:
+        assert m["input_per_mtok"] > 0
+        assert m["output_per_mtok"] > 0
+        assert m["tier"] in ("fast", "balanced", "powerful")
+
+
 def test_catalog_for_tier_filters_correctly():
     cat = ExternalPricingCatalog()
     fast = cat.for_tier("fast")
@@ -63,7 +73,9 @@ def test_external_models_never_leak_into_actual_routing():
     on-device model overlay is a separate, pre-existing feature and is not
     what this assertion is guarding against)."""
     router = Router()
+    external_ids = ("gpt-4o", "gpt-4o-mini", "gemini-2.0-flash", "gemini-1.5-pro",
+                    "llama-3.1-8b-instant", "llama-3.3-70b-versatile")
     result = router.route("write a function")
-    assert result.recommended_model not in ("gpt-4o", "gpt-4o-mini", "gemini-2.0-flash", "gemini-1.5-pro")
-    assert not any(a in ("gpt-4o", "gpt-4o-mini", "gemini-2.0-flash", "gemini-1.5-pro") for a in result.alternatives)
-    assert not any(m in ("gpt-4o", "gpt-4o-mini", "gemini-2.0-flash", "gemini-1.5-pro") for m in router._current_models())
+    assert result.recommended_model not in external_ids
+    assert not any(a in external_ids for a in result.alternatives)
+    assert not any(m in external_ids for m in router._current_models())
