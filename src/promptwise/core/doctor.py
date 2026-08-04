@@ -126,7 +126,7 @@ def run_diagnostics(cwd: str | Path | None = None) -> dict:
             "summary": f"{sum(c['ok'] for c in checks)}/{len(checks)} checks passed"}
 
 
-def bootstrap(cwd: str | Path | None = None) -> dict:
+def bootstrap(cwd: str | Path | None = None, sync_agents: bool = False) -> dict:
     """Create the project-local state a first run needs. Idempotent, fail-soft."""
     created: list[str] = []
     try:
@@ -140,7 +140,25 @@ def bootstrap(cwd: str | Path | None = None) -> dict:
             LearningStore()  # initialises the schema if absent
         except Exception:
             pass
-        return {"ok": True, "state_dir": str(d), "created": created}
+        result = {"ok": True, "state_dir": str(d), "created": created}
+
+        if sync_agents:
+            base = Path(cwd) if cwd else Path.cwd()
+            try:
+                from promptwise.core.agent_detector import detect_agents
+                from promptwise.core.config_emitter import ConfigEmitter, GovernanceBundle
+
+                detection = detect_agents(str(base))
+                bundle = GovernanceBundle(project=base.name or "this project")
+                written = ConfigEmitter().sync(
+                    bundle, base, targets=detection.targets, mode="apply"
+                )
+                result["synced_agents"] = detection.targets
+                result["agent_files"] = written
+            except Exception as e:
+                result["agent_sync_error"] = f"{type(e).__name__}: {e}"
+
+        return result
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "created": created}
 
