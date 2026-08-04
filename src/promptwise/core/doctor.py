@@ -156,6 +156,13 @@ def bootstrap(cwd: str | Path | None = None, sync_agents: bool = False) -> dict:
                 )
                 result["synced_agents"] = detection.targets
                 result["agent_files"] = written
+
+                if "codex" in detection.targets:
+                    try:
+                        from promptwise.core.config_emitter import sync_codex_mcp
+                        result["codex_mcp"] = sync_codex_mcp(base)
+                    except Exception as e:
+                        result["codex_mcp_error"] = f"{type(e).__name__}: {e}"
             except Exception as e:
                 result["agent_sync_error"] = f"{type(e).__name__}: {e}"
 

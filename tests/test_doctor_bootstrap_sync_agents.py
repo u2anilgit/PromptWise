@@ -28,6 +28,27 @@ def test_bootstrap_sync_agents_writes_detected_hosts(tmp_path):
     assert "agent_sync_error" not in result
 
 
+def test_bootstrap_sync_agents_registers_codex_mcp_when_codex_detected(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("# codex rules\n", encoding="utf-8")
+
+    result = bootstrap(cwd=tmp_path, sync_agents=True)
+
+    assert result["codex_mcp"] == "written"
+    codex_config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert "[mcp_servers.promptwise]" in codex_config
+
+
+def test_bootstrap_sync_agents_skips_codex_mcp_when_codex_not_detected(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text("", encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+
+    result = bootstrap(cwd=tmp_path, sync_agents=True)
+
+    assert "codex" not in result["synced_agents"]
+    assert "codex_mcp" not in result
+    assert not (tmp_path / ".codex").exists()
+
+
 def test_bootstrap_sync_agents_includes_skill_pack_surface(tmp_path):
     (tmp_path / ".claude").mkdir()
     fam_dir = tmp_path / "skill_packs" / "testfam"

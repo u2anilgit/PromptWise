@@ -392,3 +392,41 @@ class ConfigEmitter:
                 )
                 out[rel] = {"status": status, "diff": ud, "warnings": _lint_warnings(merged, t)}
         return out
+
+
+_CODEX_MCP_TABLE = "[mcp_servers.promptwise]"
+_CODEX_MCP_STANZA = (
+    f"{_CODEX_MCP_TABLE}\n"
+    'command = "python"\n'
+    'args = ["-m", "promptwise.server"]\n'
+    "\n"
+    "[mcp_servers.promptwise.env]\n"
+    'PYTHONPATH = "src"\n'
+)
+
+
+def sync_codex_mcp(repo_root: str | Path) -> str:
+    """Register PromptWise's MCP server in a project-scoped Codex config.
+
+    Codex CLI supports a trusted project-level ``.codex/config.toml`` in
+    addition to the user-global ``~/.codex/config.toml``; this only ever
+    touches the repo-scoped file, matching every other emitter's blast
+    radius. TOML has no comment syntax the managed-block protocol can use,
+    so this is a separate, simpler primitive: append our own
+    ``[mcp_servers.promptwise]`` table if absent, and never modify any
+    other content in the file. Returns "written" (file created),
+    "appended" (added to an existing file), or "already-configured".
+    """
+    dest = Path(repo_root) / ".codex" / "config.toml"
+    if not dest.exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(_CODEX_MCP_STANZA, encoding="utf-8")
+        return "written"
+
+    existing = dest.read_text(encoding="utf-8")
+    if _CODEX_MCP_TABLE in existing:
+        return "already-configured"
+
+    separator = "" if existing.endswith("\n\n") else ("\n" if existing.endswith("\n") else "\n\n")
+    dest.write_text(existing + separator + _CODEX_MCP_STANZA, encoding="utf-8")
+    return "appended"
