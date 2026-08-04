@@ -95,6 +95,7 @@ def test_write_report_rejects_unknown_format(tmp_path):
 
 # -- gather_* (I/O, fail-soft) --------------------------------------------------
 def test_gather_spend_summary_reads_cost_logs(tmp_path, monkeypatch):
+    import time as _time
     import promptwise.db.models as models
     db_path = tmp_path / "promptwise.db"
     conn = sqlite3.connect(str(db_path))
@@ -103,8 +104,15 @@ def test_gather_spend_summary_reads_cost_logs(tmp_path, monkeypatch):
         "model TEXT, input_tokens REAL, output_tokens REAL, cost_usd REAL, "
         "saving_pct REAL, lines REAL)"
     )
+    # Use a timestamp relative to "now" rather than a hardcoded date: the
+    # default gather_spend_summary window is 30 days, so a fixed past date
+    # eventually falls outside the window as real wall-clock time passes
+    # (this test previously hardcoded 2026-07-01 and started silently
+    # failing once real time crossed 30 days past it).
+    recent_ts = _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime(_time.time() - 3600))
     conn.execute(
-        "INSERT INTO cost_logs VALUES ('1','s','2026-07-01T00:00:00Z','route_request','sonnet',10,10,0.05,0,0)"
+        "INSERT INTO cost_logs VALUES ('1','s',?,'route_request','sonnet',10,10,0.05,0,0)",
+        (recent_ts,),
     )
     conn.commit()
     conn.close()

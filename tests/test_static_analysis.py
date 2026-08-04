@@ -46,9 +46,14 @@ def test_timeout_is_fail_open(monkeypatch):
     assert result.issues == []
 
 
-def test_javascript_without_eslint_installed_is_fail_open():
-    # This CI/dev box has no eslint on PATH (confirmed during design) --
-    # exercises the real fail-open path, not a mock.
+def test_javascript_without_eslint_installed_is_fail_open(monkeypatch):
+    # Mirrors test_missing_binary_is_fail_open's pattern: mock shutil.which
+    # rather than relying on the real machine not having eslint on PATH.
+    # A machine that happens to have eslint installed globally (e.g. via
+    # the vscode-extension/ package's own devDependency, or a contributor's
+    # global npm install) previously made this test fail even though the
+    # underlying fail-open behavior was never actually broken.
+    monkeypatch.setattr("promptwise.core.static_analysis.shutil.which", lambda tool: None)
     result = run_static_analysis("var x = 1;\n", language="javascript")
     assert result.tool_available is False
     assert result.tool == "eslint"

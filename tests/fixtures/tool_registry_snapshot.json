@@ -1,13 +1,15 @@
 [
   {
+    "name": "route_request",
     "description": "Route request to appropriate model tier based on intent, stakes, and budget",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "days_elapsed_in_month": {
-          "type": "integer"
+        "text": {
+          "type": "string"
         },
         "intent": {
-          "default": "auto",
+          "type": "string",
           "enum": [
             "auto",
             "extract",
@@ -19,50 +21,49 @@
             "agent_loop",
             "research"
           ],
-          "type": "string"
-        },
-        "monthly_budget_usd": {
-          "type": "number"
-        },
-        "provider": {
-          "default": "claude",
-          "type": "string"
-        },
-        "provider_spend_usd": {
-          "description": "Spend already incurred for this provider (e.g. today) -- enables a hard budget-cap reroute before the call, if the provider has a configured daily_cap_usd",
-          "type": "number"
+          "default": "auto"
         },
         "stakes": {
-          "default": "auto",
+          "type": "string",
           "enum": [
             "auto",
             "low",
             "medium",
             "high"
           ],
-          "type": "string"
+          "default": "auto"
         },
-        "text": {
-          "type": "string"
+        "provider": {
+          "type": "string",
+          "default": "claude"
+        },
+        "monthly_budget_usd": {
+          "type": "number"
+        },
+        "days_elapsed_in_month": {
+          "type": "integer"
+        },
+        "provider_spend_usd": {
+          "type": "number",
+          "description": "Spend already incurred for this provider (e.g. today) -- enables a hard budget-cap reroute before the call, if the provider has a configured daily_cap_usd"
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "route_request"
+      ]
+    }
   },
   {
+    "name": "rewrite_prompt",
     "description": "Rewrite prompt with role framing and filler removal",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "model": {
-          "default": "claude-sonnet-4-6",
+        "text": {
           "type": "string"
         },
         "role": {
-          "default": "general",
+          "type": "string",
           "enum": [
             "general",
             "developer",
@@ -75,46 +76,47 @@
             "researcher",
             "pm"
           ],
-          "type": "string"
+          "default": "general"
         },
-        "text": {
-          "type": "string"
+        "model": {
+          "type": "string",
+          "default": "claude-sonnet-4-6"
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "rewrite_prompt"
+      ]
+    }
   },
   {
+    "name": "optimize_context",
     "description": "Compress context to fit token budget by dropping low-value content",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "context": {
           "type": "string"
         },
-        "model": {
-          "default": "claude-sonnet-4-6",
-          "type": "string"
-        },
         "token_budget": {
+          "type": "integer",
           "default": 2000,
-          "minimum": 100,
-          "type": "integer"
+          "minimum": 100
+        },
+        "model": {
+          "type": "string",
+          "default": "claude-sonnet-4-6"
         }
       },
       "required": [
         "context"
-      ],
-      "type": "object"
-    },
-    "name": "optimize_context"
+      ]
+    }
   },
   {
+    "name": "compress_prompt",
     "description": "Apply caveman compression: remove articles, filler, pleasantries, hedging",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "text": {
           "type": "string"
@@ -122,86 +124,85 @@
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "compress_prompt"
+      ]
+    }
   },
   {
+    "name": "plan_cache",
     "description": "Plan cache breakpoints for prompt reuse",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "expected_reuse_count": {
-          "default": 2,
-          "minimum": 1,
-          "type": "integer"
-        },
         "messages": {
+          "type": "array",
           "items": {
+            "type": "object",
             "properties": {
-              "content": {
-                "type": "string"
-              },
-              "label": {
-                "type": "string"
-              },
               "role": {
+                "type": "string",
                 "enum": [
                   "system",
                   "user",
                   "assistant"
-                ],
+                ]
+              },
+              "content": {
+                "type": "string"
+              },
+              "label": {
                 "type": "string"
               }
             },
             "required": [
               "role",
               "content"
-            ],
-            "type": "object"
-          },
-          "type": "array"
+            ]
+          }
+        },
+        "expected_reuse_count": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 1
         },
         "model": {
-          "default": "claude-sonnet-4-6",
-          "type": "string"
+          "type": "string",
+          "default": "claude-sonnet-4-6"
         }
       },
       "required": [
         "messages"
-      ],
-      "type": "object"
-    },
-    "name": "plan_cache"
+      ]
+    }
   },
   {
+    "name": "cache_lookup",
     "description": "Exact-match lookup in the local result cache (ExactCache): given identical (tool, request) input to a prior cache_store call, return the stored result instead of recomputing. Hash-based only, no embeddings/similarity threshold. Offline.",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "tool": {
+          "type": "string",
+          "description": "name of the tool/skill this result belongs to"
+        },
         "request": {
           "description": "the request payload to hash (string or object)"
-        },
-        "tool": {
-          "description": "name of the tool/skill this result belongs to",
-          "type": "string"
         }
       },
       "required": [
         "tool",
         "request"
-      ],
-      "type": "object"
-    },
-    "name": "cache_lookup"
+      ]
+    }
   },
   {
+    "name": "cache_store",
     "description": "Store a result in the local exact-match cache (ExactCache) for later cache_lookup hits. Refuses to store (reports why) if category is medical/legal/financial/personalized/health, or if the request/result contains PII or secrets per security.scanner. Offline.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "category": {
-          "default": "",
-          "description": "e.g. 'medical'/'legal'/'financial'/'personalized'/'health' are never cached",
-          "type": "string"
+        "tool": {
+          "type": "string",
+          "description": "name of the tool/skill this result belongs to"
         },
         "request": {
           "description": "the request payload to hash (string or object)"
@@ -209,277 +210,278 @@
         "result": {
           "description": "the result to cache (any JSON-serializable value)"
         },
-        "tool": {
-          "description": "name of the tool/skill this result belongs to",
-          "type": "string"
+        "category": {
+          "type": "string",
+          "default": "",
+          "description": "e.g. 'medical'/'legal'/'financial'/'personalized'/'health' are never cached"
         },
         "ttl_seconds": {
-          "description": "override the default 1h TTL; 0 means no expiry",
-          "type": "integer"
+          "type": "integer",
+          "description": "override the default 1h TTL; 0 means no expiry"
         }
       },
       "required": [
         "tool",
         "request",
         "result"
-      ],
-      "type": "object"
-    },
-    "name": "cache_store"
+      ]
+    }
   },
   {
+    "name": "cache_stats",
     "description": "Hit/miss/entry-count/hit-rate report for the local exact-match cache (ExactCache), broken down by category. Purges expired entries first by default.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "purge_expired": {
-          "default": true,
-          "type": "boolean"
+          "type": "boolean",
+          "default": true
         }
-      },
-      "type": "object"
-    },
-    "name": "cache_stats"
+      }
+    }
   },
   {
+    "name": "batch_prompts",
     "description": "Batch multiple tasks into one prompt to reduce overhead",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "model": {
-          "default": "claude-sonnet-4-6",
-          "type": "string"
-        },
-        "role": {
-          "default": "general",
-          "type": "string"
-        },
         "tasks": {
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "maxItems": 5,
           "minItems": 2,
-          "type": "array"
+          "maxItems": 5
+        },
+        "role": {
+          "type": "string",
+          "default": "general"
+        },
+        "model": {
+          "type": "string",
+          "default": "claude-sonnet-4-6"
         }
       },
       "required": [
         "tasks"
-      ],
-      "type": "object"
-    },
-    "name": "batch_prompts"
+      ]
+    }
   },
   {
+    "name": "summarize_thread",
     "description": "Compress conversation for fresh thread handoff",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "conversation": {
           "type": "string"
         },
         "max_tokens": {
+          "type": "integer",
           "default": 500,
-          "maximum": 2000,
           "minimum": 100,
-          "type": "integer"
+          "maximum": 2000
         },
         "model": {
-          "default": "claude-sonnet-4-6",
-          "type": "string"
+          "type": "string",
+          "default": "claude-sonnet-4-6"
         }
       },
       "required": [
         "conversation"
-      ],
-      "type": "object"
-    },
-    "name": "summarize_thread"
+      ]
+    }
   },
   {
+    "name": "compare_providers",
     "description": "Advisory cost comparison for the same estimated token count: the claude entry uses this project's live registry pricing (the real source of truth); non-claude entries (OpenAI/Gemini/etc, when include_external=true, the default) come from a static, offline, user-editable reference catalog (config/external_models.yaml) -- never live-fetched, never consulted by routing, purely informational. Each result is tagged advisory:true/false so callers never mistake a reference price for a live one.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "include_external": {
-          "default": true,
-          "type": "boolean"
+        "text": {
+          "type": "string"
         },
         "model": {
-          "default": "claude-sonnet-4-6",
-          "type": "string"
+          "type": "string",
+          "default": "claude-sonnet-4-6"
         },
-        "text": {
-          "type": "string"
+        "include_external": {
+          "type": "boolean",
+          "default": true
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "compare_providers"
+      ]
+    }
   },
   {
+    "name": "security_check",
     "description": "Run security check (secrets, injection, PII, destructive, permissions). Supply-chain OSV.dev lookups are off by default (air-gap safe); set allow_network=true to opt in.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "allow_network": {
-          "default": false,
-          "type": "boolean"
-        },
         "text": {
           "type": "string"
+        },
+        "allow_network": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "security_check"
+      ]
+    }
   },
   {
+    "name": "prompt_injection",
     "description": "Scan user input for prompt injection or jailbreak attempts",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "text": {
           "type": "string"
         },
         "threshold": {
-          "default": 0.7,
-          "type": "number"
+          "type": "number",
+          "default": 0.7
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "prompt_injection"
+      ]
+    }
   },
   {
+    "name": "owasp_scan",
     "description": "Scan code for OWASP Top-10 vulnerabilities",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "code": {
           "type": "string"
         },
         "language": {
-          "default": "python",
-          "type": "string"
+          "type": "string",
+          "default": "python"
         }
       },
       "required": [
         "code"
-      ],
-      "type": "object"
-    },
-    "name": "owasp_scan"
+      ]
+    }
   },
   {
+    "name": "scan_response",
     "description": "Scan a model response for PII leaks, injection echoes, canary leaks, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Pass a canary token (issued via the indirect-injection canary) to flag if content that flowed through tool output/RAG leaks back into the response. Advisory.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "canary": {
-          "default": "",
-          "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here",
-          "type": "string"
-        },
-        "original_prompt": {
-          "default": "",
-          "type": "string"
-        },
         "response": {
           "type": "string"
         },
+        "original_prompt": {
+          "type": "string",
+          "default": ""
+        },
         "sources": {
+          "type": "string",
           "default": "",
-          "description": "Source/context text the response should be grounded in; enables grounding checks",
-          "type": "string"
+          "description": "Source/context text the response should be grounded in; enables grounding checks"
+        },
+        "canary": {
+          "type": "string",
+          "default": "",
+          "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here"
         }
       },
       "required": [
         "response"
-      ],
-      "type": "object"
-    },
-    "name": "scan_response"
+      ]
+    }
   },
   {
+    "name": "benchmark_injection",
     "description": "Benchmark the prompt-injection detector against a bundled offline attack+benign corpus and report measured precision/recall/F1/accuracy plus the actual false positives/negatives (a real number, not a claim). Offline by default (air-gap safe); an optional live PINT-style corpus fetch is gated behind allow_network=true.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "allow_network": {
-          "default": false,
-          "type": "boolean"
+        "threshold": {
+          "type": "number",
+          "default": 0.0
         },
         "corpus_path": {
-          "default": "",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "pint_url": {
-          "default": "",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
-        "threshold": {
-          "default": 0.0,
-          "type": "number"
+        "allow_network": {
+          "type": "boolean",
+          "default": false
         }
-      },
-      "type": "object"
-    },
-    "name": "benchmark_injection"
+      }
+    }
   },
   {
+    "name": "accept_risk",
     "description": "Self-service accept/sign-off for a known residual risk: marks a specific finding (identified by check+detail) as accepted, with an optional expiry date. One call, no approval workflow. Does not change run_security_suite's pass/fail or risk_score -- purely a governance annotation.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "accepted_by": {
-          "default": "",
-          "type": "string"
-        },
         "check": {
           "type": "string"
         },
         "detail": {
           "type": "string"
         },
-        "expires_at": {
-          "default": "",
-          "description": "ISO-8601 UTC timestamp (e.g. '2026-12-31T00:00:00Z') after which this acceptance lazily expires; compared lexicographically, so the format must match exactly or expiry will be computed incorrectly. Omit for no expiry.",
-          "type": "string"
-        },
         "reason": {
           "type": "string"
+        },
+        "expires_at": {
+          "type": "string",
+          "default": "",
+          "description": "ISO-8601 UTC timestamp (e.g. '2026-12-31T00:00:00Z') after which this acceptance lazily expires; compared lexicographically, so the format must match exactly or expiry will be computed incorrectly. Omit for no expiry."
+        },
+        "accepted_by": {
+          "type": "string",
+          "default": ""
         }
       },
       "required": [
         "check",
         "detail",
         "reason"
-      ],
-      "type": "object"
-    },
-    "name": "accept_risk"
+      ]
+    }
   },
   {
+    "name": "list_risk_register",
     "description": "List residual-risk register entries, optionally filtered by computed status (open/accepted/expired -- expiry is computed at read time, never mutates stored rows).",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "status": {
-          "default": "",
+          "type": "string",
           "enum": [
             "open",
             "accepted",
             "expired"
           ],
-          "type": "string"
+          "default": ""
         }
-      },
-      "type": "object"
-    },
-    "name": "list_risk_register"
+      }
+    }
   },
   {
+    "name": "review_corpus_candidates",
     "description": "Dry-run score candidate injection-corpus cases (from a manually curated JSON file) against the current live detector, without mutating any corpus or history. Use before promote_corpus_candidates to see which candidate ids the detector already gets right vs. wrong.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "path": {
           "type": "string"
@@ -487,31 +489,31 @@
       },
       "required": [
         "path"
-      ],
-      "type": "object"
-    },
-    "name": "review_corpus_candidates"
+      ]
+    }
   },
   {
+    "name": "promote_corpus_candidates",
     "description": "Merge human-reviewed candidate cases into the live injection corpus (corpus/injection_corpus.json). Only ids in approve_ids (or, if approve_ids is omitted, every candidate not listed in reject_ids) are merged. Records an append-only corpus_history row with before/after precision/recall/F1. Requires a non-empty reviewer name -- this is a human-review gate, not an automated classifier.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "approve_ids": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "path": {
           "type": "string"
         },
-        "reject_ids": {
-          "default": [],
+        "approve_ids": {
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "default": []
+        },
+        "reject_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         },
         "reviewer": {
           "type": "string"
@@ -520,137 +522,137 @@
       "required": [
         "path",
         "reviewer"
-      ],
-      "type": "object"
-    },
-    "name": "promote_corpus_candidates"
+      ]
+    }
   },
   {
+    "name": "plan_workflow",
     "description": "Classify a task (greenfield/brownfield/regulated) and return an ordered workflow of PromptWise's own skill packs + tools to run (PRD -> design -> stories -> TDD -> review). No third-party frameworks.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "brownfield": {
-          "description": "Override auto-detection of brownfield (existing-code) change",
-          "type": "boolean"
-        },
-        "regulated": {
-          "description": "Override auto-detection of regulated/compliance context",
-          "type": "boolean"
-        },
         "text": {
           "type": "string"
+        },
+        "regulated": {
+          "type": "boolean",
+          "description": "Override auto-detection of regulated/compliance context"
+        },
+        "brownfield": {
+          "type": "boolean",
+          "description": "Override auto-detection of brownfield (existing-code) change"
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "plan_workflow"
+      ]
+    }
   },
   {
+    "name": "add_task",
     "description": "Create a development task with an effort estimate; tracks effort, tokens, and cost",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "title": {
+          "type": "string"
+        },
         "estimate_hours": {
-          "default": 0,
-          "type": "number"
+          "type": "number",
+          "default": 0
         },
         "status": {
-          "default": "todo",
+          "type": "string",
           "enum": [
             "todo",
             "in_progress",
             "blocked",
             "done"
           ],
-          "type": "string"
+          "default": "todo"
         },
         "tags": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
-        },
-        "title": {
-          "type": "string"
+          }
         }
       },
       "required": [
         "title"
-      ],
-      "type": "object"
-    },
-    "name": "add_task"
+      ]
+    }
   },
   {
+    "name": "update_task",
     "description": "Update a task's status, actual hours, tokens, or cost (set or increment)",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "task_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "todo",
+            "in_progress",
+            "blocked",
+            "done"
+          ]
+        },
         "actual_hours": {
           "type": "number"
         },
-        "add_cost": {
-          "type": "number"
-        },
-        "add_tokens": {
+        "tokens": {
           "type": "number"
         },
         "cost_usd": {
           "type": "number"
         },
-        "status": {
-          "enum": [
-            "todo",
-            "in_progress",
-            "blocked",
-            "done"
-          ],
-          "type": "string"
+        "add_tokens": {
+          "type": "number"
         },
-        "task_id": {
-          "type": "string"
-        },
-        "tokens": {
+        "add_cost": {
           "type": "number"
         }
       },
       "required": [
         "task_id"
-      ],
-      "type": "object"
-    },
-    "name": "update_task"
+      ]
+    }
   },
   {
+    "name": "list_tasks",
     "description": "List tracked tasks, optionally filtered by status",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "status": {
+          "type": "string",
           "enum": [
             "todo",
             "in_progress",
             "blocked",
             "done"
-          ],
-          "type": "string"
+          ]
         }
-      },
-      "type": "object"
-    },
-    "name": "list_tasks"
+      }
+    }
   },
   {
+    "name": "task_report",
     "description": "Effort (estimate vs actual), token, and cost rollup across all tasks",
     "inputSchema": {
-      "properties": {},
-      "type": "object"
-    },
-    "name": "task_report"
+      "type": "object",
+      "properties": {}
+    }
   },
   {
+    "name": "validate_mermaid",
     "description": "Lint Mermaid diagram source (type, bracket/quote balance) so it renders",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "source": {
           "type": "string"
@@ -658,297 +660,310 @@
       },
       "required": [
         "source"
-      ],
-      "type": "object"
-    },
-    "name": "validate_mermaid"
+      ]
+    }
   },
   {
+    "name": "detect_role",
     "description": "Detect organizational role from prompt context",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "file_type": {
+        "text": {
           "type": "string"
         },
-        "text": {
+        "file_type": {
           "type": "string"
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "detect_role"
+      ]
+    }
   },
   {
+    "name": "orchestrate_tasks",
     "description": "Parse a multi-step prompt into a DAG and execute with a failure strategy. Pass 'tasks' (with depends_on / file) to instead emit a safe parallel wave plan (which tasks can run at once) for the caller to dispatch.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "fan_out_cap": {
-          "default": 8,
-          "description": "Max tasks per parallel wave",
-          "type": "integer"
+        "text": {
+          "type": "string"
         },
         "strategy": {
-          "default": "fallback",
+          "type": "string",
           "enum": [
             "stop",
             "retry",
             "fallback",
             "all"
           ],
-          "type": "string"
+          "default": "fallback"
         },
         "tasks": {
+          "type": "array",
           "description": "Structured tasks [{id, depends_on:[ids], file}] \u2014 when present, returns a wave plan instead of executing",
           "items": {
+            "type": "object",
             "properties": {
+              "id": {
+                "type": "string"
+              },
               "depends_on": {
+                "type": "array",
                 "items": {
                   "type": "string"
-                },
-                "type": "array"
+                }
               },
               "file": {
                 "type": "string"
-              },
-              "id": {
-                "type": "string"
               }
-            },
-            "type": "object"
-          },
-          "type": "array"
+            }
+          }
         },
-        "text": {
-          "type": "string"
+        "fan_out_cap": {
+          "type": "integer",
+          "default": 8,
+          "description": "Max tasks per parallel wave"
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "orchestrate_tasks"
+      ]
+    }
   },
   {
+    "name": "run_autonomous",
     "description": "Run autonomous developer loop (Plan -> Execute -> Test -> Fix)",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "max_iterations": {
-          "default": 5,
-          "type": "integer"
-        },
         "task": {
           "type": "string"
+        },
+        "max_iterations": {
+          "type": "integer",
+          "default": 5
         }
       },
       "required": [
         "task"
-      ],
-      "type": "object"
-    },
-    "name": "run_autonomous"
+      ]
+    }
   },
   {
+    "name": "check_routing_consent",
     "description": "Check whether the assistant has device-scoped, ask-once consent for a routing question (e.g. key='opus' for 'use Opus for this?'). Device-scoped (~/.promptwise), not project-scoped -- persists across all projects on this machine. Purely advisory bookkeeping for the assistant's own behavior; has zero effect on Router.route()'s actual tier selection.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "key": {
-          "default": "opus",
-          "type": "string"
+          "type": "string",
+          "default": "opus"
         }
-      },
-      "type": "object"
-    },
-    "name": "check_routing_consent"
+      }
+    }
   },
   {
+    "name": "grant_routing_consent",
     "description": "Record device-scoped, ask-once consent for a routing question (e.g. key='opus') so the assistant never asks again on this device. Call this after the user explicitly says yes. Purely advisory bookkeeping; has zero effect on Router.route()'s actual tier selection.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "key": {
-          "default": "opus",
-          "type": "string"
+          "type": "string",
+          "default": "opus"
         }
-      },
-      "type": "object"
-    },
-    "name": "grant_routing_consent"
+      }
+    }
   },
   {
+    "name": "monitor_budget",
     "description": "Check spend against budget limit",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "used_usd": {
+          "type": "number"
+        },
         "days_elapsed": {
-          "default": 1,
-          "type": "integer"
+          "type": "integer",
+          "default": 1
         },
         "project_id": {
           "type": "string"
         },
         "tool_cost_usd": {
-          "description": "Tool/API execution cost for this workflow, attributed alongside used_usd's LLM token cost",
-          "type": "number"
-        },
-        "used_usd": {
-          "type": "number"
+          "type": "number",
+          "description": "Tool/API execution cost for this workflow, attributed alongside used_usd's LLM token cost"
         }
       },
       "required": [
         "used_usd"
-      ],
-      "type": "object"
-    },
-    "name": "monitor_budget"
+      ]
+    }
   },
   {
+    "name": "predict_cost",
     "description": "Estimate cost of a prompt before sending",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "model": {
-          "default": "claude-sonnet-4-6",
-          "type": "string"
-        },
         "prompt": {
           "type": "string"
+        },
+        "model": {
+          "type": "string",
+          "default": "claude-sonnet-4-6"
         }
       },
       "required": [
         "prompt"
-      ],
-      "type": "object"
-    },
-    "name": "predict_cost"
+      ]
+    }
   },
   {
+    "name": "set_budget_limit",
     "description": "Set monthly or daily spending limit; optionally switch the guardian between advisory (default) and opt-in hard-blocking enforcement",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "limit_usd": {
           "type": "number"
         },
-        "mode": {
-          "description": "advise (default) never blocks; block hard-stops monitor_budget once spend crosses the limit. Opt-in only.",
-          "enum": [
-            "advise",
-            "block"
-          ],
-          "type": "string"
-        },
         "period": {
-          "default": "monthly",
+          "type": "string",
           "enum": [
             "daily",
             "monthly"
           ],
-          "type": "string"
+          "default": "monthly"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "advise",
+            "block"
+          ],
+          "description": "advise (default) never blocks; block hard-stops monitor_budget once spend crosses the limit. Opt-in only."
         }
       },
       "required": [
         "limit_usd"
-      ],
-      "type": "object"
-    },
-    "name": "set_budget_limit"
+      ]
+    }
   },
   {
+    "name": "get_budget_status",
     "description": "Check current spend vs configured budget limits",
     "inputSchema": {
-      "properties": {},
-      "type": "object"
-    },
-    "name": "get_budget_status"
+      "type": "object",
+      "properties": {}
+    }
   },
   {
+    "name": "budget_report",
     "description": "Get detailed budget report with cost anomaly detection",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "period": {
-          "default": "weekly",
+          "type": "string",
           "enum": [
             "daily",
             "weekly",
             "monthly"
           ],
-          "type": "string"
+          "default": "weekly"
         },
         "project_id": {
           "type": "string"
         }
-      },
-      "type": "object"
-    },
-    "name": "budget_report"
+      }
+    }
   },
   {
+    "name": "validate_output",
     "description": "Validate generated code for syntax errors and hallucinated imports. Set use_static_analysis=true to also run a real linter (ruff for python, eslint for javascript/typescript) if installed on PATH -- opt-in, fail-open (silently skipped if the tool isn't available, never blocks the heuristic checks).",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "code": {
           "type": "string"
         },
-        "effort_id": {
-          "description": "Optional: effort_id from a prior route_request; folds this verdict back onto that effort decision's learning outcome",
-          "type": "string"
-        },
         "language": {
-          "default": "python",
-          "type": "string"
-        },
-        "route_id": {
-          "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome",
-          "type": "string"
-        },
-        "technique_id": {
-          "description": "Optional: technique_id from a prior suggest_technique; folds this verdict back onto that technique decision's learning outcome",
-          "type": "string"
+          "type": "string",
+          "default": "python"
         },
         "use_static_analysis": {
-          "default": false,
-          "type": "boolean"
+          "type": "boolean",
+          "default": false
+        },
+        "route_id": {
+          "type": "string",
+          "description": "Optional: route_id from a prior route_request; folds this verdict back onto that route's learning outcome"
+        },
+        "effort_id": {
+          "type": "string",
+          "description": "Optional: effort_id from a prior route_request; folds this verdict back onto that effort decision's learning outcome"
+        },
+        "technique_id": {
+          "type": "string",
+          "description": "Optional: technique_id from a prior suggest_technique; folds this verdict back onto that technique decision's learning outcome"
         }
       },
       "required": [
         "code"
-      ],
-      "type": "object"
-    },
-    "name": "validate_output"
+      ]
+    }
   },
   {
+    "name": "session_cost_report",
     "description": "Per-session cost rollup: calls, cost, tokens, and tool breakdown grouped by session_id. Defaults to just the current session (current_session_only=true) -- 'what has this session cost so far'; set false to see the full multi-session breakdown. A process gets a real, distinct session_id at startup, so this is meaningful per Claude Code session, not one global bucket.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "current_session_only": {
-          "default": true,
-          "type": "boolean"
-        },
         "since": {
-          "description": "ISO-8601 cutoff; omit for all history",
-          "type": "string"
+          "type": "string",
+          "description": "ISO-8601 cutoff; omit for all history"
+        },
+        "current_session_only": {
+          "type": "boolean",
+          "default": true
         }
-      },
-      "type": "object"
-    },
-    "name": "session_cost_report"
+      }
+    }
   },
   {
+    "name": "project_cost_report",
+    "description": "Per-project cost rollup: calls, cost, tokens, and tool breakdown grouped by project_id. Rows logged without a project_id (the default -- no caller passes one yet, Identity.projects/dashboard scoping unenforced) collapse into an 'unscoped' bucket.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "since": {
+          "type": "string",
+          "description": "ISO-8601 cutoff; omit for all history"
+        }
+      }
+    }
+  },
+  {
+    "name": "track_roi",
     "description": "Calculate ROI ratio: value of time saved vs cost incurred",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "calls": {
-          "type": "integer"
-        },
         "session_id": {
           "type": "string"
+        },
+        "total_cost_usd": {
+          "type": "number"
         },
         "tokens_saved": {
           "type": "integer"
         },
-        "total_cost_usd": {
-          "type": "number"
+        "calls": {
+          "type": "integer"
         }
       },
       "required": [
@@ -956,202 +971,202 @@
         "total_cost_usd",
         "tokens_saved",
         "calls"
-      ],
-      "type": "object"
-    },
-    "name": "track_roi"
+      ]
+    }
   },
   {
+    "name": "get_roi_report",
     "description": "Generate team ROI report based on cumulative stats",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "period": {
-          "default": "weekly",
+          "type": "string",
           "enum": [
             "daily",
             "weekly",
             "monthly"
           ],
-          "type": "string"
+          "default": "weekly"
         }
-      },
-      "type": "object"
-    },
-    "name": "get_roi_report"
+      }
+    }
   },
   {
+    "name": "cost_report",
     "description": "Get cost breakdown by project/period",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "project_id": {
+          "type": "string"
+        },
+        "period": {
+          "type": "string",
+          "default": "weekly"
+        },
         "format": {
-          "default": "json",
-          "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceMetrics payload instead of the plain report",
+          "type": "string",
           "enum": [
             "json",
             "otlp"
           ],
-          "type": "string"
-        },
-        "period": {
-          "default": "weekly",
-          "type": "string"
-        },
-        "project_id": {
-          "type": "string"
+          "default": "json",
+          "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceMetrics payload instead of the plain report"
         }
-      },
-      "type": "object"
-    },
-    "name": "cost_report"
+      }
+    }
   },
   {
+    "name": "get_memory_context",
     "description": "Retrieve past memory entries for a session",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "limit": {
-          "default": 20,
-          "type": "integer"
-        },
         "session_id": {
           "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20
         }
       },
       "required": [
         "session_id"
-      ],
-      "type": "object"
-    },
-    "name": "get_memory_context"
+      ]
+    }
   },
   {
+    "name": "query_memory",
     "description": "Query cross-session episodic and semantic memory",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "query": {
           "type": "string"
         },
         "scope": {
-          "default": "org",
+          "type": "string",
           "enum": [
             "session",
             "org"
           ],
-          "type": "string"
+          "default": "org"
         }
       },
       "required": [
         "query"
-      ],
-      "type": "object"
-    },
-    "name": "query_memory"
+      ]
+    }
   },
   {
+    "name": "ping_session",
     "description": "Record session activity to reset idle clock",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "session_id": {
           "type": "string"
         }
-      },
-      "type": "object"
-    },
-    "name": "ping_session"
+      }
+    }
   },
   {
+    "name": "check_session_timeout",
     "description": "Check if session has exceeded idle thresholds",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "idle_threshold_minutes": {
-          "default": 30,
-          "type": "integer"
-        },
         "session_id": {
           "type": "string"
         },
+        "idle_threshold_minutes": {
+          "type": "integer",
+          "default": 30
+        },
         "warn_threshold_minutes": {
-          "default": 20,
-          "type": "integer"
+          "type": "integer",
+          "default": 20
         }
       },
       "required": [
         "session_id"
-      ],
-      "type": "object"
-    },
-    "name": "check_session_timeout"
+      ]
+    }
   },
   {
+    "name": "invoke_skill",
     "description": "Invoke a specific skill with context",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "context": {
-          "default": {},
-          "type": "object"
-        },
-        "params": {
-          "default": {},
-          "type": "object"
-        },
         "skill_name": {
           "type": "string"
+        },
+        "context": {
+          "type": "object",
+          "default": {}
+        },
+        "params": {
+          "type": "object",
+          "default": {}
         }
       },
       "required": [
         "skill_name"
-      ],
-      "type": "object"
-    },
-    "name": "invoke_skill"
+      ]
+    }
   },
   {
+    "name": "list_skills",
     "description": "List all available skills filtered by role",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "category": {
-          "type": "string"
-        },
         "role": {
           "type": "string"
+        },
+        "category": {
+          "type": "string"
         }
-      },
-      "type": "object"
-    },
-    "name": "list_skills"
+      }
+    }
   },
   {
+    "name": "skill_chain",
     "description": "Execute a list of skills sequentially",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "context": {
-          "default": {},
-          "type": "object"
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "mode": {
-          "default": "sequential",
+          "type": "string",
           "enum": [
             "sequential",
             "parallel"
           ],
-          "type": "string"
+          "default": "sequential"
         },
-        "skills": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+        "context": {
+          "type": "object",
+          "default": {}
         }
       },
       "required": [
         "skills"
-      ],
-      "type": "object"
-    },
-    "name": "skill_chain"
+      ]
+    }
   },
   {
+    "name": "suggest_skill",
     "description": "Recommend best skill for a given user message",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "text": {
           "type": "string"
@@ -1159,14 +1174,14 @@
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "suggest_skill"
+      ]
+    }
   },
   {
+    "name": "suggest_technique",
     "description": "Auto-detect best prompting technique: CRAFT, Few-Shot, Chain-of-Thought, or Chaining. Blends the static heuristic pick with learned outcome history for this task class (fails open to the heuristic pick when history is thin). Returns technique_id -- pass it to validate_output/run_quality_gate's technique_id param so a later verdict teaches this decision.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "prompt": {
           "type": "string"
@@ -1174,14 +1189,14 @@
       },
       "required": [
         "prompt"
-      ],
-      "type": "object"
-    },
-    "name": "suggest_technique"
+      ]
+    }
   },
   {
+    "name": "apply_craft",
     "description": "Analyze prompt against CRAFT axes (Context/Role/Action/Format/Tone) and rebuild",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "prompt": {
           "type": "string"
@@ -1189,98 +1204,98 @@
       },
       "required": [
         "prompt"
-      ],
-      "type": "object"
-    },
-    "name": "apply_craft"
+      ]
+    }
   },
   {
+    "name": "inject_few_shot",
     "description": "Enhance prompt with few-shot examples",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "prompt": {
+          "type": "string"
+        },
         "examples": {
-          "default": [],
+          "type": "array",
           "items": {
             "type": "object"
           },
-          "type": "array"
-        },
-        "prompt": {
-          "type": "string"
+          "default": []
         }
       },
       "required": [
         "prompt"
-      ],
-      "type": "object"
-    },
-    "name": "inject_few_shot"
+      ]
+    }
   },
   {
+    "name": "add_chain_of_thought",
     "description": "Wrap prompt with Chain-of-Thought scaffold",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "prompt": {
           "type": "string"
         },
         "style": {
-          "default": "step-by-step",
+          "type": "string",
           "enum": [
             "standard",
             "step-by-step",
             "tree-of-thought"
           ],
-          "type": "string"
+          "default": "step-by-step"
         }
       },
       "required": [
         "prompt"
-      ],
-      "type": "object"
-    },
-    "name": "add_chain_of_thought"
+      ]
+    }
   },
   {
+    "name": "chain_prompts",
     "description": "Decompose complex task into sequential prompt chain",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "steps": {
-          "default": 3,
-          "type": "integer"
-        },
         "task": {
           "type": "string"
+        },
+        "steps": {
+          "type": "integer",
+          "default": 3
         }
       },
       "required": [
         "task"
-      ],
-      "type": "object"
-    },
-    "name": "chain_prompts"
+      ]
+    }
   },
   {
+    "name": "eval_prompt_across_models",
     "description": "Estimate cost and recommend model tier across Haiku/Sonnet/Opus",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "prompt": {
           "type": "string"
         },
         "task_type": {
-          "default": "general",
-          "type": "string"
+          "type": "string",
+          "default": "general"
         }
       },
       "required": [
         "prompt"
-      ],
-      "type": "object"
-    },
-    "name": "eval_prompt_across_models"
+      ]
+    }
   },
   {
+    "name": "audit_system_prompt",
     "description": "Score system prompt on clarity, role, constraints, and jailbreak resistance",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "system_prompt": {
           "type": "string"
@@ -1288,48 +1303,48 @@
       },
       "required": [
         "system_prompt"
-      ],
-      "type": "object"
-    },
-    "name": "audit_system_prompt"
+      ]
+    }
   },
   {
+    "name": "save_prompt",
     "description": "Save a prompt to the versioned prompt registry",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "content": {
-          "type": "string"
-        },
-        "description": {
-          "default": "",
-          "type": "string"
-        },
         "name": {
           "type": "string"
         },
+        "content": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "default": "1.0.0"
+        },
+        "description": {
+          "type": "string",
+          "default": ""
+        },
         "tags": {
-          "default": [],
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "type": "array"
-        },
-        "version": {
-          "default": "1.0.0",
-          "type": "string"
+          "default": []
         }
       },
       "required": [
         "name",
         "content"
-      ],
-      "type": "object"
-    },
-    "name": "save_prompt"
+      ]
+    }
   },
   {
+    "name": "search_prompts",
     "description": "Search prompts in the versioned prompt registry",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "query": {
           "type": "string"
@@ -1337,14 +1352,14 @@
       },
       "required": [
         "query"
-      ],
-      "type": "object"
-    },
-    "name": "search_prompts"
+      ]
+    }
   },
   {
+    "name": "compare_prompts",
     "description": "Diff two versions of a registered prompt",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "name": {
           "type": "string"
@@ -1360,14 +1375,14 @@
         "name",
         "version_a",
         "version_b"
-      ],
-      "type": "object"
-    },
-    "name": "compare_prompts"
+      ]
+    }
   },
   {
+    "name": "rollback_prompt",
     "description": "Roll a named prompt back to an earlier version's content by writing it as a new, current registry entry -- existing history rows are never mutated or deleted",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "name": {
           "type": "string"
@@ -1379,134 +1394,134 @@
       "required": [
         "name",
         "version"
-      ],
-      "type": "object"
-    },
-    "name": "rollback_prompt"
+      ]
+    }
   },
   {
+    "name": "replay_prompt_version",
     "description": "Replay a registered prompt version's content through the eval harness's rubric cases to score its quality (offline record/dry-run by default), optionally diffing against another version for regression comparison",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "bar": {
-          "default": 0.6,
-          "type": "number"
+        "name": {
+          "type": "string"
         },
-        "cases": {
-          "default": [],
-          "items": {
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "cases_path": {
-          "default": "",
+        "version": {
           "type": "string"
         },
         "compare_version": {
-          "default": "",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
-        "name": {
-          "type": "string"
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        },
+        "cases_path": {
+          "type": "string",
+          "default": ""
         },
         "tiers": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
-        "version": {
-          "type": "string"
+        "bar": {
+          "type": "number",
+          "default": 0.6
         }
       },
       "required": [
         "name",
         "version"
-      ],
-      "type": "object"
-    },
-    "name": "replay_prompt_version"
+      ]
+    }
   },
   {
+    "name": "get_session_stats",
     "description": "Get session usage statistics",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "since": {
-          "description": "ISO 8601 timestamp filter",
-          "type": "string"
+          "type": "string",
+          "description": "ISO 8601 timestamp filter"
         }
-      },
-      "type": "object"
-    },
-    "name": "get_session_stats"
+      }
+    }
   },
   {
+    "name": "clear_history",
     "description": "Delete usage history older than N days",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "older_than_days": {
-          "minimum": 1,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [
         "older_than_days"
-      ],
-      "type": "object"
-    },
-    "name": "clear_history"
+      ]
+    }
   },
   {
+    "name": "export_stats",
     "description": "Export usage history as JSON",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "since": {
+          "type": "string"
+        },
         "format": {
-          "default": "json",
+          "type": "string",
           "enum": [
             "json",
             "csv"
           ],
-          "type": "string"
-        },
-        "since": {
-          "type": "string"
+          "default": "json"
         }
-      },
-      "type": "object"
-    },
-    "name": "export_stats"
+      }
+    }
   },
   {
+    "name": "reload_config",
     "description": "Reload configuration without restarting server",
     "inputSchema": {
-      "properties": {},
-      "type": "object"
-    },
-    "name": "reload_config"
+      "type": "object",
+      "properties": {}
+    }
   },
   {
+    "name": "check_energy",
     "description": "Get energy efficiency score for a model",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "model": {
           "type": "string"
         },
         "tokens": {
-          "default": 1000,
-          "type": "integer"
+          "type": "integer",
+          "default": 1000
         }
       },
       "required": [
         "model"
-      ],
-      "type": "object"
-    },
-    "name": "check_energy"
+      ]
+    }
   },
   {
+    "name": "route_for_plugin",
     "description": "Detect applicable plugin for text",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "text": {
           "type": "string"
@@ -1514,839 +1529,843 @@
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "route_for_plugin"
+      ]
+    }
   },
   {
+    "name": "run_eval",
     "description": "Estimate and compare per-model cost for a prompt across multiple models (cost only -- for a real quality comparison, use run_eval_harness)",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "prompt": {
+          "type": "string"
+        },
         "models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [
             "claude-haiku-4-5-20251001",
             "claude-sonnet-4-6",
             "claude-opus-4-7"
-          ],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "prompt": {
-          "type": "string"
+          ]
         }
       },
       "required": [
         "prompt"
-      ],
-      "type": "object"
-    },
-    "name": "run_eval"
+      ]
+    }
   },
   {
+    "name": "run_eval_harness",
     "description": "Run a durable eval + regression suite (prompt+rubric cases) offline; score with the quality gate, diff against a stored baseline to flag regressions, expose a pass/fail gate, and feed outcomes back into adaptive routing. Offline default is a record/dry-run mode (no cloud). Set save_baseline=true to bless this run as the new baseline.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "bar": {
-          "default": 0.6,
-          "type": "number"
-        },
         "cases": {
-          "default": [],
+          "type": "array",
           "items": {
             "type": "object"
           },
-          "type": "array"
+          "default": []
         },
         "cases_path": {
-          "default": "",
-          "type": "string"
-        },
-        "save_baseline": {
-          "default": false,
-          "type": "boolean"
+          "type": "string",
+          "default": ""
         },
         "suite": {
-          "default": "default",
-          "type": "string"
+          "type": "string",
+          "default": "default"
         },
         "tiers": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
+        },
+        "bar": {
+          "type": "number",
+          "default": 0.6
+        },
+        "save_baseline": {
+          "type": "boolean",
+          "default": false
         }
-      },
-      "type": "object"
-    },
-    "name": "run_eval_harness"
+      }
+    }
   },
   {
+    "name": "get_sbom",
     "description": "Generate SBOM in CycloneDX format",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "format": {
-          "default": "cyclonedx",
+          "type": "string",
           "enum": [
             "cyclonedx",
             "spdx"
           ],
-          "type": "string"
+          "default": "cyclonedx"
         },
         "paths": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         }
-      },
-      "type": "object"
-    },
-    "name": "get_sbom"
+      }
+    }
   },
   {
+    "name": "run_security_suite",
     "description": "Run all security checks as a suite",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "context": {
-          "type": "object"
-        },
         "targets": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
+        },
+        "context": {
+          "type": "object"
         }
-      },
-      "type": "object"
-    },
-    "name": "run_security_suite"
+      }
+    }
   },
   {
+    "name": "run_red_team_harness",
     "description": "Run a durable, offline red-team suite against the security scanners: known attack patterns (must be caught) and benign counterexamples (must NOT be flagged) across injection/owasp/secrets/destructive/permissions/pii/supply_chain checks. Diffs against a stored baseline to flag regressions (an attack that used to be caught now escapes, or a benign input starts false-positiving) and exposes a pass/fail gate. Defaults to a built-in corpus when no cases/cases_path given. Set save_baseline=true to bless this run as the new baseline.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "cases": {
-          "default": [],
+          "type": "array",
           "items": {
             "type": "object"
           },
-          "type": "array"
+          "default": []
         },
         "cases_path": {
-          "default": "",
-          "type": "string"
-        },
-        "save_baseline": {
-          "default": false,
-          "type": "boolean"
+          "type": "string",
+          "default": ""
         },
         "suite": {
-          "default": "default",
-          "type": "string"
+          "type": "string",
+          "default": "default"
+        },
+        "save_baseline": {
+          "type": "boolean",
+          "default": false
         }
-      },
-      "type": "object"
-    },
-    "name": "run_red_team_harness"
+      }
+    }
   },
   {
+    "name": "agile_plan",
     "description": "Two-phase, persona-aware agile plan (analyst->pm->[ux]->architect->po, then per-story sm->dev->qa loop) layered on the workflow classifier; carries the compliance gate and model-tier routing",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "brownfield": {
-          "type": "boolean"
+        "task": {
+          "type": "string"
         },
         "regulated": {
           "type": "boolean"
         },
-        "task": {
-          "type": "string"
+        "brownfield": {
+          "type": "boolean"
         }
       },
       "required": [
         "task"
-      ],
-      "type": "object"
-    },
-    "name": "agile_plan"
+      ]
+    }
   },
   {
+    "name": "shard_doc",
     "description": "Split a PRD/architecture markdown document into focused, anchored shards by heading level",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "by_level": {
-          "default": 2,
-          "type": "integer"
-        },
         "markdown": {
           "type": "string"
+        },
+        "by_level": {
+          "type": "integer",
+          "default": 2
         }
       },
       "required": [
         "markdown"
-      ],
-      "type": "object"
-    },
-    "name": "shard_doc"
+      ]
+    }
   },
   {
+    "name": "draft_story",
     "description": "Assemble a self-contained, context-engineered story: embeds architecture shards, constraints, and compliance rules inline so the dev executor needs no external lookup",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "acceptance_criteria": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "arch_shards": {
-          "default": [],
-          "items": {
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "compliance_rules": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "constraints": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "epic_id": {
-          "default": "",
-          "type": "string"
-        },
-        "files_to_touch": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "story_id": {
           "type": "string"
         },
-        "tasks": {
-          "default": [],
+        "title": {
+          "type": "string"
+        },
+        "epic_id": {
+          "type": "string",
+          "default": ""
+        },
+        "acceptance_criteria": {
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "default": []
         },
-        "title": {
-          "type": "string"
+        "arch_shards": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        },
+        "files_to_touch": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "compliance_rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       },
       "required": [
         "story_id",
         "title"
-      ],
-      "type": "object"
-    },
-    "name": "draft_story"
+      ]
+    }
   },
   {
+    "name": "run_quality_gate",
     "description": "Issue an advisory, auditable quality-gate decision (PASS/CONCERNS/FAIL/WAIVED) from findings, risk score, and NFR assessment",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "effort_id": {
-          "description": "Optional: effort_id from a prior route_request; folds this gate verdict back onto that effort decision's learning outcome",
-          "type": "string"
-        },
-        "findings": {
-          "default": [],
-          "items": {
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "nfr_assessment": {
-          "default": {},
-          "type": "object"
-        },
-        "risk_score": {
-          "default": 0,
-          "type": "integer"
-        },
-        "route_id": {
-          "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome",
-          "type": "string"
-        },
         "story_id": {
           "type": "string"
         },
-        "technique_id": {
-          "description": "Optional: technique_id from a prior suggest_technique; folds this gate verdict back onto that technique decision's learning outcome",
-          "type": "string"
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        },
+        "risk_score": {
+          "type": "integer",
+          "default": 0
+        },
+        "nfr_assessment": {
+          "type": "object",
+          "default": {}
         },
         "waiver_reason": {
-          "default": "",
-          "type": "string"
+          "type": "string",
+          "default": ""
+        },
+        "route_id": {
+          "type": "string",
+          "description": "Optional: route_id from a prior route_request; folds this gate verdict back onto that route's learning outcome"
+        },
+        "effort_id": {
+          "type": "string",
+          "description": "Optional: effort_id from a prior route_request; folds this gate verdict back onto that effort decision's learning outcome"
+        },
+        "technique_id": {
+          "type": "string",
+          "description": "Optional: technique_id from a prior suggest_technique; folds this gate verdict back onto that technique decision's learning outcome"
         }
       },
       "required": [
         "story_id"
-      ],
-      "type": "object"
-    },
-    "name": "run_quality_gate"
+      ]
+    }
   },
   {
+    "name": "check_policy",
     "description": "Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons. The policy file may optionally set extends: <parent-path> for org->team->project inheritance -- a child can only tighten (narrow allowed tiers, add bans/gates, lower the budget cap), never loosen a parent's policy. Single-tier files with no extends key behave exactly as before.",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "model_tier": {
+          "type": "string"
+        },
         "estimated_cost": {
           "type": "number"
         },
-        "gates_passed": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "model_tier": {
-          "type": "string"
+        "spent_so_far": {
+          "type": "number"
         },
         "operation": {
           "type": "string"
         },
-        "policy_path": {
-          "default": "config/policy.yaml",
-          "type": "string"
+        "gates_passed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         },
-        "spent_so_far": {
-          "type": "number"
+        "policy_path": {
+          "type": "string",
+          "default": "config/policy.yaml"
         }
-      },
-      "type": "object"
-    },
-    "name": "check_policy"
+      }
+    }
   },
   {
+    "name": "record_audit",
     "description": "Append a tamper-evident, hash-chained audit record of an AI-assisted change ('the trace'); returns the record and chain verification status",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "agent": {
-          "default": "",
-          "type": "string"
-        },
-        "compliance_decision": {
-          "default": "",
-          "type": "string"
-        },
-        "cost_usd": {
-          "default": 0.0,
-          "type": "number"
-        },
-        "files_touched": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "gate_decision": {
-          "default": "",
-          "type": "string"
-        },
-        "model": {
-          "default": "",
-          "type": "string"
-        },
-        "rules_applied": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "task": {
           "type": "string"
+        },
+        "agent": {
+          "type": "string",
+          "default": ""
+        },
+        "model": {
+          "type": "string",
+          "default": ""
+        },
+        "cost_usd": {
+          "type": "number",
+          "default": 0.0
+        },
+        "rules_applied": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "gate_decision": {
+          "type": "string",
+          "default": ""
+        },
+        "compliance_decision": {
+          "type": "string",
+          "default": ""
+        },
+        "files_touched": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       },
       "required": [
         "task"
-      ],
-      "type": "object"
-    },
-    "name": "record_audit"
+      ]
+    }
   },
   {
+    "name": "export_audit",
     "description": "Export the full AI-change audit trail (portable JSON + human-readable text) with hash-chain verification status",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "format": {
-          "default": "both",
-          "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceSpans payload (one span per audit record) instead of json/text",
+          "type": "string",
           "enum": [
             "json",
             "text",
             "both",
             "otlp"
           ],
-          "type": "string"
+          "default": "both",
+          "description": "otlp emits an OpenTelemetry GenAI semantic-convention OTLP-JSON resourceSpans payload (one span per audit record) instead of json/text"
         }
-      },
-      "type": "object"
-    },
-    "name": "export_audit"
+      }
+    }
   },
   {
+    "name": "sync_agent_config",
     "description": "Compile one governance source (policy + packs + method) into every agent's native rules file (CLAUDE.md, AGENTS.md, .cursor/rules, copilot-instructions, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, CONVENTIONS.md for aider, .goosehints for Goose, .openhands/microagents/repo.md for OpenHands; Grok Build/Grok CLI reads CLAUDE.md/AGENTS.md natively, no separate file needed). Non-destructive: only the managed block is regenerated; user edits are preserved",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "adopt": {
-          "default": false,
-          "type": "boolean"
+        "project": {
+          "type": "string"
+        },
+        "policy_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "packs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "repo_root": {
+          "type": "string",
+          "default": "."
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "path_rules": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "glob -> path-scoped rules (Copilot .github/instructions/*)"
         },
         "mode": {
-          "default": "apply",
+          "type": "string",
           "enum": [
             "apply",
             "preview",
             "check"
           ],
-          "type": "string"
+          "default": "apply"
         },
-        "packs": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "path_rules": {
-          "additionalProperties": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "description": "glob -> path-scoped rules (Copilot .github/instructions/*)",
-          "type": "object"
-        },
-        "policy_summary": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "project": {
-          "type": "string"
-        },
-        "repo_root": {
-          "default": ".",
-          "type": "string"
-        },
-        "rules": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "targets": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+        "adopt": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
         "project"
-      ],
-      "type": "object"
-    },
-    "name": "sync_agent_config"
+      ]
+    }
   },
   {
+    "name": "detect_agents",
     "description": "Detect which coding agents a repo is configured for (CLAUDE.md, AGENTS.md, .cursor/rules, copilot) + confidence + recommended targets",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "repo_root": {
-          "default": ".",
-          "type": "string"
+          "type": "string",
+          "default": "."
         }
-      },
-      "type": "object"
-    },
-    "name": "detect_agents"
+      }
+    }
   },
   {
+    "name": "build_context_model",
     "description": "Derive structured intent/role/stack/domain/regulated context from a prompt (+ optional repo) to drive config emission",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "repo_root": {
-          "default": ".",
-          "type": "string"
-        },
         "text": {
           "type": "string"
+        },
+        "repo_root": {
+          "type": "string",
+          "default": "."
         }
       },
       "required": [
         "text"
-      ],
-      "type": "object"
-    },
-    "name": "build_context_model"
+      ]
+    }
   },
   {
+    "name": "propose_agent_config",
     "description": "Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing \u2014 the review step before apply",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "adopt": {
-          "default": false,
-          "type": "boolean"
-        },
-        "packs": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "path_rules": {
-          "additionalProperties": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "type": "object"
-        },
-        "policy_summary": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "project": {
           "type": "string"
         },
-        "repo_root": {
-          "default": ".",
-          "type": "string"
+        "policy_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "packs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         },
         "rules": {
-          "default": [],
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "type": "array"
-        },
-        "targets": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+          "default": []
         },
         "text": {
           "type": "string"
+        },
+        "repo_root": {
+          "type": "string",
+          "default": "."
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "path_rules": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "adopt": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
         "project"
-      ],
-      "type": "object"
-    },
-    "name": "propose_agent_config"
+      ]
+    }
   },
   {
+    "name": "lint_agent_config",
     "description": "Lint an agent rules file (or content) for token tax, byte caps, missing .mdc frontmatter, and inferable bloat",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "always_apply": {
-          "default": false,
-          "type": "boolean"
-        },
         "content": {
           "type": "string"
-        },
-        "fmt": {
-          "default": "md",
-          "enum": [
-            "md",
-            "mdc"
-          ],
-          "type": "string"
-        },
-        "max_bytes": {
-          "type": "integer"
         },
         "path": {
           "type": "string"
         },
-        "token_budget": {
-          "default": 0,
+        "fmt": {
+          "type": "string",
+          "enum": [
+            "md",
+            "mdc"
+          ],
+          "default": "md"
+        },
+        "max_bytes": {
           "type": "integer"
+        },
+        "always_apply": {
+          "type": "boolean",
+          "default": false
+        },
+        "token_budget": {
+          "type": "integer",
+          "default": 0
         }
-      },
-      "type": "object"
-    },
-    "name": "lint_agent_config"
+      }
+    }
   },
   {
+    "name": "check_portability",
     "description": "Cross-host portability check (Phase 7 \u00a77.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, aider, goose, openhands, grok) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "emit_ci": {
-          "default": false,
-          "description": "also return a host-neutral CI-snippet",
-          "type": "boolean"
+        "repo_root": {
+          "type": "string",
+          "default": "."
         },
         "hosts": {
-          "description": "subset of supported hosts to check; default all",
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "description": "subset of supported hosts to check; default all"
         },
-        "repo_root": {
-          "default": ".",
-          "type": "string"
+        "emit_ci": {
+          "type": "boolean",
+          "default": false,
+          "description": "also return a host-neutral CI-snippet"
         }
-      },
-      "type": "object"
-    },
-    "name": "check_portability"
+      }
+    }
   },
   {
+    "name": "export_web_bundle",
     "description": "Flatten one governance source (policy + packs + method) into a SINGLE self-contained, pasteable file for web-chat hosts with no IDE/CLI/MCP support (ChatGPT, Gemini, Claude.ai web chat). Not a managed-block IDE config: every call fully regenerates the bundle, there is no user-owned region to preserve. Set out_path to also write it to disk.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "include_packs": {
-          "default": true,
-          "type": "boolean"
-        },
-        "out_path": {
-          "description": "optional path to also write the bundle as a single file",
-          "type": "string"
-        },
-        "packs": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "policy_summary": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "project": {
           "type": "string"
         },
-        "rules": {
-          "default": [],
+        "policy_summary": {
+          "type": "array",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "default": []
         },
-        "skill_root": {
-          "default": "skill_packs",
-          "type": "string"
+        "packs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         },
         "text": {
           "type": "string"
+        },
+        "skill_root": {
+          "type": "string",
+          "default": "skill_packs"
+        },
+        "include_packs": {
+          "type": "boolean",
+          "default": true
+        },
+        "out_path": {
+          "type": "string",
+          "description": "optional path to also write the bundle as a single file"
         }
       },
       "required": [
         "project"
-      ],
-      "type": "object"
-    },
-    "name": "export_web_bundle"
+      ]
+    }
   },
   {
+    "name": "capture_learning",
     "description": "Store a correction as a durable, searchable learning (category, mistake, fix, project). Local SQLite + FTS5, offline.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "category": {
-          "description": "e.g. 'style', 'security', 'api-misuse'",
-          "type": "string"
-        },
-        "correction": {
-          "description": "the fix / the rule going forward",
-          "type": "string"
+          "type": "string",
+          "description": "e.g. 'style', 'security', 'api-misuse'"
         },
         "mistake": {
-          "description": "what went wrong",
-          "type": "string"
+          "type": "string",
+          "description": "what went wrong"
+        },
+        "correction": {
+          "type": "string",
+          "description": "the fix / the rule going forward"
         },
         "project": {
-          "default": "",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "tags": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         }
       },
       "required": [
         "category",
         "mistake",
         "correction"
-      ],
-      "type": "object"
-    },
-    "name": "capture_learning"
+      ]
+    }
   },
   {
+    "name": "replay_learnings",
     "description": "Top-K relevant past corrections for a task description (FTS5 BM25, LIKE fallback) plus a ready-to-inject reminder block.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "k": {
-          "default": 5,
-          "maximum": 25,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "project": {
+        "task": {
           "type": "string"
         },
-        "task": {
+        "k": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 25
+        },
+        "project": {
           "type": "string"
         }
       },
       "required": [
         "task"
-      ],
-      "type": "object"
-    },
-    "name": "replay_learnings"
+      ]
+    }
   },
   {
+    "name": "learning_insights",
     "description": "Correction trends from the local learning store: counts by category, project, month, and the most-repeated mistakes.",
     "inputSchema": {
-      "properties": {},
-      "type": "object"
-    },
-    "name": "learning_insights"
+      "type": "object",
+      "properties": {}
+    }
   },
   {
+    "name": "insights_report",
     "description": "Ranked, actionable recommendations over local telemetry: routing downgrades/escalations, top cost drivers & spend anomalies, quality/eval regressions, and budget projections. Deterministic, offline, min-sample gated.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "top_n": {
-          "default": 10,
-          "maximum": 100,
-          "minimum": 1,
-          "type": "integer"
-        },
         "window_days": {
+          "type": "integer",
           "default": 30,
-          "description": "analysis window for cost/quality/budget families",
-          "maximum": 365,
           "minimum": 1,
-          "type": "integer"
+          "maximum": 365,
+          "description": "analysis window for cost/quality/budget families"
+        },
+        "top_n": {
+          "type": "integer",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100
         }
-      },
-      "type": "object"
-    },
-    "name": "insights_report"
+      }
+    }
   },
   {
+    "name": "tune_permissions",
     "description": "Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only \u2014 never edits config.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "mcp_json": {
-          "description": "path to .mcp.json for the current allowlist",
-          "type": "string"
+        "state_dir": {
+          "type": "string",
+          "default": ".",
+          "description": "project dir holding .promptwise/denials.jsonl"
         },
         "min_count": {
+          "type": "integer",
           "default": 2,
-          "minimum": 1,
-          "type": "integer"
+          "minimum": 1
         },
-        "state_dir": {
-          "default": ".",
-          "description": "project dir holding .promptwise/denials.jsonl",
-          "type": "string"
+        "mcp_json": {
+          "type": "string",
+          "description": "path to .mcp.json for the current allowlist"
         }
-      },
-      "type": "object"
-    },
-    "name": "tune_permissions"
+      }
+    }
   },
   {
+    "name": "audit_mcp_servers",
     "description": "Audit declared MCP servers (.mcp.json + plugin.json) for security flags, allow-surface, and redundancy. Offline; inspects config, does not call servers.",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "repo_root": {
+          "type": "string",
+          "default": "."
+        },
         "extra_configs": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
-        },
-        "repo_root": {
-          "default": ".",
-          "type": "string"
+          }
         }
-      },
-      "type": "object"
-    },
-    "name": "audit_mcp_servers"
+      }
+    }
   },
   {
+    "name": "search_trace",
     "description": "Search the trace (hash-chained audit trail + learnings) by meaning. Keyword/FTS by default; optional local embeddings if installed and enabled. Offline.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "audit_path": {
-          "type": "string"
-        },
-        "k": {
-          "default": 5,
-          "maximum": 25,
-          "minimum": 1,
-          "type": "integer"
-        },
         "query": {
           "type": "string"
         },
+        "k": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 25
+        },
         "repo_root": {
-          "default": ".",
+          "type": "string",
+          "default": "."
+        },
+        "audit_path": {
           "type": "string"
         },
         "use_embeddings": {
-          "default": false,
-          "type": "boolean"
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
         "query"
-      ],
-      "type": "object"
-    },
-    "name": "search_trace"
+      ]
+    }
   },
   {
+    "name": "rank_context",
     "description": "Retrieval-augmented context manager: rank and prune candidates from the trace (audit + learnings) and an optionally-supplied doc onto one token budget. No new ranking algorithm - reuses search_trace's keyword/BM25 (or optional embeddings) scoring; docs are sharded per call, not indexed. Offline.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "audit_path": {
+        "query": {
           "type": "string"
+        },
+        "token_budget": {
+          "type": "integer",
+          "default": 2000
         },
         "doc_path": {
           "type": "string"
@@ -2354,73 +2373,69 @@
         "doc_text": {
           "type": "string"
         },
-        "learning_db": {
-          "type": "string"
-        },
-        "query": {
-          "type": "string"
-        },
-        "repo_root": {
-          "default": ".",
-          "type": "string"
-        },
         "sources": {
-          "default": [
-            "audit",
-            "learnings",
-            "doc"
-          ],
+          "type": "array",
           "items": {
+            "type": "string",
             "enum": [
               "audit",
               "learnings",
               "doc"
-            ],
-            "type": "string"
+            ]
           },
-          "type": "array"
-        },
-        "token_budget": {
-          "default": 2000,
-          "type": "integer"
+          "default": [
+            "audit",
+            "learnings",
+            "doc"
+          ]
         },
         "use_embeddings": {
-          "default": false,
-          "type": "boolean"
+          "type": "boolean",
+          "default": false
+        },
+        "repo_root": {
+          "type": "string",
+          "default": "."
+        },
+        "audit_path": {
+          "type": "string"
+        },
+        "learning_db": {
+          "type": "string"
         }
       },
       "required": [
         "query"
-      ],
-      "type": "object"
-    },
-    "name": "rank_context"
+      ]
+    }
   },
   {
+    "name": "grant_jit_permission",
     "description": "Grant a time-boxed permission for a tool signature (e.g. 'Bash:git'), auto-expiring after ttl_minutes (default 60, max 480/8h). Independent of .mcp.json; enforced by the PreToolUse JIT guard hook, which auto-approves while active and falls back to the normal permission prompt once expired. Note: matching is coarse (first command token only, e.g. 'Bash:git' matches any git invocation) -- the same grain permission_tuner's suggestions use; grant narrowly-scoped, short-lived permissions for commands you trust broadly, not ones where the arguments matter.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "signature": {
-          "description": "tool signature, e.g. 'Bash:git' or 'mcp__promptwise__run_governor'",
-          "type": "string"
+          "type": "string",
+          "description": "tool signature, e.g. 'Bash:git' or 'mcp__promptwise__run_governor'"
         },
         "ttl_minutes": {
+          "type": "integer",
           "default": 60,
-          "maximum": 480,
           "minimum": 1,
-          "type": "integer"
+          "maximum": 480
         }
       },
       "required": [
         "signature"
-      ],
-      "type": "object"
-    },
-    "name": "grant_jit_permission"
+      ]
+    }
   },
   {
+    "name": "revoke_jit_permission",
     "description": "Immediately revoke a time-boxed JIT permission grant for a tool signature, before its natural expiry.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "signature": {
           "type": "string"
@@ -2428,181 +2443,180 @@
       },
       "required": [
         "signature"
-      ],
-      "type": "object"
-    },
-    "name": "revoke_jit_permission"
+      ]
+    }
   },
   {
+    "name": "list_jit_permissions",
     "description": "List all JIT permission grants (active and expired) with their expiry timestamps.",
     "inputSchema": {
-      "properties": {},
-      "type": "object"
-    },
-    "name": "list_jit_permissions"
+      "type": "object",
+      "properties": {}
+    }
   },
   {
+    "name": "optimize_skill_pack",
     "description": "Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "dry_run": {
-          "default": false,
-          "description": "score and preview without writing",
-          "type": "boolean"
-        },
-        "max_rules": {
-          "default": 8,
-          "maximum": 25,
-          "minimum": 1,
-          "type": "integer"
+        "skill_path": {
+          "type": "string",
+          "description": "path to the SKILL.md / pack .md to optimize"
         },
         "project": {
-          "description": "scope corrections to a project",
-          "type": "string"
+          "type": "string",
+          "description": "scope corrections to a project"
         },
-        "skill_path": {
-          "description": "path to the SKILL.md / pack .md to optimize",
-          "type": "string"
+        "max_rules": {
+          "type": "integer",
+          "default": 8,
+          "minimum": 1,
+          "maximum": 25
+        },
+        "dry_run": {
+          "type": "boolean",
+          "default": false,
+          "description": "score and preview without writing"
         }
       },
       "required": [
         "skill_path"
-      ],
-      "type": "object"
-    },
-    "name": "optimize_skill_pack"
+      ]
+    }
   },
   {
+    "name": "export_compliance_bundle",
     "description": "Build a self-verifying, signed compliance evidence bundle from the hash-chained audit trail: verifies the chain, wraps records in a manifest (time range, count, chain-head digest), signs with a local key, and can write a .zip. Offline; no network.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "control_families": {
-          "description": "generic control-family tags; inferred from the trace when omitted",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "out_path": {
-          "description": "optional path to write a .zip evidence archive",
-          "type": "string"
-        },
         "sign": {
+          "type": "boolean",
           "default": true,
-          "description": "sign the bundle with the local key (env PROMPTWISE_AUDIT_KEY/PROMPTWISE_AUDIT_KEY_FILE for hmac, PROMPTWISE_ED25519_KEY/PROMPTWISE_ED25519_KEY_FILE for ed25519)",
-          "type": "boolean"
+          "description": "sign the bundle with the local key (env PROMPTWISE_AUDIT_KEY/PROMPTWISE_AUDIT_KEY_FILE for hmac, PROMPTWISE_ED25519_KEY/PROMPTWISE_ED25519_KEY_FILE for ed25519)"
         },
         "sign_alg": {
-          "default": "hmac",
-          "description": "hmac (shared-secret, default) or ed25519 (asymmetric, verifiable by a third party without the private key)",
+          "type": "string",
           "enum": [
             "hmac",
             "ed25519"
           ],
-          "type": "string"
+          "default": "hmac",
+          "description": "hmac (shared-secret, default) or ed25519 (asymmetric, verifiable by a third party without the private key)"
+        },
+        "control_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "generic control-family tags; inferred from the trace when omitted"
+        },
+        "out_path": {
+          "type": "string",
+          "description": "optional path to write a .zip evidence archive"
         }
-      },
-      "type": "object"
-    },
-    "name": "export_compliance_bundle"
+      }
+    }
   },
   {
+    "name": "generate_ed25519_keypair",
     "description": "Generate a fresh Ed25519 keypair for compliance bundle signing. Returned in-memory only -- never written to disk. Store the private_key yourself (e.g. as PROMPTWISE_ED25519_KEY) before it is lost; share the public_key with auditors who need to verify bundles you sign. Note: a bundle verifying with signature_ok=True only proves internal self-consistency (signed by *some* keypair), not authenticity -- auditors must compare the bundle's embedded public_key against the public_key you shared with them out-of-band.",
     "inputSchema": {
-      "properties": {},
-      "type": "object"
-    },
-    "name": "generate_ed25519_keypair"
+      "type": "object",
+      "properties": {}
+    }
   },
   {
+    "name": "export_org_report",
     "description": "Build a periodic summary (spend, security-scan verdicts, governance/governor actions) for a stakeholder who doesn't touch a CLI. Markdown or self-contained HTML; no PDF dependency. Pass out_path to write it; omit to just return the report data. Offline; no network.",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "window_days": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 365
+        },
         "format": {
-          "default": "markdown",
+          "type": "string",
           "enum": [
             "markdown",
             "html"
           ],
-          "type": "string"
+          "default": "markdown"
         },
         "out_path": {
-          "description": "optional path to write the report",
-          "type": "string"
+          "type": "string",
+          "description": "optional path to write the report"
         },
         "repo_root": {
-          "default": ".",
-          "type": "string"
-        },
-        "window_days": {
-          "default": 30,
-          "maximum": 365,
-          "minimum": 1,
-          "type": "integer"
+          "type": "string",
+          "default": "."
         }
-      },
-      "type": "object"
-    },
-    "name": "export_org_report"
+      }
+    }
   },
   {
+    "name": "run_governor",
     "description": "Turn local insights recommendations into typed, policy-gated, REVERSIBLE governance actions. Default advise-only: proposes actions + policy verdicts and reports what would/did apply for the current mode (env PROMPTWISE_AUTONOMY in {advise,dry_run,apply}). Only allowlisted 'safe' actions (AdjustBudgetGuard, WriteRoutingPreferenceNote) can ever move state, and only in apply; each writes a local undo-ledger entry. Everything else is advisory-only. Offline; fully audited.",
     "inputSchema": {
+      "type": "object",
       "properties": {
+        "window_days": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 365
+        },
         "mode": {
-          "description": "override PROMPTWISE_AUTONOMY for this call; omit to use the env (default advise)",
+          "type": "string",
           "enum": [
             "advise",
             "dry_run",
             "apply"
           ],
-          "type": "string"
-        },
-        "policy_path": {
-          "default": "config/policy.yaml",
-          "type": "string"
+          "description": "override PROMPTWISE_AUTONOMY for this call; omit to use the env (default advise)"
         },
         "root": {
+          "type": "string",
           "default": ".",
-          "description": "project root holding the gitignored .promptwise overlay + ledger",
-          "type": "string"
+          "description": "project root holding the gitignored .promptwise overlay + ledger"
         },
-        "window_days": {
-          "default": 30,
-          "maximum": 365,
-          "minimum": 1,
-          "type": "integer"
+        "policy_path": {
+          "type": "string",
+          "default": "config/policy.yaml"
         }
-      },
-      "type": "object"
-    },
-    "name": "run_governor"
+      }
+    }
   },
   {
+    "name": "governor_undo",
     "description": "Reverse a previously-applied governor action by id, restoring the exact prior state from the undo ledger (audited). No-op if the id is unknown or non-reversible.",
     "inputSchema": {
+      "type": "object",
       "properties": {
         "action_id": {
           "type": "string"
         },
         "root": {
-          "default": ".",
-          "type": "string"
+          "type": "string",
+          "default": "."
         }
       },
       "required": [
         "action_id"
-      ],
-      "type": "object"
-    },
-    "name": "governor_undo"
+      ]
+    }
   },
   {
+    "name": "record_decision",
     "description": "Record an architectural decision (ADR-style): title, context (the situation/forces), decision (what was chosen), and optional consequences/tags. Pass supersedes=<id> to atomically mark an earlier decision as superseded and link it -- one call, no separate supersede step.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "consequences": {
-          "default": "",
+        "title": {
           "type": "string"
         },
         "context": {
@@ -2611,60 +2625,59 @@
         "decision": {
           "type": "string"
         },
+        "consequences": {
+          "type": "string",
+          "default": ""
+        },
+        "tags": {
+          "type": "string",
+          "default": "",
+          "description": "comma-joined free-form tags, e.g. 'routing,cost'"
+        },
         "status": {
-          "default": "accepted",
+          "type": "string",
           "enum": [
             "proposed",
             "accepted",
             "deprecated"
           ],
-          "type": "string"
+          "default": "accepted"
         },
         "supersedes": {
-          "description": "id of an earlier decision this one replaces",
-          "type": "integer"
-        },
-        "tags": {
-          "default": "",
-          "description": "comma-joined free-form tags, e.g. 'routing,cost'",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
+          "type": "integer",
+          "description": "id of an earlier decision this one replaces"
         }
       },
       "required": [
         "title",
         "context",
         "decision"
-      ],
-      "type": "object"
-    },
-    "name": "record_decision"
+      ]
+    }
   },
   {
+    "name": "query_decisions",
     "description": "Query the ADR/decision-memory log. Pass query for a case-insensitive keyword search across title/context/decision/consequences; otherwise lists decisions optionally filtered by status (proposed/accepted/superseded/deprecated) and/or tag (exact tag match, not substring). Newest first.",
     "inputSchema": {
+      "type": "object",
       "properties": {
-        "limit": {
-          "default": 20,
-          "type": "integer"
-        },
         "query": {
-          "default": "",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "status": {
-          "default": "",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         "tag": {
-          "default": "",
-          "type": "string"
+          "type": "string",
+          "default": ""
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20
         }
-      },
-      "type": "object"
-    },
-    "name": "query_decisions"
+      }
+    }
   }
 ]

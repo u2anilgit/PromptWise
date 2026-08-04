@@ -75,7 +75,7 @@ def test_cap_enforcement_is_per_provider_not_global():
 # ── MCP tool surface: route_request wires provider_spend_usd through ────────
 def test_route_request_tool_schema_has_provider_spend_param():
     tool = next(t for t in s._TOOL_DEFS if t.name == "route_request")
-    assert "provider_spend_usd" in tool.inputSchema["properties"]
+    assert "provider_spend_usd" in tool.input_schema["properties"]
 
 
 class _FakeMemory:
