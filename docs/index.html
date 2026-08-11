@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PromptWise — the governance ledger for AI agents</title>
+<meta name="description" content="PromptWise is the governance &amp; intelligence layer for AI coding agents — model routing, cost control, security scanning, and a hash-chained audit trail.">
+<style>
+  :root {
+    --bg: #E4E1D6;
+    --text: #1B2027;
+    --text-dim: #5B6470;
+    --paper: #FBF9F3;
+    --paper-ink: #1B2027;
+    --paper-ink-dim: #5B6470;
+    --brass: #96682B;
+    --brass-glow: rgba(150, 104, 43, 0.18);
+    --sage: #3C6E52;
+    --hairline: #CFC8B8;
+    --hairline-card: #DDD6C5;
+    --shadow: rgba(27, 32, 39, 0.10);
+    --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, "Segoe UI", "Inter", ui-sans-serif, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151C;
+      --text: #E9E4D8;
+      --text-dim: #9BA3AE;
+      --paper: #EDEAE2;
+      --paper-ink: #1B2027;
+      --paper-ink-dim: #5B6470;
+      --brass: #C99A4B;
+      --brass-glow: rgba(201, 154, 75, 0.22);
+      --sage: #63A484;
+      --hairline: #2A323D;
+      --hairline-card: #DDD6C5;
+      --shadow: rgba(0, 0, 0, 0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151C;
+    --text: #E9E4D8;
+    --text-dim: #9BA3AE;
+    --paper: #EDEAE2;
+    --paper-ink: #1B2027;
+    --paper-ink-dim: #5B6470;
+    --brass: #C99A4B;
+    --brass-glow: rgba(201, 154, 75, 0.22);
+    --sage: #63A484;
+    --hairline: #2A323D;
+    --hairline-card: #DDD6C5;
+    --shadow: rgba(0, 0, 0, 0.45);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.55;
+    overflow-x: hidden;
+  }
+  a { color: inherit; }
+  ::selection { background: var(--brass-glow); }
+
+  .wrap {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 clamp(20px, 5vw, 56px);
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-top: clamp(24px, 4vw, 40px);
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--hairline);
+    flex-wrap: wrap;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+  }
+  .brand .mark {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 1.5px solid var(--brass);
+    border-radius: 50%;
+    color: var(--brass);
+    font-size: 11px;
+  }
+  .brand .tag {
+    font-family: var(--sans);
+    font-weight: 400;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .masthead-meta {
+    display: flex;
+    gap: 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+  }
+
+  /* ---------- hero ---------- */
+  .hero {
+    padding: clamp(48px, 8vw, 96px) 0 clamp(40px, 6vw, 72px);
+    display: grid;
+    gap: clamp(28px, 5vw, 44px);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brass);
+  }
+  h1 {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: clamp(34px, 6vw, 60px);
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin: 14px 0 0;
+    text-wrap: balance;
+    max-width: 15ch;
+  }
+  .sub {
+    font-size: clamp(16px, 2vw, 18px);
+    color: var(--text-dim);
+    max-width: 62ch;
+    margin: 18px 0 0;
+  }
+  .cta-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .btn {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    text-decoration: none;
+    padding: 12px 20px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.01em;
+  }
+  .btn-primary {
+    background: var(--brass);
+    color: var(--paper);
+    box-shadow: 0 1px 0 var(--shadow);
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-ghost {
+    border: 1px solid var(--hairline);
+    color: var(--text);
+  }
+  .btn-ghost:hover { border-color: var(--brass); color: var(--brass); }
+  .btn:focus-visible, a:focus-visible, .worktag:focus-visible {
+    outline: 2px solid var(--brass);
+    outline-offset: 2px;
+  }
+
+  /* ---------- ledger demo (hero signature) ---------- */
+  .ledger-demo {
+    background: var(--paper);
+    border-radius: 4px;
+    box-shadow: 0 12px 32px var(--shadow), 0 1px 0 var(--hairline-card) inset;
+    padding: clamp(18px, 3vw, 28px);
+    max-width: 560px;
+  }
+  .ledger-demo .demo-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--paper-ink-dim);
+    margin-bottom: 14px;
+    display: block;
+  }
+  .demo-line {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 14px;
+    align-items: baseline;
+    padding: 11px 0;
+    border-top: 1px solid var(--hairline-card);
+    opacity: 0;
+    transform: translateY(6px);
+    animation: stamp-in 0.5s ease-out forwards;
+  }
+  .demo-line:first-of-type { border-top: none; }
+  .demo-line:nth-of-type(1) { animation-delay: 0.15s; }
+  .demo-line:nth-of-type(2) { animation-delay: 0.65s; }
+  .demo-line:nth-of-type(3) { animation-delay: 1.15s; }
+  .demo-hash {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--brass);
+    white-space: nowrap;
+  }
+  .demo-what {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--paper-ink-dim);
+  }
+  .demo-result {
+    grid-column: 2;
+    font-size: 14px;
+    color: var(--paper-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  @keyframes stamp-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---------- chain spine (features) ---------- */
+  .chain {
+    position: relative;
+    padding: clamp(56px, 8vw, 88px) 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .chain-head { max-width: 56ch; margin-bottom: clamp(36px, 6vw, 56px); }
+  .chain-head h2 {
+    font-family: var(--mono);
+    font-size: clamp(24px, 3.4vw, 32px);
+    margin: 8px 0 0;
+    text-wrap: balance;
+  }
+  .chain-head p { color: var(--text-dim); margin: 10px 0 0; }
+
+  .chain-rail {
+    position: relative;
+    display: grid;
+    gap: 0;
+  }
+  .chain-rail::before {
+    content: "";
+    position: absolute;
+    left: 21px;
+    top: 12px;
+    bottom: 12px;
+    width: 1px;
+    background: linear-gradient(var(--hairline), var(--hairline) 92%, transparent);
+  }
+  .block {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 20px;
+    padding: 22px 0;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .block.in-view { opacity: 1; transform: translateY(0); }
+  .stamp {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1.5px solid var(--brass);
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--brass);
+    letter-spacing: -0.02em;
+    z-index: 1;
+    position: relative;
+  }
+  .block-body {
+    background: var(--paper);
+    border-radius: 4px;
+    padding: 18px 22px;
+    box-shadow: 0 1px 0 var(--hairline-card) inset, 0 6px 18px var(--shadow);
+  }
+  .block-body .block-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--brass);
+    letter-spacing: 0.04em;
+  }
+  .block-body h3 {
+    font-family: var(--mono);
+    font-size: 17px;
+    color: var(--paper-ink);
+    margin: 6px 0 6px;
+  }
+  .block-body p {
+    font-size: 14.5px;
+    color: var(--paper-ink-dim);
+    margin: 0;
+    max-width: 58ch;
+  }
+
+  /* ---------- works with ---------- */
+  .works {
+    padding: clamp(48px, 7vw, 72px) 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .works h2 {
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 20px;
+    font-weight: 500;
+  }
+  .worktag-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .worktag {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 7px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 3px;
+    color: var(--text-dim);
+    position: relative;
+  }
+  .worktag::before {
+    content: "✓";
+    color: var(--sage);
+    margin-right: 6px;
+  }
+
+  /* ---------- ledger totals ---------- */
+  .totals {
+    padding: clamp(40px, 6vw, 64px) 0;
+    border-top: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 28px;
+  }
+  .total-item .n {
+    font-family: var(--mono);
+    font-size: clamp(26px, 3.4vw, 34px);
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .total-item .l {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* ---------- install / footer ---------- */
+  .install {
+    padding: clamp(48px, 7vw, 72px) 0;
+    border-top: 1px solid var(--hairline);
+    display: grid;
+    gap: 22px;
+  }
+  .install h2 {
+    font-family: var(--mono);
+    font-size: clamp(22px, 3vw, 28px);
+    margin: 0;
+  }
+  pre.receipt {
+    background: var(--paper);
+    color: var(--paper-ink);
+    border-radius: 4px;
+    padding: 20px 22px;
+    font-family: var(--mono);
+    font-size: 13px;
+    overflow-x: auto;
+    box-shadow: 0 6px 18px var(--shadow), 0 1px 0 var(--hairline-card) inset;
+    margin: 0;
+    max-width: 620px;
+  }
+  pre.receipt .c { color: var(--paper-ink-dim); }
+  footer {
+    padding: 28px 0 clamp(40px, 6vw, 64px);
+    border-top: 1px solid var(--hairline);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+  footer a { text-decoration: underline; text-underline-offset: 3px; }
+  footer a:hover { color: var(--brass); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .demo-line { animation: none !important; opacity: 1; transform: none; }
+    .block { transition: none; opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead wrap">
+  <div class="brand">
+    <span class="mark">P</span>PROMPTWISE<span class="tag">— governance layer for AI agents</span>
+  </div>
+  <div class="masthead-meta">
+    <span>MIT</span><span>Python 3.10+</span><span>107 MCP tools</span>
+  </div>
+</header>
+
+<section class="hero wrap">
+  <div>
+    <span class="eyebrow">Not another agent — the record-keeper for the ones you already use</span>
+    <h1>Every AI action, on the record.</h1>
+    <p class="sub">PromptWise is the governance &amp; intelligence layer for AI coding agents — model
+      routing, cost control, security scanning, and a hash-chained audit trail — compiled down to
+      MCP, SKILL.md, and AGENTS.md: the formats every agent already reads.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/u2anilgit/PromptWise">Read the source →</a>
+      <a class="btn btn-ghost" href="https://github.com/u2anilgit/PromptWise/blob/main/INSTALL.md">Install in 2 minutes</a>
+    </div>
+  </div>
+
+  <div class="ledger-demo" role="img" aria-label="Example trace: a prompt is classified and routed, scanned for secrets, then chained into the audit log">
+    <span class="demo-label">Live trace — one turn, three governed steps</span>
+    <div class="demo-line">
+      <span class="demo-hash">0x4e91 · preflight</span>
+      <span class="demo-what">route_request</span>
+      <span class="demo-result">Classified <em>bugfix</em> → routed to <strong>claude-sonnet-5</strong></span>
+    </div>
+    <div class="demo-line">
+      <span class="demo-hash">0x7ab2 · scan</span>
+      <span class="demo-what">security_check</span>
+      <span class="demo-result">0 secrets · 0 injection patterns — clear</span>
+    </div>
+    <div class="demo-line">
+      <span class="demo-hash">0x1f08 · audit</span>
+      <span class="demo-what">record_audit</span>
+      <span class="demo-result">Chained to <span class="demo-hash" style="font-size:inherit">0x4e91</span> — signed, immutable</span>
+    </div>
+  </div>
+</section>
+
+<section class="chain wrap">
+  <div class="chain-head">
+    <span class="eyebrow">The ledger</span>
+    <h2>Six links, one chain — every governed action passes through all of them.</h2>
+    <p>Not a settings page. Each capability writes into the same hash-chained trail, in this order,
+      every time a hook fires.</p>
+  </div>
+  <div class="chain-rail" id="chainRail">
+    <article class="block">
+      <span class="stamp">01</span>
+      <div class="block-body">
+        <span class="block-id">route_request</span>
+        <h3>Right tier, every time</h3>
+        <p>Haiku, Sonnet, or Opus, picked by task type and budget — not by habit. Reasoning effort
+          (low / medium / high) is routed independently, with an outcome-learning adapter that
+          fails open to the static pick when it doesn't yet have enough evidence.</p>
+      </div>
+    </article>
+    <article class="block">
+      <span class="stamp">02</span>
+      <div class="block-body">
+        <span class="block-id">security_check · owasp_scan</span>
+        <h3>Nothing ships unchecked</h3>
+        <p>Secrets, prompt injection, PII, and OWASP patterns — scanned air-gapped by default,
+          with a red-team regression harness diffed against a stored baseline so fixes don't
+          quietly reopen old holes.</p>
+      </div>
+    </article>
+    <article class="block">
+      <span class="stamp">03</span>
+      <div class="block-body">
+        <span class="block-id">check_policy · run_quality_gate</span>
+        <h3>Policy, as code</h3>
+        <p>An advisory quality gate and policy-as-code check run before a change merges —
+          PASS / CONCERNS / FAIL, with a reason attached, not a silent pass.</p>
+      </div>
+    </article>
+    <article class="block">
+      <span class="stamp">04</span>
+      <div class="block-body">
+        <span class="block-id">grant_jit_permission</span>
+        <h3>Time-boxed, not forever</h3>
+        <p>Standing exceptions expire on their own — 60 minutes by default, 8 hours max — and
+          decay back to the normal permission prompt without anyone remembering to revoke them.</p>
+      </div>
+    </article>
+    <article class="block">
+      <span class="stamp">05</span>
+      <div class="block-body">
+        <span class="block-id">record_audit</span>
+        <h3>Hash-chained, not a log file</h3>
+        <p>Every governed action links to the one before it. A tampered or missing entry breaks
+          the chain visibly — export and verify it any time with <code>promptwise:audit</code>.</p>
+      </div>
+    </article>
+    <article class="block">
+      <span class="stamp">06</span>
+      <div class="block-body">
+        <span class="block-id">capture_learning</span>
+        <h3>Corrections stick</h3>
+        <p>A correction becomes a durable, searchable rule, replayed before similar work — local
+          first, air-gapped safe, no round-trip to a vendor to remember what you told it once.</p>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="works wrap">
+  <h2>Works with what you already run</h2>
+  <div class="worktag-grid">
+    <span class="worktag">Claude Code</span>
+    <span class="worktag">Claude Desktop</span>
+    <span class="worktag">Codex</span>
+    <span class="worktag">Cursor</span>
+    <span class="worktag">Gemini CLI</span>
+    <span class="worktag">Copilot</span>
+    <span class="worktag">Windsurf</span>
+    <span class="worktag">JetBrains AI Assistant</span>
+    <span class="worktag">Cline</span>
+    <span class="worktag">Aider</span>
+    <span class="worktag">Goose</span>
+    <span class="worktag">OpenHands</span>
+    <span class="worktag">Grok CLI</span>
+  </div>
+</section>
+
+<section class="totals wrap">
+  <div class="total-item"><div class="n">107</div><div class="l">MCP tools</div></div>
+  <div class="total-item"><div class="n">81</div><div class="l">portable skill packs</div></div>
+  <div class="total-item"><div class="n">1,051</div><div class="l">tests passing</div></div>
+  <div class="total-item"><div class="n">13</div><div class="l">agent hosts supported</div></div>
+  <div class="total-item"><div class="n">MIT</div><div class="l">license</div></div>
+</section>
+
+<section class="install wrap">
+  <h2>Two commands, then <code>/mcp</code></h2>
+  <pre class="receipt"><span class="c"># clone and install</span>
+git clone https://github.com/u2anilgit/PromptWise.git
+cd PromptWise
+pip install -e .
+
+<span class="c"># restart your agent, then in Claude Code</span>
+/mcp
+/promptwise</pre>
+</section>
+
+<footer class="wrap">
+  <span>Built on open standards, not against them — a conductor, not a replacement for Cursor,
+    Copilot, or Claude Code.</span>
+  <a href="https://github.com/u2anilgit/PromptWise">github.com/u2anilgit/PromptWise</a>
+</footer>
+
+<script>
+  (function () {
+    var blocks = document.querySelectorAll('.block');
+    if (!('IntersectionObserver' in window) || blocks.length === 0) {
+      blocks.forEach(function (b) { b.classList.add('in-view'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in-view');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    blocks.forEach(function (b, i) {
+      b.style.transitionDelay = (i * 60) + 'ms';
+      io.observe(b);
+    });
+  })();
+</script>
+</body>
+</html>
