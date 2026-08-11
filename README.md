@@ -19,7 +19,9 @@ OpenHands · Grok Build/Grok CLI (reads CLAUDE.md natively) · any MCP host
 ![Skill packs](https://img.shields.io/badge/skill%20packs-81-7C5BD4.svg)
 ![MCP tools](https://img.shields.io/badge/MCP%20tools-107-4C5BD4.svg)
 
-📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md)
+📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Landing page](https://u2anilgit.github.io/PromptWise/)
+
+![PromptWise landing page walkthrough](docs/promptwise-landing-scroll.gif)
 
 ---
 
