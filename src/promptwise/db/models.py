@@ -450,7 +450,12 @@ class MemoryManager:
                 stmt = stmt.where(CostLogModel.ts >= since)
             if project_id:
                 stmt = stmt.where(CostLogModel.project_id == project_id)
-            stmt = stmt.order_by(CostLogModel.ts)
+            # Secondary tiebreak on rowid: ts (isoformat, sub-ms) can collide
+            # under fast back-to-back writes -- without this, rows with equal
+            # ts come back in whatever order SQLite's scan happens to produce,
+            # not insertion order, which breaks session_cost_report's
+            # "most-recent write wins" tiebreak below.
+            stmt = stmt.order_by(CostLogModel.ts, text("rowid"))
             result = await session.execute(stmt)
             logs = result.scalars().all()
         return [{"ts": l.ts, "session_id": l.session_id, "tool": l.tool, "model": l.model,
@@ -468,12 +473,12 @@ class MemoryManager:
         never backfilled."""
         logs = await self.raw_cost_logs(since=since)
         by_session: dict[str, dict] = {}
-        for l in logs:
+        for seq, l in enumerate(logs):
             sid = l["session_id"]
             bucket = by_session.setdefault(sid, {
                 "session_id": sid, "calls": 0, "total_cost_usd": 0.0,
                 "total_input_tokens": 0.0, "total_output_tokens": 0.0,
-                "by_tool": {}, "first_ts": l["ts"], "last_ts": l["ts"],
+                "by_tool": {}, "first_ts": l["ts"], "last_ts": l["ts"], "_last_seq": seq,
             })
             bucket["calls"] += 1
             bucket["total_cost_usd"] += l["cost_usd"]
@@ -482,11 +487,19 @@ class MemoryManager:
             bucket["by_tool"][l["tool"]] = bucket["by_tool"].get(l["tool"], 0) + 1
             if l["ts"] < bucket["first_ts"]:
                 bucket["first_ts"] = l["ts"]
-            if l["ts"] > bucket["last_ts"]:
+            # >= (not >): on a ts tie, raw_cost_logs is rowid-ordered, so the
+            # later seq is the more-recently-inserted row and should win.
+            if l["ts"] >= bucket["last_ts"]:
                 bucket["last_ts"] = l["ts"]
-        for bucket in by_session.values():
+                bucket["_last_seq"] = seq
+        # Sort by (last_ts, last_seq) so a ts tie breaks toward the session
+        # that most recently wrote, not toward whichever happened to appear
+        # first in the by_session dict.
+        result = sorted(by_session.values(), key=lambda b: (b["last_ts"], b["_last_seq"]), reverse=True)
+        for bucket in result:
             bucket["total_cost_usd"] = round(bucket["total_cost_usd"], 6)
-        return sorted(by_session.values(), key=lambda b: b["last_ts"], reverse=True)
+            bucket.pop("_last_seq", None)
+        return result
 
     async def project_cost_report(self, since: str | None = None) -> list[dict]:
         """Per-project cost rollup, grouping raw_cost_logs() by project_id.

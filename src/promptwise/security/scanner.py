@@ -228,7 +228,8 @@ class SecurityScanner:
     def check_owasp(self, code: str) -> list[dict]:
         vulns = []
         if (re.search(r"(execute|query)\s*\(\s*(f['\"].*?\{|['\"].*?\s*\+\s*\w+)", code, re.I)
-                or re.search(r'f["\'].*?(SELECT|INSERT|UPDATE|DELETE).*?\{', code, re.I)):
+                or re.search(r'f["\'].*?(SELECT|INSERT|UPDATE|DELETE).*?\{', code, re.I)
+                or re.search(r'["\'](?:[^"\']*\b(?:SELECT|INSERT|UPDATE|DELETE)\b)[^"\']*["\']\s*\+\s*\w+', code, re.I)):
             vulns.append({"category": "A03:2021-SQL Injection", "severity": "critical",
                           "description": "Raw/f-string interpolation in SQL execution. Use parameterized queries."})
         if re.search(r'(?i)(password|api[_-]?key|secret)\s*=\s*["\'][^"\']{4,}["\']', code):

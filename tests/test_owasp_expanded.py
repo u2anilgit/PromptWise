@@ -57,3 +57,11 @@ def test_original_categories_and_benign_unchanged():
     assert any("SQL Injection" in c for c in _cats('cursor.execute(f"SELECT * FROM t WHERE id={x}")'))
     # ...and the parameterized-query benign counterexample stays clean.
     assert _cats('cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))') == set()
+
+
+def test_sql_injection_flagged_on_string_concat_built_before_execute():
+    # Textbook pattern: concatenation happens on a separate line, execute() just
+    # gets the already-tainted variable — must still be flagged, not just the
+    # in-call-parens case above.
+    code = 'query = "SELECT * FROM users WHERE id = " + user_id\ncursor.execute(query)'
+    assert any("SQL Injection" in c for c in _cats(code))

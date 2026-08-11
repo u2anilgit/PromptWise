@@ -25,13 +25,14 @@ _DEFAULT_TTL_MINUTES = 60
 
 
 def _default_db() -> Path:
-    try:
-        from promptwise.db.models import get_db_path
-        return get_db_path()
-    except Exception:
-        d = Path.home() / ".promptwise"
-        d.mkdir(parents=True, exist_ok=True)
-        return d / "promptwise.db"
+    # No local fallback here: if get_db_path() fails, let it propagate. Both
+    # callers (hook_bridge.jit_permission_guard, the MCP grant/revoke/list
+    # handlers) already have their own error handling at the right layer.
+    # Swallowing it here used to silently redirect grants to a different
+    # (real, non-test) db file, defeating fail-open error-injection tests and
+    # risking grant state split across two databases in production.
+    from promptwise.db.models import get_db_path
+    return get_db_path()
 
 
 def _now() -> float:
