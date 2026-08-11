@@ -46,5 +46,7 @@ class Rewriter:
             warning = "Large rewrite detected — verify intent preserved"
         elif original_tokens > 50000:
             warning = "Large prompt — consider using optimize_context for better compression"
+        elif saving_pct < 0:
+            warning = "Role framing added more tokens than filler removal saved — net increase"
 
         return RewriteResult(rewritten=rewritten, saving_pct=saving_pct, warning=warning, raw_tokens=original_tokens)
