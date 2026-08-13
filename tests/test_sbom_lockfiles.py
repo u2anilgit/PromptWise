@@ -84,3 +84,19 @@ def test_no_duplicate_purls(tmp_path):
     # The direct manifest entry wins.
     comps = _by_name(sbom)
     assert _resolution(comps["requests"]) == "direct"
+
+
+def test_parse_project_lockfiles_matches_generate_components(tmp_path):
+    from promptwise.core.sbom import parse_project_lockfiles
+
+    (tmp_path / "requirements.txt").write_text("flask==3.0.0\n", encoding="utf-8")
+    (tmp_path / "poetry.lock").write_text(
+        '[[package]]\nname = "requests"\nversion = "2.31.0"\n', encoding="utf-8")
+    parsed = parse_project_lockfiles(tmp_path)
+    by_name = {c["name"]: c for c in parsed}
+    assert by_name["flask"] == {"name": "flask", "version": "3.0.0", "ecosystem": "pypi", "resolution": "direct"}
+    assert by_name["requests"]["resolution"] == "transitive"
+    # generate() must still produce an equivalent library component set from the same function.
+    sbom = SBOMGenerator().generate(tmp_path)
+    lib_names = {c["name"] for c in sbom["components"] if c["type"] == "library"}
+    assert lib_names == set(by_name)

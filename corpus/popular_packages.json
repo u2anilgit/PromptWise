@@ -1,0 +1,23 @@
+{
+  "packages": [
+    "requests", "numpy", "pandas", "flask", "django", "fastapi", "pydantic",
+    "boto3", "botocore", "pytest", "sqlalchemy", "cryptography", "pyyaml",
+    "urllib3", "aiohttp", "jinja2", "click", "celery", "redis", "psycopg2",
+    "pillow", "scipy", "scikit-learn", "tensorflow", "torch", "transformers",
+    "matplotlib", "seaborn", "pytz", "certifi", "charset-normalizer", "idna",
+    "six", "setuptools", "wheel", "pip", "attrs", "packaging", "typing-extensions",
+    "markupsafe", "jsonschema", "python-dateutil", "pyjwt", "paramiko",
+    "gunicorn", "uvicorn", "starlette", "httpx", "beautifulsoup4", "lxml",
+    "openpyxl", "xlrd", "pyarrow", "protobuf", "grpcio", "pymongo", "kafka-python",
+    "elasticsearch", "docker", "kubernetes", "ansible", "pylint", "black",
+    "flake8", "mypy", "tox", "coverage", "sphinx", "twine",
+    "express", "react", "react-dom", "vue", "angular", "lodash", "axios",
+    "webpack", "typescript", "eslint", "jest", "next", "nuxt", "moment",
+    "chalk", "commander", "dotenv", "mongoose", "express-session", "body-parser",
+    "cors", "morgan", "socket.io", "redux", "vuex", "babel", "rollup",
+    "vite", "prettier", "nodemon", "chai", "mocha", "sinon", "underscore",
+    "jquery", "bootstrap", "tailwindcss", "styled-components", "graphql",
+    "apollo-server", "prisma", "sequelize", "knex", "pg", "mysql2", "sqlite3",
+    "nestjs", "koa", "hapi", "fastify", "svelte", "ember-source", "backbone"
+  ]
+}

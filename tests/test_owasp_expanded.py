@@ -65,3 +65,22 @@ def test_sql_injection_flagged_on_string_concat_built_before_execute():
     # in-call-parens case above.
     code = 'query = "SELECT * FROM users WHERE id = " + user_id\ncursor.execute(query)'
     assert any("SQL Injection" in c for c in _cats(code))
+
+
+def test_log_injection_flagged():
+    cats = _cats('logger.info(f"login attempt: {username}")')
+    assert any("Logging" in c for c in cats)
+
+
+def test_log_call_with_literal_message_clean():
+    assert not any("Logging" in c for c in _cats('logger.info("server started")'))
+
+
+def test_missing_output_encoding_flagged():
+    cats = _cats('return render_template_string(f"<h1>Hello {name}</h1>")')
+    assert any("XSS" in c for c in cats)
+
+
+def test_output_encoding_present_not_flagged():
+    code = 'from markupsafe import escape\nreturn render_template_string(f"<h1>Hello {escape(name)}</h1>")'
+    assert not any("XSS" in c for c in _cats(code))

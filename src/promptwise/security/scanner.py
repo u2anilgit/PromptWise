@@ -2,6 +2,7 @@ import re
 import secrets as _secrets
 import urllib.request
 import json
+from pathlib import Path
 
 from promptwise.types import SecurityResult
 from promptwise.config import SecurityConfig
@@ -209,6 +210,14 @@ class SecurityScanner:
                 violations.append({"check": "permissions", "detail": pattern.pattern})
                 risk_score += 0.6
 
+        if "dependencies" in self.config.checks:
+            for finding in self.check_dependency_trust(redacted, allow_network=allow_network):
+                if finding["verdict"] in ("suspect_confusion", "registry_missing"):
+                    weight = 0.9 if finding["verdict"] == "registry_missing" else 0.6
+                    violations.append({"check": "dependencies",
+                                        "detail": f"{finding['verdict']}: {finding['name']} -- {finding['detail']}"})
+                    risk_score += weight
+
         if self.config.pii_detection:
             pii_items, redacted = self.detect_pii(redacted, redact=(self.config.pii_action == "redact"))
             for item in pii_items:
@@ -275,7 +284,35 @@ class SecurityScanner:
         if re.search(r"(?i)\bdebug\s*=\s*True\b", code):
             vulns.append({"category": "A05:2021-Security Misconfiguration", "severity": "medium",
                           "description": "Debug mode enabled. Disable in production."})
+        # A09: log injection — untrusted data interpolated directly into a
+        # logging call, enabling CRLF/%0d%0a log-forging. Veracode 2025/Spring
+        # 2026: AI-generated code passes this check only ~13% of the time.
+        if re.search(r'\blog(?:ger|ging)?\.\w+\s*\(\s*(f["\'].*?\{|["\'].*?["\']\s*\+\s*\w+)', code, re.I):
+            vulns.append({"category": "A09:2021-Security Logging Failures", "severity": "high",
+                          "description": "Untrusted input interpolated directly into a log call -- "
+                                         "CRLF/%0d%0a log-injection risk. Sanitize or use structured "
+                                         "logging with parameterized fields."})
+        # A03: missing output encoding — user-controlled data written into an
+        # HTML response without an escaping call in scope. Veracode: AI-generated
+        # code passes the XSS check only ~15% of the time.
+        if (re.search(r'(?i)\b(render_template_string|make_response|HttpResponse)\s*\('
+                      r'\s*(f["\'].*?\{|["\'].*?["\']\s*\+\s*\w+)', code)
+                and not re.search(r'(?i)\b(escape|markupsafe|bleach|html\.escape)\b', code)):
+            vulns.append({"category": "A03:2021-XSS", "severity": "high",
+                          "description": "User-controlled data written into an HTML response without "
+                                         "an escaping call in scope. Use autoescaping/escape()/bleach."})
         return vulns
+
+    def check_dependency_trust(self, code: str, *, project_dir: "str | None" = None,
+                                allow_network: bool = False) -> list[dict]:
+        """Flag imports that are typosquat-confusable or (optionally, online)
+        absent from the package registry entirely. Delegates to
+        security.dependency_guard.DependencyGuard so there is exactly one
+        place that knows what a suspicious dependency looks like (WP0)."""
+        from promptwise.security.dependency_guard import DependencyGuard
+        guard = DependencyGuard()
+        pd = Path(project_dir) if project_dir else None
+        return [f.to_dict() for f in guard.check(code, project_dir=pd, allow_network=allow_network)]
 
     def _check_osv(self, package: str, version: str, *, allow_network: bool = False) -> dict:
         if not allow_network:

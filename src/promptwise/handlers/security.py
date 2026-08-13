@@ -68,6 +68,30 @@ async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"vulnerabilities": vulns, "risk_score": risk, "passed": risk < 4})
 
 
+@tool(name="validate_dependencies", description="Cross-check imports/requires in a code snippet against the project's lockfiles and a bundled offline popular-package list; flags hallucinated (slopsquatting) and typosquat-confusable package names. Optional allow_network=true also checks PyPI existence for names not covered by either list. Advisory only.",
+         schema={"type": "object", "properties": {
+             "code": {"type": "string"},
+             "project_dir": {"type": "string", "default": "", "description": "Path to a project directory whose requirements.txt/package.json/poetry.lock/package-lock.json should count as 'known'. Omit to check against the bundled popular-package list only."},
+             "allow_network": {"type": "boolean", "default": False},
+         }, "required": ["code"]})
+async def _handle_validate_dependencies(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.security.dependency_guard import DependencyGuard
+    guard = DependencyGuard()
+    project_dir = arguments.get("project_dir") or None
+    findings = guard.check(
+        arguments.get("code", ""),
+        project_dir=project_dir,
+        allow_network=bool(arguments.get("allow_network", False)),
+    )
+    results = [f.to_dict() for f in findings]
+    suspect = [f for f in results if f["verdict"] in ("suspect_confusion", "registry_missing")]
+    return json.dumps({
+        "dependencies": results,
+        "suspect_count": len(suspect),
+        "passed": len(suspect) == 0,
+    })
+
+
 @tool(name="scan_response", description="Scan a model response for PII leaks, injection echoes, canary leaks, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Pass a canary token (issued via the indirect-injection canary) to flag if content that flowed through tool output/RAG leaks back into the response. Advisory.",
          schema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}, "canary": {"type": "string", "default": "", "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here"}}, "required": ["response"]})
 async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:

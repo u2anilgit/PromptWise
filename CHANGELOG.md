@@ -4,6 +4,24 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## WP0 — AI-Generated-Code Trust Gate (2026-08-13)
+
+Dependency-hallucination/slopsquatting defense plus OWASP scanner hardening.
+See `docs/IMPLEMENTATION_PLAN_2026-08.md` §WP0 for the full design.
+
+### Added
+- **New tool: `validate_dependencies`** — flags typosquat-confusable and
+  unlocked/hallucinated imports against a project's lockfiles and a bundled
+  offline popular-package list (`corpus/popular_packages.json`); optional
+  `allow_network` PyPI existence check, off by default (air-gap safe).
+- **`security_check` gains a `dependencies` category**, on by default,
+  advisory-only — wired into the existing aggregate `check()`.
+- **`check_owasp` hardening** — new log-injection (CRLF/`%0d%0a`) and
+  missing-output-encoding (XSS) checks.
+- **`core/sbom.py`** — lockfile parsing extracted into reusable
+  `parse_project_lockfiles`, shared by `SBOMGenerator` and the new
+  `DependencyGuard`.
+
 ## [1.10.0] — Local embeddings (opt-in): semantic cache + hybrid memory, fact supersession
 
 Phase 19 / candidate D, gated behind a new opt-in `[embeddings]` installer

@@ -54,6 +54,16 @@ than every other emitter here (all repo-scoped, git-tracked, reversible) —
 needs explicit sign-off before building, same as the still-parked PyPI
 publish decision.
 
+**2026-08-13:** WP0 (AI-Generated-Code Trust Gate) shipped — dependency-
+hallucination/slopsquatting defense (new `validate_dependencies` tool +
+`DependencyGuard`, offline-first typosquat/unlocked-import detection against
+`corpus/popular_packages.json` and a project's own lockfiles, optional
+`allow_network` PyPI check) plus OWASP scanner hardening (`check_owasp` gains
+log-injection and missing-output-encoding/XSS checks). `security_check` now
+includes a `dependencies` category by default. No new pip dependencies;
+air-gap safe throughout. Full design: `docs/IMPLEMENTATION_PLAN_2026-08.md`
+§WP0.
+
 Standing guardrails (all phases): local-first, air-gap-safe, no new infrastructure, no
 new pip dependencies, no branded/competitor model ids (tiers/families only), hooks &
 autonomy fail-open/safe, additive where possible, one clean commit per package, TDD.

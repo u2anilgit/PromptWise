@@ -75,7 +75,7 @@ class PoliciesConfig:
 
 @dataclass
 class SecurityConfig:
-    checks: list[str] = field(default_factory=lambda: ["syntax", "secrets", "destructive", "supply_chain", "permissions", "pii", "injection", "compliance"])
+    checks: list[str] = field(default_factory=lambda: ["syntax", "secrets", "destructive", "supply_chain", "permissions", "pii", "injection", "compliance", "dependencies"])
     pii_detection: bool = True
     pii_action: str = "redact"
     injection_detection: bool = True
