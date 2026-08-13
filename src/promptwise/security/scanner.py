@@ -211,7 +211,14 @@ class SecurityScanner:
                 risk_score += 0.6
 
         if "dependencies" in self.config.checks:
-            for finding in self.check_dependency_trust(redacted, allow_network=allow_network):
+            # Never forward the caller's allow_network here: this branch runs
+            # on every unrecognized import in every check() call, so
+            # forwarding allow_network=True would leak internal/private
+            # module names to a live PyPI lookup on every scan. The
+            # network-based registry check is opt-in only via the dedicated
+            # validate_dependencies MCP tool / check_dependency_trust's own
+            # allow_network argument, not through this aggregate path.
+            for finding in self.check_dependency_trust(redacted, allow_network=False):
                 if finding["verdict"] in ("suspect_confusion", "registry_missing"):
                     weight = 0.9 if finding["verdict"] == "registry_missing" else 0.6
                     violations.append({"check": "dependencies",

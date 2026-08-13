@@ -15,7 +15,10 @@ See `docs/IMPLEMENTATION_PLAN_2026-08.md` §WP0 for the full design.
   offline popular-package list (`corpus/popular_packages.json`); optional
   `allow_network` PyPI existence check, off by default (air-gap safe).
 - **`security_check` gains a `dependencies` category**, on by default,
-  advisory-only — wired into the existing aggregate `check()`.
+  wired into the existing aggregate `check()`. Advisory by default; a
+  high-confidence single finding (`registry_missing`) can still contribute
+  to `blocked`, same as other check categories (secrets, destructive, etc.)
+  already do.
 - **`check_owasp` hardening** — new log-injection (CRLF/`%0d%0a`) and
   missing-output-encoding (XSS) checks.
 - **`core/sbom.py`** — lockfile parsing extracted into reusable

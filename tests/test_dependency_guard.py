@@ -73,6 +73,33 @@ def test_typosquat_confusable_flagged():
     assert "requests" in f.detail
 
 
+@pytest.mark.parametrize("code", [
+    "import db\n",
+    "import app\n",
+    "from core import settings\n",
+    "import lib\n",
+    "import src\n",
+    "from base import Model\n",
+])
+def test_short_local_module_names_are_not_confusable(code):
+    # Regression: ordinary short local module names ('db', 'app', 'core',
+    # 'lib', 'src', 'base') must never collide with short corpus entries
+    # ('pg', 'pip', 'cors', 'six', 'babel') under the length-gated
+    # _find_confusion check.
+    findings = DependencyGuard().check(code)
+    assert findings
+    for f in findings:
+        assert f.verdict != "suspect_confusion", f"{f.name} unexpectedly flagged: {f.detail}"
+
+
+def test_short_local_module_names_produce_zero_dependency_violations_and_unblocked():
+    for code in ("import db\n", "import app\n", "from core import settings\n"):
+        result = SecurityScanner().check(code)
+        dep_violations = [v for v in result.violations if v["check"] == "dependencies"]
+        assert dep_violations == [], f"unexpected dependency violations for {code!r}: {dep_violations}"
+        assert result.blocked is False
+
+
 def test_unrelated_unlocked_import_is_unknown_to_lockfile():
     findings = DependencyGuard().check("import totally_made_up_internal_thing_xyz\n")
     assert findings[0].verdict == "unknown_to_lockfile"
@@ -122,6 +149,22 @@ def test_security_check_flags_typosquat_import():
 def test_security_check_does_not_flag_known_popular_import():
     result = SecurityScanner().check("import requests\nprint('hello')\n")
     assert not [v for v in result.violations if v["check"] == "dependencies"]
+
+
+def test_security_check_never_forwards_allow_network_into_dependency_branch(monkeypatch):
+    # Regression: SecurityScanner.check()'s dependency-trust branch must
+    # hardcode allow_network=False regardless of what the caller passed to
+    # check() -- forwarding it would fire a live PyPI lookup (leaking
+    # internal/private module names) on every unrecognized import for any
+    # caller of the aggregate check()/security_check API with
+    # allow_network=True. The network-based registry check stays opt-in only
+    # via the dedicated validate_dependencies tool / check_dependency_trust.
+    def _boom(*a, **k):
+        raise AssertionError("network access attempted from SecurityScanner.check()")
+    monkeypatch.setattr(urllib.request, "urlopen", _boom)
+    result = SecurityScanner().check("import totally_made_up_internal_thing_xyz\n", allow_network=True)
+    dep_violations = [v for v in result.violations if v["check"] == "dependencies"]
+    assert dep_violations == []
 
 
 def test_security_check_does_not_flag_merely_unlocked_import():

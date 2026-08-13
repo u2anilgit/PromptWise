@@ -140,10 +140,21 @@ class DependencyGuard:
                                   "imported but not present in any parsed lockfile/manifest")
 
     def _find_confusion(self, lname: str) -> "str | None":
+        # Length-gated: below 5 chars, ordinary short local module names
+        # ('db', 'app', 'core', 'lib', 'src') collide with short corpus
+        # entries ('pg', 'pip', 'cors', 'six') under an unscaled edit-distance
+        # <=2 check, reaching a blocking hook path on plain code. No confusion
+        # check at all below 5 chars; 5-7 chars requires distance <=1;
+        # 8+ chars keeps the original distance <=2 tolerance.
+        if len(lname) < 5:
+            return None
+        threshold = 1 if len(lname) <= 7 else 2
         for pop in self._popular:
+            if len(pop) < 5:
+                continue
             if abs(len(pop) - len(lname)) > 2:
                 continue
-            if _levenshtein(lname, pop) <= 2:
+            if _levenshtein(lname, pop) <= threshold:
                 return pop
         return None
 
