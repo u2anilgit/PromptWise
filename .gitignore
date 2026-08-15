@@ -60,6 +60,14 @@ plans/
 *.original.md
 memory/
 MEMORY.md
+# implementation plans / roadmaps / gap analyses — internal, local only
+docs/ROADMAP.md
+docs/GAP_ANALYSIS_*.md
+docs/PHASE*_ROADMAP.md
+docs/*_PLAN_*.md
+docs/*-plan.html
+docs/AGILE_PLAN_*.md
+docs/IMPLEMENTATION_PLAN_*.md
 
 # ── Local dev worktrees (subagent-driven-development isolation) ─────────
 .worktrees/
