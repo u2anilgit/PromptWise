@@ -274,6 +274,72 @@ class AuditLog:
             matched = matched[: int(limit)]
         return matched
 
+    def compact(
+        self, retention_days: int, *, archive_dir: Path | None = None,
+        now: float | None = None,
+    ) -> dict:
+        """Archive records older than ``retention_days`` (by ``timestamp``)
+        to a dated JSONL file and re-anchor the live chain behind one
+        ``compaction`` record, so ``verify()`` still walks the live file
+        cleanly. Archived records are never deleted -- they move, hashes
+        unchanged, to ``<path>.archive-<UTC-date>.jsonl``."""
+        if not self.path:
+            raise ValueError("compact() requires a persisted AuditLog (path=...)")
+        self._load()
+        cutoff_epoch = (now if now is not None else time.time()) - retention_days * 86400
+        cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(cutoff_epoch))
+
+        expired = [r for r in self.records if r.timestamp < cutoff]
+        kept = [r for r in self.records if r.timestamp >= cutoff]
+
+        if not expired:
+            return {
+                "archived_count": 0, "kept_count": len(kept),
+                "archive_path": None, "compaction_record": None,
+            }
+
+        archive_dir = archive_dir or self.path.parent
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        date_tag = time.strftime("%Y%m%d", time.gmtime(now if now is not None else time.time()))
+        archive_path = archive_dir / f"{self.path.name}.archive-{date_tag}.jsonl"
+        with archive_path.open("a", encoding="utf-8") as fh:
+            for rec in expired:
+                fh.write(json.dumps(asdict(rec), sort_keys=True) + "\n")
+
+        old_head = kept[0].prev_hash if kept else (expired[-1].hash if expired else GENESIS)
+        compaction_rec = AuditRecord(
+            index=0,
+            timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now if now is not None else time.time())),
+            task="compaction",
+            rules_applied=[f"archived {len(expired)} records to {archive_path.name}; prior chain head {old_head}"],
+            prev_hash=GENESIS,
+        )
+        compaction_rec.hash = compaction_rec.compute_hash()
+
+        new_records = [compaction_rec]
+        prev = compaction_rec.hash
+        for rec in kept:
+            reindexed = AuditRecord(
+                index=len(new_records), timestamp=rec.timestamp, task=rec.task,
+                actor=rec.actor, agent=rec.agent, model=rec.model, cost_usd=rec.cost_usd,
+                rules_applied=rec.rules_applied, gate_decision=rec.gate_decision,
+                compliance_decision=rec.compliance_decision, files_touched=rec.files_touched,
+                prev_hash=prev,
+            )
+            reindexed.hash = reindexed.compute_hash()
+            new_records.append(reindexed)
+            prev = reindexed.hash
+
+        with self.path.open("w", encoding="utf-8") as fh:
+            for rec in new_records:
+                fh.write(json.dumps(asdict(rec), sort_keys=True) + "\n")
+        self.records = new_records
+
+        return {
+            "archived_count": len(expired), "kept_count": len(kept),
+            "archive_path": archive_path.name, "compaction_record": asdict(compaction_rec),
+        }
+
     def export_json(self) -> str:
         return json.dumps([asdict(r) for r in self.records], indent=2)
 
