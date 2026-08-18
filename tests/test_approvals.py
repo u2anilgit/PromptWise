@@ -163,3 +163,12 @@ def test_resolve_and_list_pending_approvals_tools(tmp_path, monkeypatch):
     assert resolved["resulting_jit_signature"] == "Bash:git"
     pending_after = _json.loads(asyncio.run(_handle_list_pending_approvals(_CTX, {})))
     assert not any(p["id"] == rec["id"] for p in pending_after["approvals"])
+
+
+def test_resolve_approval_tool_missing_id_returns_clean_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "promptwise.core.approvals._default_db", lambda: tmp_path / "wp1.db")
+    out = _json.loads(asyncio.run(_handle_resolve_approval(_CTX, {
+        "resolver": "carol", "decision": "approved"})))
+    assert out["type"] == "InvalidApproval"
+    assert "-1" in out["error"]

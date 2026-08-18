@@ -129,7 +129,7 @@ async def _handle_resolve_approval(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.approvals import Approvals
     try:
         rec = Approvals().resolve(
-            int(arguments.get("approval_id")), arguments.get("resolver", ""),
+            int(arguments.get("approval_id", -1)), arguments.get("resolver", ""),
             arguments.get("decision", ""), jit_ttl_minutes=arguments.get("jit_ttl_minutes"))
     except ValueError as e:
         return json.dumps({"error": str(e), "type": "InvalidApproval"})
