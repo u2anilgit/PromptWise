@@ -2,7 +2,6 @@
 (median/MAD, frequency tables) over data already in cost_logs/audit JSONL.
 No ML.
 """
-from promptwise.core.audit_log import AuditLog
 from promptwise.core.behavior_baseline import BaselineStore, BehaviorStats, compute_baseline
 
 
@@ -82,6 +81,34 @@ def test_baseline_store_round_trip(tmp_path):
 def test_baseline_store_load_unknown_returns_none(tmp_path):
     store = BaselineStore(tmp_path / "baselines.db")
     assert store.load("nobody", "behavior", 30) is None
+
+
+def test_compute_baseline_live_fetch_path(monkeypatch):
+    """Regression: compute_baseline() with no cost_logs/audit_records kwargs
+    must actually work -- exercises MemoryManager(str(get_db_path())) and
+    AuditLog().query(), the path that previously crashed with
+    TypeError: __init__() missing 1 required positional argument: 'db_url'."""
+
+    class _FakeMemoryManager:
+        def __init__(self, db_url):
+            self.db_url = db_url
+
+        async def raw_cost_logs(self, since=None, project_id=None):
+            return [_cost_log("Read", "m", "2026-08-01T10:00:00Z")]
+
+    class _FakeAuditLog:
+        def query(self, **kwargs):
+            return [{"actor": "alice", "files_touched": ["a.py"]}]
+
+    monkeypatch.setattr("promptwise.db.models.MemoryManager", _FakeMemoryManager)
+    monkeypatch.setattr("promptwise.core.audit_log.AuditLog", _FakeAuditLog)
+
+    stats = compute_baseline("alice")
+
+    assert isinstance(stats, BehaviorStats)
+    assert stats.actor == "alice"
+    assert stats.model_tier_mix == {"m": 1.0}
+    assert stats.distinct_files_touched == 1
 
 
 def test_baseline_store_list_all_filters_by_actor(tmp_path):

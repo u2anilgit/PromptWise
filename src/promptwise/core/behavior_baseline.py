@@ -122,8 +122,8 @@ def compute_baseline(
     MemoryManager.raw_cost_logs, audit_records via a fresh AuditLog().query())."""
     if cost_logs is None:
         import asyncio
-        from promptwise.db.models import MemoryManager
-        cost_logs = asyncio.run(MemoryManager().raw_cost_logs())
+        from promptwise.db.models import MemoryManager, get_db_path
+        cost_logs = asyncio.run(MemoryManager(str(get_db_path())).raw_cost_logs())
     if audit_records is None:
         from promptwise.core.audit_log import AuditLog
         audit_records = AuditLog().query()
