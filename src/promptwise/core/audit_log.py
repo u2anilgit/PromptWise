@@ -219,6 +219,61 @@ class AuditLog:
             prev = rec.hash
         return True, f"verified {len(self.records)} record(s)"
 
+    def query(
+        self,
+        *,
+        actor: str | None = None,
+        agent: str | None = None,
+        gate_decision: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Stream-filter the JSONL by field equality and/or an ISO timestamp
+        window; returns most-recent-first when ``limit`` is set (scans the
+        whole file regardless of limit -- limit only caps the returned
+        list, not how much is read, since filters can be sparse)."""
+        matched: list[dict] = []
+        if self.path and self.path.exists():
+            with self.path.open("r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    rec = json.loads(line)
+                    if actor is not None and rec.get("actor") != actor:
+                        continue
+                    if agent is not None and rec.get("agent") != agent:
+                        continue
+                    if gate_decision is not None and rec.get("gate_decision") != gate_decision:
+                        continue
+                    ts = rec.get("timestamp", "")
+                    if since is not None and ts < since:
+                        continue
+                    if until is not None and ts > until:
+                        continue
+                    matched.append(rec)
+        else:
+            # In-memory-only log (no path) -- filter self.records the same way.
+            for rec in (asdict(r) for r in self.records):
+                if actor is not None and rec.get("actor") != actor:
+                    continue
+                if agent is not None and rec.get("agent") != agent:
+                    continue
+                if gate_decision is not None and rec.get("gate_decision") != gate_decision:
+                    continue
+                ts = rec.get("timestamp", "")
+                if since is not None and ts < since:
+                    continue
+                if until is not None and ts > until:
+                    continue
+                matched.append(rec)
+
+        matched.reverse()  # most-recent-first
+        if limit is not None:
+            matched = matched[: int(limit)]
+        return matched
+
     def export_json(self) -> str:
         return json.dumps([asdict(r) for r in self.records], indent=2)
 
