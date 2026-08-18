@@ -113,3 +113,53 @@ def test_approval_chain_reconstructable_from_record(tmp_path):
     assert stored["status"] == "approved"
     assert stored["resulting_jit_signature"] == "Bash:git"
     assert stored["resolved_at"] is not None
+
+
+# ── MCP tool handlers ────────────────────────────────────────────────────────
+import asyncio
+import json as _json
+import typing
+
+import promptwise.server  # noqa: F401 -- import server first so its own module-import
+# order (not whatever order pytest happens to collect test files in) decides
+# _TOOL_DEFS' registration order; importing handlers.policy_intel directly
+# without this can register its tools "early" if this test module is
+# collected before anything else imports promptwise.server, which then
+# reorders _TOOL_DEFS and breaks test_tool_registry_snapshot.py's golden
+# ordering check in a full-suite run.
+from promptwise.core.tool_registry import ServerContext
+from promptwise.handlers.policy_intel import (
+    _handle_request_approval, _handle_resolve_approval, _handle_list_pending_approvals,
+)
+
+# None is a valid stand-in for ctx here: these handlers never read ctx (see
+# tests/test_server_tools.py's _CTX for the established convention). A real
+# ServerContext is a 22-field dataclass with no defaults, so ServerContext()
+# itself is not constructible.
+_CTX = typing.cast(ServerContext, None)
+
+
+def test_request_approval_tool(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "promptwise.core.approvals._default_db", lambda: tmp_path / "wp1.db")
+    out = _json.loads(asyncio.run(_handle_request_approval(_CTX, {
+        "requester": "alice", "action_signature": "Bash:git", "context": {"reason": "x"}})))
+    assert out["status"] == "pending"
+    assert out["requester"] == "alice"
+
+
+def test_resolve_and_list_pending_approvals_tools(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "promptwise.core.approvals._default_db", lambda: tmp_path / "wp1.db")
+    monkeypatch.setattr(
+        "promptwise.core.jit_permissions._default_db", lambda: tmp_path / "wp1.db")
+    rec = _json.loads(asyncio.run(_handle_request_approval(_CTX, {
+        "requester": "alice", "action_signature": "Bash:git"})))
+    pending = _json.loads(asyncio.run(_handle_list_pending_approvals(_CTX, {})))
+    assert any(p["id"] == rec["id"] for p in pending["approvals"])
+    resolved = _json.loads(asyncio.run(_handle_resolve_approval(_CTX, {
+        "approval_id": rec["id"], "resolver": "carol", "decision": "approved"})))
+    assert resolved["status"] == "approved"
+    assert resolved["resulting_jit_signature"] == "Bash:git"
+    pending_after = _json.loads(asyncio.run(_handle_list_pending_approvals(_CTX, {})))
+    assert not any(p["id"] == rec["id"] for p in pending_after["approvals"])

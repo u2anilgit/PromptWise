@@ -2498,6 +2498,75 @@
     }
   },
   {
+    "name": "request_approval",
+    "description": "Create a pending approval request for a policy-escalated action (used when a check_policy call under enforcement:escalate returns a violation). Resolve it with resolve_approval.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "requester": {
+          "type": "string"
+        },
+        "action_signature": {
+          "type": "string"
+        },
+        "context": {
+          "type": "object",
+          "default": {}
+        },
+        "ttl_minutes": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 480
+        }
+      },
+      "required": [
+        "requester",
+        "action_signature"
+      ]
+    }
+  },
+  {
+    "name": "resolve_approval",
+    "description": "Approve or deny a pending approval request. Approving mints a scoped, time-boxed JIT permission grant for the requested action_signature (reuses grant_jit_permission's plumbing); denying mints nothing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "approval_id": {
+          "type": "integer"
+        },
+        "resolver": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "approved",
+            "denied"
+          ]
+        },
+        "jit_ttl_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 480
+        }
+      },
+      "required": [
+        "approval_id",
+        "resolver",
+        "decision"
+      ]
+    }
+  },
+  {
+    "name": "list_pending_approvals",
+    "description": "List all pending approval requests with age and time-to-expiry.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
     "name": "optimize_skill_pack",
     "description": "Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
     "inputSchema": {

@@ -103,3 +103,41 @@ async def _handle_list_jit_permissions(ctx: ServerContext, arguments: dict) -> s
     from promptwise.core.jit_permissions import JITPermissions
     grants = JITPermissions().list_all()
     return json.dumps({"grants": grants})
+
+
+@tool(name="request_approval", description="Create a pending approval request for a policy-escalated action (used when a check_policy call under enforcement:escalate returns a violation). Resolve it with resolve_approval.",
+         schema={"type": "object", "properties": {
+             "requester": {"type": "string"}, "action_signature": {"type": "string"},
+             "context": {"type": "object", "default": {}},
+             "ttl_minutes": {"type": "integer", "default": 60, "minimum": 1, "maximum": 480}},
+         "required": ["requester", "action_signature"]})
+async def _handle_request_approval(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.approvals import Approvals
+    rec = Approvals().request(
+        arguments.get("requester", ""), arguments.get("action_signature", ""),
+        arguments.get("context", {}), ttl_minutes=arguments.get("ttl_minutes", 60))
+    return json.dumps(rec)
+
+
+@tool(name="resolve_approval", description="Approve or deny a pending approval request. Approving mints a scoped, time-boxed JIT permission grant for the requested action_signature (reuses grant_jit_permission's plumbing); denying mints nothing.",
+         schema={"type": "object", "properties": {
+             "approval_id": {"type": "integer"}, "resolver": {"type": "string"},
+             "decision": {"type": "string", "enum": ["approved", "denied"]},
+             "jit_ttl_minutes": {"type": "integer", "minimum": 1, "maximum": 480}},
+         "required": ["approval_id", "resolver", "decision"]})
+async def _handle_resolve_approval(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.approvals import Approvals
+    try:
+        rec = Approvals().resolve(
+            int(arguments.get("approval_id")), arguments.get("resolver", ""),
+            arguments.get("decision", ""), jit_ttl_minutes=arguments.get("jit_ttl_minutes"))
+    except ValueError as e:
+        return json.dumps({"error": str(e), "type": "InvalidApproval"})
+    return json.dumps(rec)
+
+
+@tool(name="list_pending_approvals", description="List all pending approval requests with age and time-to-expiry.",
+         schema={"type": "object", "properties": {}})
+async def _handle_list_pending_approvals(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.approvals import Approvals
+    return json.dumps({"approvals": Approvals().list_pending()})
