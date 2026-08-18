@@ -65,3 +65,31 @@ def test_query_does_not_load_full_file_at_once(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Path, "read_text", _blow_up_if_called_by_query)
     log.query()
+
+
+# ── MCP tool handler ─────────────────────────────────────────────────────────
+import asyncio
+import json as _json
+import typing
+
+from promptwise.core.tool_registry import ServerContext
+from promptwise.handlers.policy_intel import _handle_query_audit
+
+# None is a valid stand-in for ctx here: this handler never reads ctx (see
+# tests/test_approvals.py's _CTX for the established convention). A real
+# ServerContext is a 22-field dataclass with no defaults, so ServerContext()
+# itself is not constructible.
+_CTX = typing.cast(ServerContext, None)
+
+
+def test_query_audit_tool(tmp_path, monkeypatch):
+    def _fake_get_audit_log():
+        return AuditLog(tmp_path / "audit.jsonl")
+
+    log = _fake_get_audit_log()
+    _seed(log)
+    monkeypatch.setattr(
+        "promptwise.handlers.policy_intel._get_audit_log", _fake_get_audit_log)
+    out = _json.loads(asyncio.run(_handle_query_audit(_CTX, {"actor": "alice"})))
+    assert out["count"] == 3
+    assert all(r["actor"] == "alice" for r in out["records"])

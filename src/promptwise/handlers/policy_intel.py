@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 
-from promptwise.core.tool_registry import ServerContext, tool
+from promptwise.core.tool_registry import ServerContext, tool, _get_audit_log
 
 
 @tool(name="tune_permissions", description="Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
@@ -141,3 +141,19 @@ async def _handle_resolve_approval(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_list_pending_approvals(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.approvals import Approvals
     return json.dumps({"approvals": Approvals().list_pending()})
+
+
+@tool(name="query_audit", description="Stream-filter the AI-change audit trail by actor, agent, gate_decision, and/or an ISO timestamp window (since/until), most-recent-first. Streams the JSONL rather than loading it fully -- safe on large audit files.",
+         schema={"type": "object", "properties": {
+             "actor": {"type": "string"}, "agent": {"type": "string"},
+             "gate_decision": {"type": "string"},
+             "since": {"type": "string", "description": "ISO 8601 UTC, e.g. 2026-08-01T00:00:00Z"},
+             "until": {"type": "string"},
+             "limit": {"type": "integer", "minimum": 1}}})
+async def _handle_query_audit(ctx: ServerContext, arguments: dict) -> str:
+    audit = _get_audit_log()
+    records = audit.query(
+        actor=arguments.get("actor"), agent=arguments.get("agent"),
+        gate_decision=arguments.get("gate_decision"), since=arguments.get("since"),
+        until=arguments.get("until"), limit=arguments.get("limit"))
+    return json.dumps({"count": len(records), "records": records})

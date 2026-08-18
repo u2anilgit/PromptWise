@@ -2567,6 +2567,35 @@
     }
   },
   {
+    "name": "query_audit",
+    "description": "Stream-filter the AI-change audit trail by actor, agent, gate_decision, and/or an ISO timestamp window (since/until), most-recent-first. Streams the JSONL rather than loading it fully -- safe on large audit files.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "actor": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "gate_decision": {
+          "type": "string"
+        },
+        "since": {
+          "type": "string",
+          "description": "ISO 8601 UTC, e.g. 2026-08-01T00:00:00Z"
+        },
+        "until": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  {
     "name": "optimize_skill_pack",
     "description": "Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
     "inputSchema": {
