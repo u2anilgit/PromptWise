@@ -7,7 +7,7 @@ load_config(), asserting the resulting dataclass fields.
 """
 from pathlib import Path
 
-from promptwise.config import AuditConfig, load_config
+from promptwise.config import AuditConfig, DetectionConfig, load_config
 
 
 def _write_yaml(tmp_path: Path, text: str) -> Path:
@@ -36,3 +36,29 @@ def test_audit_config_dataclass_defaults():
     ac = AuditConfig()
     assert ac.retention_days == 0
     assert ac.capture_prompts is False
+
+
+def test_detection_config_defaults_when_no_detection_key(tmp_path):
+    _write_yaml(tmp_path, "version: '1.0'\n")
+    cfg = load_config(tmp_path)
+    assert cfg.detection.mad_threshold == 3.0
+    assert cfg.detection.alert_on_findings is False
+    assert cfg.detection.siem_mode == "file"
+
+
+def test_detection_config_overrides_from_yaml(tmp_path):
+    _write_yaml(
+        tmp_path,
+        "version: '1.0'\ndetection:\n  mad_threshold: 2.5\n  alert_on_findings: true\n  siem_mode: webhook\n",
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.detection.mad_threshold == 2.5
+    assert cfg.detection.alert_on_findings is True
+    assert cfg.detection.siem_mode == "webhook"
+
+
+def test_detection_config_dataclass_defaults():
+    dc = DetectionConfig()
+    assert dc.mad_threshold == 3.0
+    assert dc.alert_on_findings is False
+    assert dc.siem_mode == "file"

@@ -90,6 +90,13 @@ class AuditConfig:
 
 
 @dataclass
+class DetectionConfig:
+    mad_threshold: float = 3.0        # median-absolute-deviation multiplier for off-distribution flags
+    alert_on_findings: bool = False   # opt-in; when true, detect_anomalies fires alerts.notify_anomaly
+    siem_mode: str = "file"           # "file" (default, .promptwise/siem/) | "webhook"
+
+
+@dataclass
 class SkillsConfig:
     directory: str = "skills/"
     auto_trigger: bool = True
@@ -132,6 +139,7 @@ class AppConfig:
     policies: PoliciesConfig = field(default_factory=PoliciesConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     audit: AuditConfig = field(default_factory=AuditConfig)
+    detection: DetectionConfig = field(default_factory=DetectionConfig)
     skills: SkillsConfig = field(default_factory=SkillsConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
@@ -251,6 +259,13 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
     cfg.audit = AuditConfig(
         retention_days=int(audit_raw.get("retention_days", 0)),
         capture_prompts=bool(audit_raw.get("capture_prompts", False)),
+    )
+
+    detection_raw = raw.get("detection", {}) or {}
+    cfg.detection = DetectionConfig(
+        mad_threshold=float(detection_raw.get("mad_threshold", cfg.detection.mad_threshold)),
+        alert_on_findings=bool(detection_raw.get("alert_on_findings", cfg.detection.alert_on_findings)),
+        siem_mode=str(detection_raw.get("siem_mode", cfg.detection.siem_mode)),
     )
 
     skills_raw = raw.get("skills", {}) or {}

@@ -294,6 +294,14 @@ audit:
   capture_prompts: false   # reserved -- not yet wired to a caller; AuditLog.append(capture_prompts=...) is the actual per-call switch today
 
 # ============================================================================
+# Behavioral anomaly detection (WP2)
+# ============================================================================
+detection:
+  mad_threshold: 3.0        # median-absolute-deviation multiplier for off-distribution flags
+  alert_on_findings: false  # opt-in -- detect_anomalies fires alerts.notify_anomaly when true
+  siem_mode: file           # "file" (default, .promptwise/siem/) | "webhook"
+
+# ============================================================================
 # Model Routing Strategy
 # ============================================================================
 model_routing:
