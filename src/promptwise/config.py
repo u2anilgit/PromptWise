@@ -84,6 +84,12 @@ class SecurityConfig:
 
 
 @dataclass
+class AuditConfig:
+    retention_days: int = 0   # 0 = never compact (default: unbounded, today's behavior)
+    capture_prompts: bool = False  # opt-in; when true, text is PII-redacted before persist
+
+
+@dataclass
 class SkillsConfig:
     directory: str = "skills/"
     auto_trigger: bool = True
@@ -125,6 +131,7 @@ class AppConfig:
     auto_compact: AutoCompactConfig = field(default_factory=AutoCompactConfig)
     policies: PoliciesConfig = field(default_factory=PoliciesConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
+    audit: AuditConfig = field(default_factory=AuditConfig)
     skills: SkillsConfig = field(default_factory=SkillsConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
@@ -238,6 +245,12 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
         injection_detection=bool(sec_raw.get("injection_detection", True)),
         injection_threshold=float(sec_raw.get("injection_threshold", 0.7)),
         audit_log=bool(sec_raw.get("audit_log", True)),
+    )
+
+    audit_raw = raw.get("audit", {}) or {}
+    cfg.audit = AuditConfig(
+        retention_days=int(audit_raw.get("retention_days", 0)),
+        capture_prompts=bool(audit_raw.get("capture_prompts", False)),
     )
 
     skills_raw = raw.get("skills", {}) or {}

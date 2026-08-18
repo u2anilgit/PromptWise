@@ -287,6 +287,13 @@ memory:
     semantic: permanent
 
 # ============================================================================
+# Audit retention (WP1)
+# ============================================================================
+audit:
+  retention_days: 0        # 0 = never compact (default, unbounded audit log)
+  capture_prompts: false   # opt-in full prompt/response capture, PII-redacted before persist
+
+# ============================================================================
 # Model Routing Strategy
 # ============================================================================
 model_routing:

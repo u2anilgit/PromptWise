@@ -2596,6 +2596,22 @@
     }
   },
   {
+    "name": "compact_audit",
+    "description": "Archive audit records older than retention_days to a dated, hash-verified archive file and re-anchor the live chain with a compaction record. Never deletes data. retention_days=0 is a no-op (unbounded retention, the default).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "retention_days": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "retention_days"
+      ]
+    }
+  },
+  {
     "name": "optimize_skill_pack",
     "description": "Fold accumulated corrections (Phase 2 learning store) into a SKILL.md as a stamped, reversible managed block. Accepts the patch only if the pack's quality score strictly improves. Offline; no model required.",
     "inputSchema": {

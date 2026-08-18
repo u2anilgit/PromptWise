@@ -81,3 +81,48 @@ def test_compact_retention_zero_disables_compaction(tmp_path):
     _seed_with_ages(log, [400])
     result = log.compact(retention_days=0)
     assert result["archived_count"] == 1  # compact() itself takes retention literally
+
+
+# ── MCP tool handler ─────────────────────────────────────────────────────────
+import asyncio
+import json as _json
+import typing
+
+from promptwise.core.tool_registry import ServerContext
+import promptwise.server  # noqa: F401 -- see tests/test_query_audit.py's comment:
+# import server first so its own module-import order decides _TOOL_DEFS'
+# registration order, avoiding a collection-order-dependent golden-snapshot
+# break in test_tool_registry_snapshot.py.
+from promptwise.handlers.policy_intel import _handle_compact_audit
+
+# None is a valid stand-in for ctx here: this handler never reads ctx (see
+# tests/test_approvals.py's _CTX for the established convention). A real
+# ServerContext is a 22-field dataclass with no defaults, so ServerContext()
+# itself is not constructible.
+_CTX = typing.cast(ServerContext, None)
+
+
+def test_compact_audit_tool(tmp_path, monkeypatch):
+    def _fake_get_audit_log():
+        return AuditLog(tmp_path / "audit.jsonl")
+
+    log = _fake_get_audit_log()
+    _seed_with_ages(log, [400, 1])
+    monkeypatch.setattr(
+        "promptwise.handlers.policy_intel._get_audit_log", _fake_get_audit_log)
+    out = _json.loads(asyncio.run(_handle_compact_audit(_CTX, {"retention_days": 30})))
+    assert out["archived_count"] == 1
+    assert out["kept_count"] == 1
+
+
+def test_compact_audit_tool_retention_zero_is_noop(tmp_path, monkeypatch):
+    def _fake_get_audit_log():
+        return AuditLog(tmp_path / "audit.jsonl")
+
+    log = _fake_get_audit_log()
+    _seed_with_ages(log, [400])
+    monkeypatch.setattr(
+        "promptwise.handlers.policy_intel._get_audit_log", _fake_get_audit_log)
+    out = _json.loads(asyncio.run(_handle_compact_audit(_CTX, {"retention_days": 0})))
+    assert out["archived_count"] == 0
+    assert out.get("skipped") == "retention_days=0 disables compaction"

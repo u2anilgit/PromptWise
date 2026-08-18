@@ -157,3 +157,26 @@ async def _handle_query_audit(ctx: ServerContext, arguments: dict) -> str:
         gate_decision=arguments.get("gate_decision"), since=arguments.get("since"),
         until=arguments.get("until"), limit=arguments.get("limit"))
     return json.dumps({"count": len(records), "records": records})
+
+
+@tool(name="compact_audit", description="Archive audit records older than retention_days to a dated, hash-verified archive file and re-anchor the live chain with a compaction record. Never deletes data. retention_days=0 is a no-op (unbounded retention, the default).",
+         schema={"type": "object", "properties": {
+             "retention_days": {"type": "integer", "minimum": 0}},
+         "required": ["retention_days"]})
+async def _handle_compact_audit(ctx: ServerContext, arguments: dict) -> str:
+    retention_days = int(arguments.get("retention_days", 0))
+    if retention_days <= 0:
+        return json.dumps({
+            "archived_count": 0, "kept_count": 0, "archive_path": None,
+            "skipped": "retention_days=0 disables compaction"})
+    audit = _get_audit_log()
+    # compact()'s read-modify-write (load, archive, rewrite the live file) is
+    # not safe against a concurrent append() -- take the same cross-process
+    # file lock append() itself takes, so a concurrent writer can't have its
+    # record silently dropped by compact()'s whole-file rewrite (Task 7 review
+    # finding; compact() deliberately stays unlocked, locking lives here at
+    # the call site, matching append()'s own _FileLock usage).
+    from promptwise.core.audit_log import _FileLock
+    with _FileLock(audit._lock_path()):
+        result = audit.compact(retention_days=retention_days)
+    return json.dumps(result)
