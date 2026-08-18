@@ -249,6 +249,12 @@ _add_handler_module("decisions")
 _add_handler_module("detection")
 
 
+# create_incident/update_incident/close_incident/list_incidents/score_incident/
+# incident_timeline/run_playbook/export_incident_bundle (handlers.incidents) --
+# new incident-response category, no pre-split ordering to preserve.
+_add_handler_module("incidents")
+
+
 async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
     try:
         handler = _HANDLERS.get(name)

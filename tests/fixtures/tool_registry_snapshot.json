@@ -2928,5 +2928,44 @@
         "record"
       ]
     }
+  },
+  {
+    "name": "create_incident",
+    "description": "Open a new incident (status starts 'open'). Optional metadata dict can link back to a triggering source, e.g. a WP2 anomaly finding.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "default": ""
+        },
+        "severity": {
+          "type": "string",
+          "default": "unknown"
+        },
+        "metadata": {
+          "type": "object",
+          "default": {}
+        }
+      },
+      "required": [
+        "title"
+      ]
+    }
+  },
+  {
+    "name": "list_incidents",
+    "description": "List incidents, optionally filtered by status (open/triaged/contained/resolved/closed).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string"
+        }
+      }
+    }
   }
 ]

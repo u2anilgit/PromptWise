@@ -86,3 +86,36 @@ def test_to_dict_shapes(tmp_path):
     ev = store.add_event(inc.id, "note", "hello")
     ed = ev.to_dict()
     assert set(ed) >= {"id", "incident_id", "event_type", "detail", "actor", "ts"}
+
+
+# ── MCP tool handlers ────────────────────────────────────────────────────────
+import asyncio
+import json as _json
+import typing
+
+from promptwise.core.tool_registry import ServerContext
+
+import promptwise.server  # noqa: F401 -- forces ordered handler-module imports
+                            # before we import handlers.incidents directly below,
+                            # keeping _TOOL_DEFS registration order deterministic
+                            # regardless of pytest collection order (see WP1 Task 6 /
+                            # WP2 Tasks 3/5/7/9 for the bug this guards against).
+from promptwise.handlers.incidents import _handle_create_incident, _handle_list_incidents
+
+_ICTX = typing.cast(ServerContext, None)
+
+
+def test_create_incident_tool(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    out = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {
+        "title": "Suspicious prompt injection", "severity": "high"})))
+    assert out["status"] == "open"
+    assert out["title"] == "Suspicious prompt injection"
+
+
+def test_list_incidents_tool(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    asyncio.run(_handle_create_incident(_ICTX, {"title": "A"}))
+    asyncio.run(_handle_create_incident(_ICTX, {"title": "B"}))
+    out = _json.loads(asyncio.run(_handle_list_incidents(_ICTX, {})))
+    assert len(out["incidents"]) == 2
