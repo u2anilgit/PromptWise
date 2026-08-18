@@ -84,6 +84,10 @@ class AuditRecord:
     def _payload(self) -> dict:
         d = asdict(self)
         d.pop("hash", None)
+        if not self.prompt_capture:
+            # pre-WP1 records were hashed without this key; keep them verifiable
+            # after upgrade (this field only entered the hash for capture-enabled records)
+            d.pop("prompt_capture", None)
         return d
 
     def compute_hash(self) -> str:

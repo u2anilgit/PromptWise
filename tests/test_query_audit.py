@@ -120,3 +120,64 @@ def test_append_with_capture_flag_but_no_prompt_text_stores_nothing(tmp_path):
     log = AuditLog(tmp_path / "audit.jsonl")
     rec = log.append("task", capture_prompts=True)
     assert rec.prompt_capture == ""
+
+
+# ── WP1 final-review Finding 1 -- pre-WP1 records must stay verifiable ──────
+def test_verify_passes_for_pre_wp1_record_missing_prompt_capture_key(tmp_path):
+    # Simulate a JSONL line written before `prompt_capture` existed: compute
+    # the hash exactly as the old (pre-field) _payload() would have -- i.e.
+    # over a dict that never had a "prompt_capture" key at all -- then write
+    # that raw line straight to disk, bypassing AuditLog.append() entirely.
+    import hashlib
+    import json as _json
+
+    path = tmp_path / "audit.jsonl"
+    payload = {
+        "index": 0,
+        "timestamp": "2026-01-01T00:00:00Z",
+        "task": "legacy task",
+        "actor": "alice",
+        "agent": "claude-code",
+        "model": "",
+        "cost_usd": 0.0,
+        "rules_applied": [],
+        "gate_decision": "PASS",
+        "compliance_decision": "",
+        "files_touched": [],
+        "prev_hash": "0" * 64,
+        # no "prompt_capture" key -- this is the pre-WP1 shape
+    }
+    old_hash = hashlib.sha256(
+        _json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    record_line = dict(payload)
+    record_line["prompt_capture"] = ""  # field exists in current dataclass default
+    record_line["hash"] = old_hash
+    path.write_text(_json.dumps(record_line, sort_keys=True) + "\n", encoding="utf-8")
+
+    log = AuditLog(path)
+    ok, msg = log.verify()
+    assert ok, msg
+
+
+def test_verify_still_hashes_capture_enabled_records_correctly_and_catches_tampering(tmp_path):
+    log = AuditLog(tmp_path / "audit.jsonl")
+    log.append("task-0", prompt_text="my email is a@b.com", capture_prompts=True)
+    ok, msg = log.verify()
+    assert ok, msg
+    assert log.records[0].prompt_capture != ""
+
+    # Now mutate the on-disk record's prompt_capture field (genuine tampering
+    # of a field that IS part of the hash for capture-enabled records) and
+    # confirm verify() still catches it.
+    import json as _json
+
+    lines = log.path.read_text(encoding="utf-8").splitlines()
+    rec = _json.loads(lines[0])
+    rec["prompt_capture"] = "tampered redacted text"
+    log.path.write_text(_json.dumps(rec, sort_keys=True) + "\n", encoding="utf-8")
+
+    tampered_log = AuditLog(log.path)
+    ok, msg = tampered_log.verify()
+    assert not ok
+    assert "tampered" in msg
