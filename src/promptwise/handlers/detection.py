@@ -61,3 +61,18 @@ async def _handle_detect_anomalies(ctx: ServerContext, arguments: dict) -> str:
                       files_touched=[], gate_decision="", compliance_decision="n/a")
         notify_anomaly(d)
     return json.dumps({"actor": actor, "findings": [f.to_dict() for f in findings]})
+
+
+@tool(name="emit_siem", description="Map an anomaly finding or audit record to an OCSF class dict and emit it -- file-drop (default, .promptwise/siem/) or webhook (reuses the existing WebhookSink). No SDKs, dict mapping + json formatting only.",
+         schema={"type": "object", "properties": {
+             "record": {"type": "object", "description": "an AnomalyFinding.to_dict() or a raw audit record dict"},
+             "mode": {"type": "string", "enum": ["file", "webhook"], "default": "file"},
+             "drop_dir": {"type": "string", "default": ".promptwise/siem/"},
+             "webhook_url": {"type": "string"}},
+         "required": ["record"]})
+async def _handle_emit_siem(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.siem_emit import SiemEmitter
+    emitter = SiemEmitter(
+        mode=arguments.get("mode", "file"), drop_dir=arguments.get("drop_dir", ".promptwise/siem/"),
+        webhook_url=arguments.get("webhook_url"))
+    return json.dumps(emitter.emit(arguments.get("record", {})))

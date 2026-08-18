@@ -2897,5 +2897,36 @@
         "window"
       ]
     }
+  },
+  {
+    "name": "emit_siem",
+    "description": "Map an anomaly finding or audit record to an OCSF class dict and emit it -- file-drop (default, .promptwise/siem/) or webhook (reuses the existing WebhookSink). No SDKs, dict mapping + json formatting only.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "record": {
+          "type": "object",
+          "description": "an AnomalyFinding.to_dict() or a raw audit record dict"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "file",
+            "webhook"
+          ],
+          "default": "file"
+        },
+        "drop_dir": {
+          "type": "string",
+          "default": ".promptwise/siem/"
+        },
+        "webhook_url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "record"
+      ]
+    }
   }
 ]

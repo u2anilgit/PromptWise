@@ -79,3 +79,26 @@ def test_siem_emitter_unknown_mode_defaults_to_file(tmp_path):
     emitter = SiemEmitter(mode="bogus", drop_dir=tmp_path / "siem")
     result = emitter.emit(_finding())
     assert result["mode"] == "file"
+
+
+# ── MCP tool handler ─────────────────────────────────────────────────────────
+import asyncio
+import typing
+
+from promptwise.core.tool_registry import ServerContext
+import promptwise.server  # noqa: F401 -- import server first so its own module-import
+# order (not whatever order pytest happens to collect test files in) decides
+# _TOOL_DEFS' registration order; importing handlers.detection directly
+# without this can register its tools "early" if this test module is
+# collected before anything else imports promptwise.server, which then
+# reorders _TOOL_DEFS and breaks test_tool_registry_snapshot.py's golden
+# ordering check in a full-suite run.
+from promptwise.handlers.detection import _handle_emit_siem
+
+_SCTX = typing.cast(ServerContext, None)
+
+
+def test_emit_siem_tool_file_drop(tmp_path):
+    out = json.loads(asyncio.run(_handle_emit_siem(_SCTX, {
+        "record": _finding(), "mode": "file", "drop_dir": str(tmp_path / "siem")})))
+    assert out["written"] is True
