@@ -153,6 +153,20 @@ class IncidentStore:
         self.add_event(incident_id, "status_change", f"{current_status} -> {new_status}", actor=actor)
         return inc
 
+    def set_score(self, incident_id: int, aivss_score: float) -> Incident:
+        conn = self._connect()
+        try:
+            row = conn.execute("SELECT * FROM incidents WHERE id = ?", (incident_id,)).fetchone()
+            if row is None:
+                raise ValueError(f"no incident with id {incident_id}")
+            conn.execute("UPDATE incidents SET aivss_score = ?, updated_at = ? WHERE id = ?",
+                         (aivss_score, _now(), incident_id))
+            conn.commit()
+            row = conn.execute("SELECT * FROM incidents WHERE id = ?", (incident_id,)).fetchone()
+        finally:
+            conn.close()
+        return self._row_to_incident(row)
+
     def get(self, incident_id: int) -> Incident | None:
         conn = self._connect()
         try:

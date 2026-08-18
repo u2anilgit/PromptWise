@@ -68,3 +68,21 @@ async def _handle_close_incident(ctx: ServerContext, arguments: dict) -> str:
     out = inc.to_dict()
     out["learning_captured"] = True
     return json.dumps(out)
+
+
+@tool(name="score_incident", description="Score an incident's severity 0-100 using the AIVSS v0.5 agentic-dimensions rubric (core/aivss.py, shared with the behavioral-anomaly-detection feature) and persist the score onto the incident record.",
+         schema={"type": "object", "properties": {
+             "incident_id": {"type": "integer"},
+             "factors": {"type": "object", "description": "0-100 raw sub-scores for autonomy/tool_access/memory_persistence/multi_agent_reach; missing keys default to 0"}},
+         "required": ["incident_id", "factors"]})
+async def _handle_score_incident(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.aivss import score
+    from promptwise.core.incidents import IncidentStore
+    result = score(arguments.get("factors", {}))
+    try:
+        inc = IncidentStore().set_score(int(arguments.get("incident_id", -1)), result.total)
+    except ValueError as e:
+        return json.dumps({"error": str(e), "type": "UnknownIncident"})
+    out = inc.to_dict()
+    out["aivss_breakdown"] = result.breakdown
+    return json.dumps(out)

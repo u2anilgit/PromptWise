@@ -161,3 +161,24 @@ def test_close_incident_captures_learning(tmp_path, monkeypatch):
         "incident_id": inc.id, "mistake": "no rate limiting on the tool", "correction": "add throttle"})))
     assert out["status"] == "closed"
     assert out.get("learning_captured") is True
+
+
+from promptwise.handlers.incidents import _handle_score_incident
+
+
+def test_score_incident_tool_persists_score(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
+    out = _json.loads(asyncio.run(_handle_score_incident(_ICTX, {
+        "incident_id": created["id"],
+        "factors": {"autonomy": 90.0, "tool_access": 80.0, "memory_persistence": 20.0, "multi_agent_reach": 10.0}})))
+    assert out["aivss_score"] > 0
+    from promptwise.core.incidents import IncidentStore
+    reloaded = IncidentStore(tmp_path / "wp3.db").get(created["id"])
+    assert reloaded.aivss_score == out["aivss_score"]
+
+
+def test_score_incident_unknown_incident_returns_error(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    out = _json.loads(asyncio.run(_handle_score_incident(_ICTX, {"incident_id": 999, "factors": {}})))
+    assert "error" in out
