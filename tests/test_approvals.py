@@ -101,6 +101,51 @@ def test_list_pending_excludes_expired_records(tmp_path):
     assert stored["status"] == "pending"
 
 
+def test_resolve_twice_raises_and_does_not_overwrite_first_decision(tmp_path):
+    db = tmp_path / "shared.db"
+    a = Approvals(db)
+    jp = JITPermissions(db)
+    rec = a.request("alice", "Bash:rm", {}, ttl_minutes=60)
+    first = a.resolve(rec["id"], "carol", "denied", jit_store=jp)
+    assert first["status"] == "denied"
+    try:
+        a.resolve(rec["id"], "dave", "approved", jit_store=jp)
+        assert False, "expected ValueError"
+    except ValueError as e:
+        assert "already denied" in str(e)
+    stored = a.get(rec["id"])
+    assert stored["status"] == "denied"
+    assert stored["resolver"] == "carol"
+    assert jp.is_active("Bash:rm") is False
+
+
+def test_resolve_expired_approval_raises_and_mints_no_jit_grant(tmp_path):
+    db = tmp_path / "approvals.db"
+    a = Approvals(db)
+    jp = JITPermissions(db)
+    rec = a.request("alice", "Bash:git push --force", {}, ttl_minutes=1)
+
+    # Backdate created_at so the 1-minute TTL has already lapsed (same
+    # technique as test_list_pending_excludes_expired_records above).
+    stale = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 3600))
+    conn = sqlite3.connect(str(db))
+    try:
+        conn.execute(
+            "UPDATE approvals SET created_at = ? WHERE id = ?",
+            (stale, rec["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+
+    try:
+        a.resolve(rec["id"], "carol", "approved", jit_store=jp)
+        assert False, "expected ValueError"
+    except ValueError as e:
+        assert "expired" in str(e)
+    assert jp.is_active("Bash:git push --force") is False
+
+
 def test_approval_chain_reconstructable_from_record(tmp_path):
     # who requested, who resolved, when, what grant resulted -- all on one row
     a = Approvals(tmp_path / "approvals.db")

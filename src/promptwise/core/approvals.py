@@ -113,6 +113,15 @@ class Approvals:
                 raise ValueError(f"no approval with id {approval_id}")
             current = self._row_to_dict(row)
 
+            if current["status"] != "pending":
+                raise ValueError(f"approval {approval_id} already {current['status']}")
+
+            created = time.strptime(current["created_at"], "%Y-%m-%dT%H:%M:%SZ")
+            created_epoch = calendar.timegm(created)
+            expires_epoch = created_epoch + current["ttl_minutes"] * 60
+            if _now() > expires_epoch:
+                raise ValueError(f"approval {approval_id} expired")
+
             resulting_signature = None
             if decision == "approved":
                 if jit_store is None:
