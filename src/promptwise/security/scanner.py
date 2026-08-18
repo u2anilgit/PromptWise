@@ -58,6 +58,41 @@ _INJECTION_PATTERNS = [
                 r'[^.\n]{0,32}\b(instruction|instructions|rule|rules|prompt|prompts|'
                 r'directive|directives|guardrail|guardrails|guideline|guidelines|'
                 r'system\s+message)\b'), 0.8, "instruction_override"),
+    # goal hijack: an override verb next to the agent's original task/goal,
+    # AND a nearby "new objective/goal/task" replacement clause -- the
+    # replacement clause is what separates this from ordinary reprioritization
+    # ("override your previous task priority and pick up the hotfix instead"),
+    # which has no substitute-objective language.
+    (re.compile(r'(?i)\b(ignore|disregard|forget|override|abandon)\b'
+                r'[^.\n]{0,32}\b(your\s+)?(original|prior|previous|current)\s+'
+                r'(task|goal|objective)\b[\s\S]{0,80}\bnew\s+'
+                r'(objective|goal|task)\b'), 0.8, "goal_hijack"),
+    # memory poisoning: an instruction to persist a fact/rule across future
+    # turns/sessions paired with an EXPLICIT approval/no-confirmation-needed
+    # phrase (not a bare "without asking me" UX preference, which a benign
+    # "save this config forever, don't ask every time" note would also hit).
+    (re.compile(r'(?i)\b(remember|store|save)\b[^.\n]{0,40}\b(permanently|'
+                r'forever|future\s+sessions?|all\s+future)\b[^.\n]{0,60}\b'
+                r'(pre-?approved|no\s+confirmation\s+needed|do\s+not\s+ask\s+'
+                r'for\s+confirmation|without\s+(asking\s+for\s+)?confirmation)\b'),
+     0.8, "memory_poisoning"),
+    # fake approval/system tag: a bracketed [SYSTEM: ...]/[APPROVAL-AGENT: ...]
+    # marker that (a) has a colon inside the brackets -- distinguishing an
+    # impersonated directive from an ordinary bracketed label like "[ADMIN]"/
+    # "[SYSTEM]" used in changelogs, log prefixes, or ticket references, which
+    # never have a colon right after the tag -- AND (b) is followed nearby by
+    # an approval/confirmation-bypass phrase, not just any bracketed content.
+    (re.compile(r'(?i)\[\s*(system|assistant|approval[-_ ]?agent|admin)\s*:'
+                r'[^\]\n]{0,40}\][\s\S]{0,150}\b(without\s+(further\s+)?'
+                r'confirmation|proceed\s+with\s+granting|no\s+confirmation\s+'
+                r'needed)\b'), 0.6, "fake_system_tag"),
+    # README/doc instruction injection: content addressing "AI agents reading
+    # this" directly and instructing them to fetch-and-run a remote payload
+    # (curl/wget/download a URL) -- distinct from an ordinary human-facing
+    # setup step like "run npm install", which names no remote fetch.
+    (re.compile(r'(?i)\b(ai\s+)?agents?\s+(reading|processing|parsing)\s+this\b'
+                r'[^.\n]{0,80}\b(curl|wget|download)\b[^.\n]{0,40}\bhttps?://'),
+     0.8, "readme_instruction_injection"),
     # unfiltered / unrestricted persona request
     (re.compile(r'(?i)\b(unfiltered|unrestricted|jailbroken|no\s+restrictions|'
                 r'no\s+filter|without\s+(any\s+)?(restrictions|filters|guardrails|'
