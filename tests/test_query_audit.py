@@ -73,6 +73,13 @@ import json as _json
 import typing
 
 from promptwise.core.tool_registry import ServerContext
+import promptwise.server  # noqa: F401 -- import server first so its own module-import
+# order (not whatever order pytest happens to collect test files in) decides
+# _TOOL_DEFS' registration order; importing handlers.policy_intel directly
+# without this can register its tools "early" if this test module is
+# collected before anything else imports promptwise.server, which then
+# reorders _TOOL_DEFS and breaks test_tool_registry_snapshot.py's golden
+# ordering check in a full-suite run.
 from promptwise.handlers.policy_intel import _handle_query_audit
 
 # None is a valid stand-in for ctx here: this handler never reads ctx (see
