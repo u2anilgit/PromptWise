@@ -10,6 +10,9 @@ import json
 import typing
 
 from promptwise.core.tool_registry import ServerContext
+import promptwise.server  # noqa: F401 -- import server first so its own module-import
+# order (not whatever order pytest happens to collect test files in) decides
+# _TOOL_DEFS registration order (WP1 Task 6 / WP2 Tasks 3/5/7).
 from promptwise.handlers.security import _handle_review_corpus_candidates
 from promptwise.security.scanner import SecurityScanner
 
