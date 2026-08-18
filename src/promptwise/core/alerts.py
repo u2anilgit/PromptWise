@@ -215,3 +215,26 @@ def notify_security(result, *, config: AlertConfig | None = None) -> dict:
         return out
     except Exception as e:  # fail-soft
         return {"sent": False, "reason": "send_error", "error": f"{type(e).__name__}: {e}", "channels": []}
+
+
+def notify_anomaly(finding: dict, *, config: AlertConfig | None = None) -> dict:
+    """Subscriber for a computed anomaly finding (core/anomaly_detector.py's
+    AnomalyFinding.to_dict()) -- fires the same configured channels
+    notify_security uses, gated on config.enabled. Same fail-soft contract
+    as notify_budget/notify_security; never edits anomaly_detector.py."""
+    config = config or load_alert_config()
+    if not config.enabled:
+        return {"sent": False, "reason": "disabled", "channels": []}
+    try:
+        category = finding.get("category", "unknown")
+        threat_score = float(finding.get("threat_score", 0) or 0.0)
+        text = f"PromptWise anomaly alert: {category} (threat_score={threat_score:.1f})."
+        out = _dispatch(
+            config, subject="PromptWise anomaly alert", text=text,
+            extra={"kind": "anomaly", "category": category, "threat_score": threat_score},
+        )
+        if not out["sent"]:
+            out.setdefault("reason", "no_channel_configured")
+        return out
+    except Exception as e:  # fail-soft
+        return {"sent": False, "reason": "send_error", "error": f"{type(e).__name__}: {e}", "channels": []}

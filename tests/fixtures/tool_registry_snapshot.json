@@ -2869,5 +2869,33 @@
         "actor"
       ]
     }
+  },
+  {
+    "name": "detect_anomalies",
+    "description": "Compare a behavior window against a stored baseline (see baseline_behavior) and return AIVSS-scored anomaly findings: off-distribution volume/tempo, never-seen-before tool sequences (recon/exfil-pattern-aware), and data-scope expansion. Advisory only -- appends every finding to the audit trail and does not block anything.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "actor": {
+          "type": "string"
+        },
+        "window": {
+          "type": "object",
+          "description": "a BehaviorStats dict, e.g. from baseline_behavior computed over a short recent window"
+        },
+        "baseline": {
+          "type": "object",
+          "description": "a stored BehaviorStats dict to compare against; omit to load the most recent saved baseline for actor"
+        },
+        "mad_threshold": {
+          "type": "number",
+          "default": 3.0
+        }
+      },
+      "required": [
+        "actor",
+        "window"
+      ]
+    }
   }
 ]

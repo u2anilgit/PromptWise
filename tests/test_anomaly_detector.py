@@ -89,3 +89,55 @@ def test_findings_have_aivss_breakdown_and_to_dict():
     assert isinstance(f, AnomalyFinding)
     d = f.to_dict()
     assert "threat_score" in d and "aivss_breakdown" in d and "evidence" in d
+
+
+# ── notify_anomaly (alerts.py) ───────────────────────────────────────────────
+from promptwise.core.alerts import AlertConfig, notify_anomaly
+
+
+def test_notify_anomaly_disabled_by_default():
+    config = AlertConfig(enabled=False, budget_min_level="warn", security_min_risk=0.5, channels={})
+    result = notify_anomaly({"category": "novel_tool_sequence", "threat_score": 90.0}, config=config)
+    assert result["sent"] is False
+
+
+def test_notify_anomaly_enabled_dispatches():
+    config = AlertConfig(enabled=True, budget_min_level="warn", security_min_risk=0.5, channels={})
+    result = notify_anomaly({"category": "novel_tool_sequence", "threat_score": 90.0}, config=config)
+    assert "sent" in result  # no channels configured -> sent False but must not raise
+
+
+# ── MCP tool handler ─────────────────────────────────────────────────────────
+import asyncio
+import json as _json
+import typing
+
+from promptwise.core.tool_registry import ServerContext
+import promptwise.server  # noqa: F401 -- import server first so its own module-import
+# order (not whatever order pytest happens to collect test files in) decides
+# _TOOL_DEFS' registration order; importing handlers.detection directly
+# without this can register its tools "early" if this test module is
+# collected before anything else imports promptwise.server, which then
+# reorders _TOOL_DEFS and breaks test_tool_registry_snapshot.py's golden
+# ordering check in a full-suite run. (Same fix as test_behavior_baseline.py.)
+from promptwise.handlers.detection import _handle_detect_anomalies
+
+_DCTX = typing.cast(ServerContext, None)
+
+
+def test_detect_anomalies_tool_appends_to_audit(tmp_path, monkeypatch):
+    from promptwise.core.audit_log import AuditLog
+    audit_path = tmp_path / "audit.jsonl"
+    monkeypatch.setattr(
+        "promptwise.handlers.detection._get_audit_log", lambda: AuditLog(audit_path))
+    out = _json.loads(asyncio.run(_handle_detect_anomalies(_DCTX, {
+        "actor": "alice",
+        "window": {"actor": "alice", "window_days": 1, "prompt_length_median": 5000.0,
+                   "prompt_length_mad": 10.0, "tool_bigram_freq": {"Bash->Bash": 5},
+                   "model_tier_mix": {}, "hourly_histogram": {}, "distinct_files_touched": 0},
+        "baseline": {"actor": "alice", "window_days": 30, "prompt_length_median": 100.0,
+                     "prompt_length_mad": 10.0, "tool_bigram_freq": {}, "model_tier_mix": {},
+                     "hourly_histogram": {}, "distinct_files_touched": 0}})))
+    assert out["findings"]
+    log = AuditLog(audit_path)
+    assert any(r.task == "anomaly_detected" for r in log.records)
