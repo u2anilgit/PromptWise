@@ -100,3 +100,23 @@ def test_query_audit_tool(tmp_path, monkeypatch):
     out = _json.loads(asyncio.run(_handle_query_audit(_CTX, {"actor": "alice"})))
     assert out["count"] == 3
     assert all(r["actor"] == "alice" for r in out["records"])
+
+
+# ── WP1 1c -- opt-in PII-redacted prompt capture ─────────────────────────────
+def test_append_without_capture_flag_stores_nothing(tmp_path):
+    log = AuditLog(tmp_path / "audit.jsonl")
+    rec = log.append("task", prompt_text="my email is a@b.com", capture_prompts=False)
+    assert rec.prompt_capture == ""
+
+
+def test_append_with_capture_flag_stores_redacted_text(tmp_path):
+    log = AuditLog(tmp_path / "audit.jsonl")
+    rec = log.append("task", prompt_text="my email is a@b.com", capture_prompts=True)
+    assert rec.prompt_capture != ""
+    assert "a@b.com" not in rec.prompt_capture
+
+
+def test_append_with_capture_flag_but_no_prompt_text_stores_nothing(tmp_path):
+    log = AuditLog(tmp_path / "audit.jsonl")
+    rec = log.append("task", capture_prompts=True)
+    assert rec.prompt_capture == ""

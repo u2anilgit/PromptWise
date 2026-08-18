@@ -73,6 +73,23 @@ def test_compact_noop_when_nothing_expired(tmp_path):
     assert ok, msg
 
 
+def test_compact_preserves_prompt_capture_on_kept_records(tmp_path):
+    # WP1 1c -- compact() reconstructs kept records field-by-field; it must
+    # carry over prompt_capture (set via append(capture_prompts=True)) rather
+    # than silently dropping back to the AuditRecord default "". This record
+    # is stamped "now" (not backdated), so it's always a *kept* record.
+    log = AuditLog(tmp_path / "audit.jsonl")
+    log.append("recent-captured", capture_prompts=True, prompt_text="contact me at x@y.com")
+    _seed_with_ages(log, [40])  # one old record, so compact() has something to expire
+    result = log.compact(retention_days=30)
+    assert result["archived_count"] == 1
+    assert result["kept_count"] == 1
+    reloaded = AuditLog(tmp_path / "audit.jsonl")
+    captured = [r for r in reloaded.records if r.prompt_capture]
+    assert captured, "prompt_capture must survive compact()'s reindexing of kept records"
+    assert "x@y.com" not in captured[0].prompt_capture
+
+
 def test_compact_retention_zero_disables_compaction(tmp_path):
     # retention_days=0 means "never compact" per config default -- compact()
     # itself still supports being called explicitly with 0, but the tool

@@ -77,6 +77,7 @@ class AuditRecord:
     gate_decision: str = ""        # PASS/CONCERNS/FAIL/WAIVED
     compliance_decision: str = ""  # e.g. "gated:passed" / "n/a"
     files_touched: list[str] = field(default_factory=list)
+    prompt_capture: str = ""      # opt-in, PII-redacted (see append(capture_prompts=...))
     prev_hash: str = GENESIS
     hash: str = ""
 
@@ -149,6 +150,8 @@ class AuditLog:
         gate_decision: str = "",
         compliance_decision: str = "",
         files_touched: list[str] | None = None,
+        prompt_text: str | None = None,
+        capture_prompts: bool = False,
     ) -> AuditRecord:
         if self.path:
             with _FileLock(self._lock_path()):
@@ -157,6 +160,7 @@ class AuditLog:
                     task, actor=actor, agent=agent, model=model, cost_usd=cost_usd,
                     rules_applied=rules_applied, gate_decision=gate_decision,
                     compliance_decision=compliance_decision, files_touched=files_touched,
+                    prompt_text=prompt_text, capture_prompts=capture_prompts,
                 )
                 self.records.append(rec)
                 self._persist(rec)
@@ -170,6 +174,7 @@ class AuditLog:
             task, actor=actor, agent=agent, model=model, cost_usd=cost_usd,
             rules_applied=rules_applied, gate_decision=gate_decision,
             compliance_decision=compliance_decision, files_touched=files_touched,
+            prompt_text=prompt_text, capture_prompts=capture_prompts,
         )
         self.records.append(rec)
         self._forward_to_sinks(rec)
@@ -187,8 +192,14 @@ class AuditLog:
         gate_decision: str = "",
         compliance_decision: str = "",
         files_touched: list[str] | None = None,
+        prompt_text: str | None = None,
+        capture_prompts: bool = False,
     ) -> AuditRecord:
         prev = self.records[-1].hash if self.records else GENESIS
+        capture = ""
+        if capture_prompts and prompt_text:
+            from promptwise.security.scanner import SecurityScanner
+            _, capture = SecurityScanner().detect_pii(prompt_text, redact=True)
         rec = AuditRecord(
             index=len(self.records),
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -201,6 +212,7 @@ class AuditLog:
             gate_decision=gate_decision,
             compliance_decision=compliance_decision,
             files_touched=list(files_touched or []),
+            prompt_capture=capture,
             prev_hash=prev,
         )
         rec.hash = rec.compute_hash()
@@ -324,6 +336,7 @@ class AuditLog:
                 actor=rec.actor, agent=rec.agent, model=rec.model, cost_usd=rec.cost_usd,
                 rules_applied=rec.rules_applied, gate_decision=rec.gate_decision,
                 compliance_decision=rec.compliance_decision, files_touched=rec.files_touched,
+                prompt_capture=rec.prompt_capture,
                 prev_hash=prev,
             )
             reindexed.hash = reindexed.compute_hash()
