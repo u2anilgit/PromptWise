@@ -1,0 +1,88 @@
+"""WP3 — incident lifecycle: create/update/close with enforced status
+transitions (open -> triaged -> contained -> resolved -> closed, no
+skipping). First multi-state enforced transition graph in this codebase
+(Approvals/LearningStore are both one-hop status flips, not a graph)."""
+import pytest
+
+from promptwise.core.incidents import Incident, IncidentEvent, IncidentStore
+
+
+def test_create_incident_starts_open(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    inc = store.create("Suspicious prompt injection", severity="high")
+    assert inc.status == "open"
+    assert inc.title == "Suspicious prompt injection"
+    assert inc.severity == "high"
+    assert isinstance(inc.id, int)
+
+
+def test_legal_transition_chain(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    inc = store.create("Test incident")
+    for status in ("triaged", "contained", "resolved", "closed"):
+        inc = store.update_status(inc.id, status, actor="alice")
+        assert inc.status == status
+
+
+def test_illegal_transition_rejected(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    inc = store.create("Test incident")
+    with pytest.raises(ValueError, match="open"):
+        store.update_status(inc.id, "closed", actor="alice")  # skip straight to closed
+
+
+def test_illegal_backward_transition_rejected(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    inc = store.create("Test incident")
+    store.update_status(inc.id, "triaged", actor="alice")
+    with pytest.raises(ValueError):
+        store.update_status(inc.id, "open", actor="alice")  # no going back
+
+
+def test_update_status_unknown_incident_raises(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    with pytest.raises(ValueError, match="999"):
+        store.update_status(999, "triaged", actor="alice")
+
+
+def test_get_returns_none_for_unknown(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    assert store.get(999) is None
+
+
+def test_list_all_filters_by_status(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    a = store.create("A")
+    b = store.create("B")
+    store.update_status(a.id, "triaged")
+    assert len(store.list_all()) == 2
+    assert len(store.list_all(status="open")) == 1
+    assert len(store.list_all(status="triaged")) == 1
+
+
+def test_add_event_and_list_events(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    inc = store.create("Test incident")
+    store.add_event(inc.id, "detection", "anomaly finding attached", actor="detector")
+    store.add_event(inc.id, "note", "reviewed by analyst", actor="alice")
+    events = store.list_events(inc.id)
+    assert len(events) == 2
+    assert events[0].event_type == "detection"
+    assert all(isinstance(e, IncidentEvent) for e in events)
+
+
+def test_incident_metadata_round_trips(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    inc = store.create("Test", metadata={"source": "detect_anomalies", "finding_id": "abc"})
+    reloaded = store.get(inc.id)
+    assert reloaded.metadata == {"source": "detect_anomalies", "finding_id": "abc"}
+
+
+def test_to_dict_shapes(tmp_path):
+    store = IncidentStore(tmp_path / "incidents.db")
+    inc = store.create("Test")
+    d = inc.to_dict()
+    assert set(d) >= {"id", "title", "severity", "status", "created_at", "updated_at", "description", "aivss_score", "metadata"}
+    ev = store.add_event(inc.id, "note", "hello")
+    ed = ev.to_dict()
+    assert set(ed) >= {"id", "incident_id", "event_type", "detail", "actor", "ts"}
