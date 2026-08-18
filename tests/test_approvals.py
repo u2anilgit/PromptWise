@@ -1,5 +1,8 @@
 """WP1 1b -- approval workflow: request/resolve/list, resolve(approved)
 mints a scoped JIT grant via the existing JITPermissions plumbing."""
+import sqlite3
+import time
+
 from promptwise.core.approvals import Approvals
 from promptwise.core.jit_permissions import JITPermissions
 
@@ -69,6 +72,33 @@ def test_resolve_invalid_decision_raises(tmp_path):
 def test_get_returns_none_for_unknown_id(tmp_path):
     a = Approvals(tmp_path / "approvals.db")
     assert a.get(999) is None
+
+
+def test_list_pending_excludes_expired_records(tmp_path):
+    db = tmp_path / "approvals.db"
+    a = Approvals(db)
+    rec = a.request("alice", "Bash:git push --force", {}, ttl_minutes=1)
+
+    # Backdate created_at so the 1-minute TTL has already lapsed.
+    stale = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 3600))
+    conn = sqlite3.connect(str(db))
+    try:
+        conn.execute(
+            "UPDATE approvals SET created_at = ? WHERE id = ?",
+            (stale, rec["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+
+    pending = a.list_pending()
+    ids = {p["id"] for p in pending}
+    assert rec["id"] not in ids
+
+    # Still retrievable directly, just excluded from the pending listing.
+    stored = a.get(rec["id"])
+    assert stored is not None
+    assert stored["status"] == "pending"
 
 
 def test_approval_chain_reconstructable_from_record(tmp_path):

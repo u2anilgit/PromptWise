@@ -15,6 +15,7 @@ _from_record for the guarantee this module makes.
 """
 from __future__ import annotations
 
+import calendar
 import json
 import sqlite3
 import time
@@ -147,11 +148,12 @@ class Approvals:
         for r in rows:
             d = self._row_to_dict(r)
             created = time.strptime(d["created_at"], "%Y-%m-%dT%H:%M:%SZ")
-            import calendar
             created_epoch = calendar.timegm(created)
             d["age_minutes"] = round((now - created_epoch) / 60, 1)
             d["expires_in_minutes"] = round(
                 (created_epoch + d["ttl_minutes"] * 60 - now) / 60, 1)
+            if d["expires_in_minutes"] <= 0:
+                continue
             out.append(d)
         return out
 
