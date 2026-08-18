@@ -119,3 +119,45 @@ def test_list_incidents_tool(tmp_path, monkeypatch):
     asyncio.run(_handle_create_incident(_ICTX, {"title": "B"}))
     out = _json.loads(asyncio.run(_handle_list_incidents(_ICTX, {})))
     assert len(out["incidents"]) == 2
+
+
+from promptwise.handlers.incidents import _handle_update_incident, _handle_close_incident
+
+
+def test_update_incident_tool_transitions(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
+    out = _json.loads(asyncio.run(_handle_update_incident(_ICTX, {
+        "incident_id": created["id"], "status": "triaged", "actor": "alice"})))
+    assert out["status"] == "triaged"
+
+
+def test_update_incident_tool_illegal_transition_returns_error(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
+    out = _json.loads(asyncio.run(_handle_update_incident(_ICTX, {
+        "incident_id": created["id"], "status": "closed", "actor": "alice"})))
+    assert "error" in out
+
+
+def test_close_incident_requires_resolved_status(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: tmp_path / "wp3.db")
+    created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
+    out = _json.loads(asyncio.run(_handle_close_incident(_ICTX, {
+        "incident_id": created["id"], "mistake": "m", "correction": "c"})))
+    assert "error" in out  # can't close an 'open' incident, must reach 'resolved' first
+
+
+def test_close_incident_captures_learning(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: tmp_path / "wp3.db")
+    from promptwise.core.incidents import IncidentStore
+    store = IncidentStore(tmp_path / "wp3.db")
+    inc = store.create("T")
+    for status in ("triaged", "contained", "resolved"):
+        store.update_status(inc.id, status)
+    out = _json.loads(asyncio.run(_handle_close_incident(_ICTX, {
+        "incident_id": inc.id, "mistake": "no rate limiting on the tool", "correction": "add throttle"})))
+    assert out["status"] == "closed"
+    assert out.get("learning_captured") is True
