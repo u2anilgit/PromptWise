@@ -94,3 +94,19 @@ def test_cyclic_extends_raises_instead_of_infinite_recursion(tmp_path):
     _write(b, "extends: a.yaml\n")
     with pytest.raises(ValueError, match="cycle"):
         Policy.from_yaml(a)
+
+
+def test_enforcement_child_block_tightens_parent_advisory(tmp_path):
+    """Child enforcement mode must tighten parent's. block > advisory."""
+    org = _write(tmp_path / "org.yaml", "enforcement: advisory\n")
+    _write(tmp_path / "project.yaml", f"extends: {org.name}\nenforcement: block\n")
+    pol = Policy.from_yaml(tmp_path / "project.yaml")
+    assert pol.enforcement == "block"
+
+
+def test_enforcement_child_omitted_inherits_parent_block(tmp_path):
+    """Child that omits enforcement must not loosen parent's block to default advisory."""
+    org = _write(tmp_path / "org.yaml", "enforcement: block\n")
+    _write(tmp_path / "project.yaml", f"extends: {org.name}\nbudget_cap_usd: 10.0\n")
+    pol = Policy.from_yaml(tmp_path / "project.yaml")
+    assert pol.enforcement == "block"
