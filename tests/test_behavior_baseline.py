@@ -117,3 +117,27 @@ def test_baseline_store_list_all_filters_by_actor(tmp_path):
     store.save("bob", "behavior", 30, {}, computed_at="2026-08-18T00:00:00Z")
     assert len(store.list_all()) == 2
     assert len(store.list_all(actor="alice")) == 1
+
+
+# ── MCP tool handler ─────────────────────────────────────────────────────────
+import asyncio
+import json as _json
+import typing
+
+from promptwise.core.tool_registry import ServerContext
+from promptwise.handlers.detection import _handle_baseline_behavior
+
+_CTX = typing.cast(ServerContext, None)  # handlers in this file never read ctx
+
+
+def test_baseline_behavior_tool(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "promptwise.core.behavior_baseline._default_db", lambda: tmp_path / "wp2.db")
+    out = _json.loads(asyncio.run(_handle_baseline_behavior(_CTX, {
+        "actor": "alice", "window_days": 7,
+        "cost_logs": [{"tool": "Read", "model": "m", "ts": "2026-08-01T10:00:00Z",
+                        "input_tokens": 100.0}],
+        "audit_records": []})))
+    assert out["actor"] == "alice"
+    assert out["window_days"] == 7
+    assert out["saved"] is True

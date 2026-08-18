@@ -244,6 +244,11 @@ _add_handler_module("governor")
 _add_handler_module("decisions")
 
 
+# baseline_behavior/detect_anomalies/emit_siem (handlers.detection) -- new
+# behavioral-anomaly-detection category, no pre-split ordering to preserve.
+_add_handler_module("detection")
+
+
 async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
     try:
         handler = _HANDLERS.get(name)

@@ -2836,5 +2836,38 @@
         }
       }
     }
+  },
+  {
+    "name": "baseline_behavior",
+    "description": "Build and persist a per-actor statistical behavior baseline (prompt-length median/MAD, tool-call bigram frequencies, model-tier mix, hourly activity histogram, distinct files touched) from telemetry already collected in cost_logs and the audit trail. Pure stdlib stats, no ML.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "actor": {
+          "type": "string"
+        },
+        "window_days": {
+          "type": "integer",
+          "default": 30
+        },
+        "cost_logs": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "optional pre-fetched cost_logs rows; omit to fetch live"
+        },
+        "audit_records": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "optional pre-fetched audit records; omit to fetch live"
+        }
+      },
+      "required": [
+        "actor"
+      ]
+    }
   }
 ]
