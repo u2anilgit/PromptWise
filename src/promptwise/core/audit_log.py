@@ -243,6 +243,7 @@ class AuditLog:
         gate_decision: str | None = None,
         since: str | None = None,
         until: str | None = None,
+        contains: str | None = None,
         limit: int | None = None,
     ) -> list[dict]:
         """Stream-filter the JSONL by field equality and/or an ISO timestamp
@@ -263,6 +264,10 @@ class AuditLog:
                         continue
                     if gate_decision is not None and rec.get("gate_decision") != gate_decision:
                         continue
+                    if contains is not None:
+                        haystack = f"{rec.get('task', '')} {' '.join(rec.get('rules_applied', []) or [])} {rec.get('compliance_decision', '')}"
+                        if contains not in haystack:
+                            continue
                     ts = rec.get("timestamp", "")
                     if since is not None and ts < since:
                         continue
@@ -278,6 +283,10 @@ class AuditLog:
                     continue
                 if gate_decision is not None and rec.get("gate_decision") != gate_decision:
                     continue
+                if contains is not None:
+                    haystack = f"{rec.get('task', '')} {' '.join(rec.get('rules_applied', []) or [])} {rec.get('compliance_decision', '')}"
+                    if contains not in haystack:
+                        continue
                 ts = rec.get("timestamp", "")
                 if since is not None and ts < since:
                     continue

@@ -181,3 +181,51 @@ def test_verify_still_hashes_capture_enabled_records_correctly_and_catches_tampe
     ok, msg = tampered_log.verify()
     assert not ok
     assert "tampered" in msg
+
+
+# ── WP3 -- contains: substring filter, for incident_timeline correlation ────
+def test_query_contains_filters_by_task_substring(tmp_path):
+    from promptwise.core.audit_log import AuditLog
+    log = AuditLog(tmp_path / "audit.jsonl")
+    log.append("anomaly_detected", rules_applied=["novel_tool_sequence"])
+    log.append("policy_check", rules_applied=["banned_operation"])
+    out = log.query(contains="novel_tool_sequence")
+    assert len(out) == 1
+    assert out[0]["task"] == "anomaly_detected"
+
+
+def test_query_contains_matches_task_field_too(tmp_path):
+    from promptwise.core.audit_log import AuditLog
+    log = AuditLog(tmp_path / "audit.jsonl")
+    log.append("anomaly_detected", rules_applied=[])
+    log.append("compaction", rules_applied=[])
+    out = log.query(contains="anomaly")
+    assert len(out) == 1
+    assert out[0]["task"] == "anomaly_detected"
+
+
+def test_query_contains_combines_with_other_filters(tmp_path):
+    from promptwise.core.audit_log import AuditLog
+    log = AuditLog(tmp_path / "audit.jsonl")
+    log.append("anomaly_detected", actor="alice", rules_applied=["x"])
+    log.append("anomaly_detected", actor="bob", rules_applied=["x"])
+    out = log.query(contains="anomaly", actor="alice")
+    assert len(out) == 1
+    assert out[0]["actor"] == "alice"
+
+
+def test_query_contains_none_returns_everything(tmp_path):
+    from promptwise.core.audit_log import AuditLog
+    log = AuditLog(tmp_path / "audit.jsonl")
+    log.append("a")
+    log.append("b")
+    assert len(log.query()) == 2  # contains=None (default) -- unchanged behavior
+
+
+def test_query_contains_works_on_in_memory_log_too():
+    from promptwise.core.audit_log import AuditLog
+    log = AuditLog()  # no path -- in-memory branch
+    log.append("anomaly_detected", rules_applied=["novel_tool_sequence"])
+    log.append("policy_check", rules_applied=[])
+    out = log.query(contains="novel_tool_sequence")
+    assert len(out) == 1
