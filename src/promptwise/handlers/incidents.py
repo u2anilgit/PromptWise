@@ -109,3 +109,18 @@ async def _handle_incident_timeline(ctx: ServerContext, arguments: dict) -> str:
 
     timeline.sort(key=lambda e: e.get("ts", ""))
     return json.dumps({"incident_id": incident_id, "timeline": timeline})
+
+
+@tool(name="run_playbook", description="Load and run a YAML incident-response playbook (dry-run by default -- 'advise' mode, which reports what WOULD happen and changes nothing). Set mode='apply' (or the PROMPTWISE_AUTONOMY=apply env var) to actually execute steps -- same autonomy-gating posture as run_governor. Starter playbooks ship under config/playbooks/.",
+         schema={"type": "object", "properties": {
+             "path": {"type": "string", "description": "path to a playbook YAML file, e.g. config/playbooks/prompt_injection_confirmed.yaml"},
+             "mode": {"type": "string", "enum": ["advise", "dry_run", "apply"], "description": "overrides PROMPTWISE_AUTONOMY for this call; omit to use the env var (default advise)"}},
+         "required": ["path"]})
+async def _handle_run_playbook(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.playbooks import load_playbook, run_playbook
+    try:
+        pb = load_playbook(arguments.get("path", ""))
+    except (FileNotFoundError, OSError) as e:
+        return json.dumps({"error": str(e), "type": "PlaybookNotFound"})
+    run = run_playbook(pb, mode=arguments.get("mode"))
+    return json.dumps(run.to_dict())

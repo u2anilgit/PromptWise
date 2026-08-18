@@ -1,0 +1,23 @@
+name: rogue_agent_behavior
+description: >
+  Response to an agent/actor exhibiting anomalous, potentially adversarial
+  autonomous behavior (WP2's detect_anomalies high-threat_score findings).
+  Contain -> collect -> notify -> remediate.
+steps:
+  - name: contain
+    action: revoke_jit_permissions
+    params:
+      note: "Revoke all active JIT grants for the anomalous actor immediately"
+  - name: collect
+    action: incident_timeline
+    params:
+      note: "Correlate the anomaly finding with the surrounding audit trail"
+  - name: notify
+    action: notify_anomaly
+    params:
+      note: "Re-fire the anomaly alert at incident-response severity"
+  - name: remediate
+    action: baseline_behavior
+    params:
+      note: "Recompute the actor's baseline after remediation to confirm behavior has normalized (human-action checklist item: manual review before trusting the new baseline)"
+    on_failure: continue

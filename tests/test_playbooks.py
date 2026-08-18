@@ -115,3 +115,40 @@ def test_playbook_run_to_dict():
     d = run.to_dict()
     assert set(d) >= {"playbook_name", "mode", "results", "halted_at"}
     assert isinstance(d["results"][0], dict)
+
+
+# ── MCP tool handler ─────────────────────────────────────────────────────────
+import asyncio
+import json as _json
+import typing
+
+from promptwise.core.tool_registry import ServerContext
+
+import promptwise.server  # noqa: F401 -- collection-order guard, see WP1 Task 6 / WP2 Tasks 3/5/7/9
+from promptwise.handlers.incidents import _handle_run_playbook
+
+_PCTX = typing.cast(ServerContext, None)
+
+
+def test_run_playbook_tool_dry_run_default():
+    out = _json.loads(asyncio.run(_handle_run_playbook(_PCTX, {
+        "path": "config/playbooks/prompt_injection_confirmed.yaml"})))
+    assert out["mode"] == "advise"
+    assert all(r["status"] == "would_apply" for r in out["results"])
+
+
+def test_all_four_starter_playbooks_load_and_dry_run():
+    import os
+    for filename in ("prompt_injection_confirmed.yaml", "secret_leak_via_llm.yaml",
+                      "rogue_agent_behavior.yaml", "malicious_mcp_server.yaml"):
+        path = os.path.join("config", "playbooks", filename)
+        assert os.path.exists(path), f"missing starter playbook: {path}"
+        out = _json.loads(asyncio.run(_handle_run_playbook(_PCTX, {"path": path})))
+        assert out["mode"] == "advise"
+        assert len(out["results"]) > 0
+        assert "error" not in out
+
+
+def test_run_playbook_tool_missing_file_returns_error():
+    out = _json.loads(asyncio.run(_handle_run_playbook(_PCTX, {"path": "config/playbooks/does_not_exist.yaml"})))
+    assert "error" in out

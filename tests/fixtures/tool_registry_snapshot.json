@@ -3068,5 +3068,30 @@
         "correlation_key"
       ]
     }
+  },
+  {
+    "name": "run_playbook",
+    "description": "Load and run a YAML incident-response playbook (dry-run by default -- 'advise' mode, which reports what WOULD happen and changes nothing). Set mode='apply' (or the PROMPTWISE_AUTONOMY=apply env var) to actually execute steps -- same autonomy-gating posture as run_governor. Starter playbooks ship under config/playbooks/.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "path to a playbook YAML file, e.g. config/playbooks/prompt_injection_confirmed.yaml"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "advise",
+            "dry_run",
+            "apply"
+          ],
+          "description": "overrides PROMPTWISE_AUTONOMY for this call; omit to use the env var (default advise)"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
   }
 ]
