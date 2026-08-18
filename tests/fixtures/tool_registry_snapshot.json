@@ -3048,5 +3048,25 @@
         "factors"
       ]
     }
+  },
+  {
+    "name": "incident_timeline",
+    "description": "Reconstruct a chronological timeline for an incident: its own recorded events (from create_incident/update_incident/close_incident) merged with matching hash-chained audit records (filtered by correlation_key, a substring matched against each audit record's task/rules_applied/compliance_decision). This is the forensic payoff of the tamper-evident audit design -- the timeline can't have been quietly edited after the fact.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "incident_id": {
+          "type": "integer"
+        },
+        "correlation_key": {
+          "type": "string",
+          "description": "substring to match against the audit trail, e.g. an actor name or a rules_applied entry"
+        }
+      },
+      "required": [
+        "incident_id",
+        "correlation_key"
+      ]
+    }
   }
 ]

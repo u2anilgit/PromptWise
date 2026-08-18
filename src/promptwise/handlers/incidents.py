@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 
-from promptwise.core.tool_registry import ServerContext, tool
+from promptwise.core.tool_registry import ServerContext, tool, _get_audit_log
 
 
 @tool(name="create_incident", description="Open a new incident (status starts 'open'). Optional metadata dict can link back to a triggering source, e.g. a WP2 anomaly finding.",
@@ -86,3 +86,26 @@ async def _handle_score_incident(ctx: ServerContext, arguments: dict) -> str:
     out = inc.to_dict()
     out["aivss_breakdown"] = result.breakdown
     return json.dumps(out)
+
+
+@tool(name="incident_timeline", description="Reconstruct a chronological timeline for an incident: its own recorded events (from create_incident/update_incident/close_incident) merged with matching hash-chained audit records (filtered by correlation_key, a substring matched against each audit record's task/rules_applied/compliance_decision). This is the forensic payoff of the tamper-evident audit design -- the timeline can't have been quietly edited after the fact.",
+         schema={"type": "object", "properties": {
+             "incident_id": {"type": "integer"},
+             "correlation_key": {"type": "string", "description": "substring to match against the audit trail, e.g. an actor name or a rules_applied entry"}},
+         "required": ["incident_id", "correlation_key"]})
+async def _handle_incident_timeline(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.incidents import IncidentStore
+    incident_id = int(arguments.get("incident_id", -1))
+    inc = IncidentStore().get(incident_id)
+    if inc is None:
+        return json.dumps({"error": f"no incident with id {incident_id}", "type": "UnknownIncident"})
+
+    events = IncidentStore().list_events(incident_id)
+    timeline = [{"source": "incident_event", "ts": e.ts, **e.to_dict()} for e in events]
+
+    audit_records = _get_audit_log().query(contains=arguments.get("correlation_key", ""))
+    for rec in audit_records:
+        timeline.append({"source": "audit", "ts": rec.get("timestamp", ""), **rec})
+
+    timeline.sort(key=lambda e: e.get("ts", ""))
+    return json.dumps({"incident_id": incident_id, "timeline": timeline})
