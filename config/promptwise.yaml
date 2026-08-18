@@ -290,8 +290,8 @@ memory:
 # Audit retention (WP1)
 # ============================================================================
 audit:
-  retention_days: 0        # 0 = never compact (default, unbounded audit log)
-  capture_prompts: false   # opt-in full prompt/response capture, PII-redacted before persist
+  retention_days: 0        # reserved -- not yet auto-scheduled; use the compact_audit tool's own retention_days argument for now
+  capture_prompts: false   # reserved -- not yet wired to a caller; AuditLog.append(capture_prompts=...) is the actual per-call switch today
 
 # ============================================================================
 # Model Routing Strategy
