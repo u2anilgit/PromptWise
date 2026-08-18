@@ -16,14 +16,20 @@ except Exception:  # pragma: no cover
     yaml = None  # type: ignore
 
 
+_ENFORCEMENT_MODES = ("advisory", "escalate", "block")
+_ENFORCEMENT_RANK = {"advisory": 0, "escalate": 1, "block": 2}
+
+
 @dataclass
 class PolicyDecision:
     allowed: bool
     violations: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    enforcement: str = "advisory"
 
     def to_dict(self) -> dict:
-        return {"allowed": self.allowed, "violations": list(self.violations), "warnings": list(self.warnings)}
+        return {"allowed": self.allowed, "violations": list(self.violations),
+                "warnings": list(self.warnings), "enforcement": self.enforcement}
 
 
 def _merge_tighten(parent: "Policy", child: "Policy") -> "Policy":
@@ -58,11 +64,15 @@ def _merge_tighten(parent: "Policy", child: "Policy") -> "Policy":
     banned = sorted(set(parent.banned_operations) | set(child.banned_operations))
     gates = sorted(set(parent.required_gates) | set(child.required_gates))
 
+    merged_enforcement = max(
+        (parent.enforcement, child.enforcement), key=lambda m: _ENFORCEMENT_RANK[m])
+
     return Policy(
         budget_cap_usd=budget_cap,
         allowed_model_tiers=allowed,
         banned_operations=banned,
         required_gates=gates,
+        enforcement=merged_enforcement,
         raw={"parent": parent.raw, "child": child.raw},
     )
 
@@ -73,17 +83,23 @@ class Policy:
     allowed_model_tiers: list[str] = field(default_factory=list)   # empty = allow all
     banned_operations: list[str] = field(default_factory=list)
     required_gates: list[str] = field(default_factory=list)         # e.g. ["quality", "compliance"]
+    enforcement: str = "advisory"
     raw: dict = field(default_factory=dict)
 
     # ---- loaders ----
     @classmethod
     def from_dict(cls, d: dict | None) -> "Policy":
         d = d or {}
+        enforcement = str(d.get("enforcement", "advisory")).lower()
+        if enforcement not in _ENFORCEMENT_MODES:
+            raise ValueError(
+                f"policy enforcement mode '{enforcement}' not one of {_ENFORCEMENT_MODES}")
         return cls(
             budget_cap_usd=d.get("budget_cap_usd"),
             allowed_model_tiers=[str(t).lower() for t in d.get("allowed_model_tiers", []) or []],
             banned_operations=[str(o).lower() for o in d.get("banned_operations", []) or []],
             required_gates=[str(g).lower() for g in d.get("required_gates", []) or []],
+            enforcement=enforcement,
             raw=d,
         )
 
@@ -158,4 +174,5 @@ class Policy:
             if missing:
                 violations.append(f"required gate(s) not passed: {missing}")
 
-        return PolicyDecision(allowed=not violations, violations=violations, warnings=warnings)
+        return PolicyDecision(allowed=not violations, violations=violations, warnings=warnings,
+                              enforcement=self.enforcement)
