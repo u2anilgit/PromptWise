@@ -42,6 +42,29 @@ def test_implanted_recon_sequence_scores_high():
     assert total > 70
 
 
+def test_off_distribution_volume_zero_mad_does_not_leak_infinity():
+    """Regression: a zero-MAD baseline (thin/low-variance actor, the normal
+    case) previously produced float('inf') in evidence['mad_deviation'],
+    which json.dumps renders as bare `Infinity` -- not valid strict JSON,
+    and would be rejected by the SIEM file-drop's downstream parsers."""
+    import json
+    baseline = BehaviorStats(
+        actor="alice", window_days=30,
+        prompt_length_median=100.0, prompt_length_mad=0.0,
+        tool_bigram_freq={}, model_tier_mix={}, hourly_histogram={}, distinct_files_touched=0)
+    window = BehaviorStats(
+        actor="alice", window_days=1,
+        prompt_length_median=105.0, prompt_length_mad=10.0,
+        tool_bigram_freq={}, model_tier_mix={}, hourly_histogram={}, distinct_files_touched=0)
+    findings = detect_anomalies("alice", window=window, baseline=baseline)
+    off_dist = [f for f in findings if f.category == "off_distribution_volume"]
+    assert off_dist
+    f = off_dist[0]
+    assert f.evidence["mad_deviation"] is None
+    encoded = json.dumps(f.to_dict())
+    assert "Infinity" not in encoded
+
+
 def test_off_distribution_volume_flagged_by_mad_threshold():
     baseline = _baseline()
     window = BehaviorStats(

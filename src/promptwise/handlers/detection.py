@@ -9,7 +9,7 @@ import json
 from promptwise.core.tool_registry import ServerContext, tool, _get_audit_log
 
 
-@tool(name="baseline_behavior", description="Build and persist a per-actor statistical behavior baseline (prompt-length median/MAD, tool-call bigram frequencies, model-tier mix, hourly activity histogram, distinct files touched) from telemetry already collected in cost_logs and the audit trail. Pure stdlib stats, no ML.",
+@tool(name="baseline_behavior", description="Build and persist a per-actor statistical behavior baseline (prompt-length median/MAD, tool-call bigram frequencies, model-tier mix, hourly activity histogram, distinct files touched) from telemetry already collected in cost_logs and the audit trail. Pure stdlib stats, no ML. Caveat: when cost_logs/audit_records are omitted (live-fetch path), only distinct_files_touched is genuinely actor-scoped -- cost_logs rows carry no actor field, so the other four metrics reflect ALL actors' cost_logs within the window, not just the named actor.",
          schema={"type": "object", "properties": {
              "actor": {"type": "string"}, "window_days": {"type": "integer", "default": 30},
              "cost_logs": {"type": "array", "items": {"type": "object"}, "description": "optional pre-fetched cost_logs rows; omit to fetch live"},

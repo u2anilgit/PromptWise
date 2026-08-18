@@ -119,11 +119,24 @@ def compute_baseline(
     """Build a BehaviorStats snapshot for `actor` from already-collected
     telemetry. Pass `cost_logs`/`audit_records` explicitly for testability;
     when omitted, this fetches them itself (cost_logs via
-    MemoryManager.raw_cost_logs, audit_records via a fresh AuditLog().query())."""
+    MemoryManager.raw_cost_logs bounded to the last `window_days` days,
+    audit_records via a fresh AuditLog().query()).
+
+    Actor-scoping caveat: only `distinct_files_touched` is genuinely
+    actor-scoped on the live-fetch path (it is filtered from audit_records
+    by `actor` below). cost_logs rows carry no actor field at all, so when
+    `cost_logs` is omitted, the other four metrics -- prompt-length
+    median/MAD, tool-bigram frequencies, model-tier mix, and the hourly
+    histogram -- reflect ALL actors' cost_logs within the window, not just
+    the named actor. This is an inherited plan gap (cost_logs has no
+    actor-level scoping mechanism yet); fixing it would require a schema
+    change out of scope here."""
     if cost_logs is None:
         import asyncio
+        import time
         from promptwise.db.models import MemoryManager, get_db_path
-        cost_logs = asyncio.run(MemoryManager(str(get_db_path())).raw_cost_logs())
+        since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - window_days * 86400))
+        cost_logs = asyncio.run(MemoryManager(str(get_db_path())).raw_cost_logs(since=since))
     if audit_records is None:
         from promptwise.core.audit_log import AuditLog
         audit_records = AuditLog().query()

@@ -111,6 +111,43 @@ def test_compute_baseline_live_fetch_path(monkeypatch):
     assert stats.distinct_files_touched == 1
 
 
+def test_compute_baseline_live_fetch_applies_window_days(monkeypatch):
+    """Regression: window_days must actually bound the live-fetch query --
+    previously raw_cost_logs() was called with no `since` at all, so a
+    'recent 1-day window' and a '30-day baseline' were byte-identical."""
+    import calendar
+    import time as _time
+
+    captured = {}
+
+    class _FakeMemoryManager:
+        def __init__(self, db_url):
+            self.db_url = db_url
+
+        async def raw_cost_logs(self, since=None, project_id=None):
+            captured["since"] = since
+            return []
+
+    class _FakeAuditLog:
+        def query(self, **kwargs):
+            return []
+
+    monkeypatch.setattr("promptwise.db.models.MemoryManager", _FakeMemoryManager)
+    monkeypatch.setattr("promptwise.core.audit_log.AuditLog", _FakeAuditLog)
+
+    before = _time.time()
+    compute_baseline("alice", window_days=7)
+    after = _time.time()
+
+    since = captured["since"]
+    assert since is not None
+    assert since.endswith("Z") and "T" in since  # "%Y-%m-%dT%H:%M:%SZ"
+    since_epoch = calendar.timegm(_time.strptime(since, "%Y-%m-%dT%H:%M:%SZ"))
+    expected_epoch = before - 7 * 86400
+    # allow a small window for test execution time / clock skew
+    assert abs(since_epoch - expected_epoch) < 5
+
+
 def test_baseline_store_list_all_filters_by_actor(tmp_path):
     store = BaselineStore(tmp_path / "baselines.db")
     store.save("alice", "behavior", 30, {}, computed_at="2026-08-18T00:00:00Z")

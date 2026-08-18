@@ -15,6 +15,7 @@ strings that could otherwise resemble scanner trigger content.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
 
 from promptwise.core.aivss import score as aivss_score
@@ -62,12 +63,20 @@ def detect_anomalies(
     # off-distribution volume/tempo: prompt-length median deviates >mad_threshold MADs
     dev = _mad_deviation(window.prompt_length_median, baseline.prompt_length_median, baseline.prompt_length_mad)
     if dev > mad_threshold:
+        dev_finite = math.isfinite(dev)
+        dev_for_score = dev if dev_finite else 100.0  # cap the scoring input; json-safe evidence handled separately below
+        if dev_finite:
+            detail = f"prompt-length median {window.prompt_length_median:.1f} is {dev:.1f} MADs from baseline {baseline.prompt_length_median:.1f}"
+        else:
+            detail = (f"prompt-length median {window.prompt_length_median:.1f} deviates infinitely "
+                      f"from a zero-MAD baseline {baseline.prompt_length_median:.1f}")
         findings.append(AnomalyFinding(
             actor=actor, category="off_distribution_volume",
-            detail=f"prompt-length median {window.prompt_length_median:.1f} is {dev:.1f} MADs from baseline {baseline.prompt_length_median:.1f}",
-            threat_score=aivss_score({"autonomy": min(100.0, dev * 20), "tool_access": 20.0}).total,
-            aivss_breakdown=aivss_score({"autonomy": min(100.0, dev * 20), "tool_access": 20.0}).breakdown,
-            evidence={"window_median": window.prompt_length_median, "baseline_median": baseline.prompt_length_median, "mad_deviation": dev}))
+            detail=detail,
+            threat_score=aivss_score({"autonomy": min(100.0, dev_for_score * 20), "tool_access": 20.0}).total,
+            aivss_breakdown=aivss_score({"autonomy": min(100.0, dev_for_score * 20), "tool_access": 20.0}).breakdown,
+            evidence={"window_median": window.prompt_length_median, "baseline_median": baseline.prompt_length_median,
+                      "mad_deviation": dev if dev_finite else None}))
 
     # never-seen-before tool bigrams, weighted higher if on the suspicious seed list
     novel = set(window.tool_bigram_freq) - set(baseline.tool_bigram_freq)
