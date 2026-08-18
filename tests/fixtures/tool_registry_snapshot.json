@@ -3070,6 +3070,26 @@
     }
   },
   {
+    "name": "export_incident_bundle",
+    "description": "Export a signed (Ed25519) forensic bundle for an incident: the incident record, its events, correlated audit-trail records, and three regulatory-regime sections (NIS2 24h early-warning, GDPR 72h Art.33, EU AI Act Art.73 serious-incident fields) populated only from data the incident genuinely carries -- unavailable fields are omitted, never guessed. Reuses the exact Ed25519 sign+zip pipeline compliance bundles already use.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "incident_id": {
+          "type": "integer"
+        },
+        "correlation_key": {
+          "type": "string",
+          "description": "substring to match against the audit trail for this incident"
+        }
+      },
+      "required": [
+        "incident_id",
+        "correlation_key"
+      ]
+    }
+  },
+  {
     "name": "run_playbook",
     "description": "Load and run a YAML incident-response playbook (dry-run by default -- 'advise' mode, which reports what WOULD happen and changes nothing). Set mode='apply' (or the PROMPTWISE_AUTONOMY=apply env var) to actually execute steps -- same autonomy-gating posture as run_governor. Starter playbooks ship under config/playbooks/.",
     "inputSchema": {

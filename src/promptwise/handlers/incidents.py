@@ -111,6 +111,74 @@ async def _handle_incident_timeline(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps({"incident_id": incident_id, "timeline": timeline})
 
 
+def _regulatory_sections(inc, events: list) -> dict:
+    """Build the NIS2/GDPR/EU AI Act sections for an incident bundle manifest.
+
+    Anti-fabrication discipline (matches security/framework_map.py:9-16):
+    a field is populated ONLY when the incident record genuinely carries
+    the underlying data. A field with no evidenced source is OMITTED from
+    the dict entirely -- never filled with None/"unknown"/a guessed value.
+    This is the same discipline core/sbom.py's AI-BOM emitter and
+    security/framework_map.py's OWASP/NIST/MITRE category mapping already
+    established in this codebase; this plan (docs/superpowers/plans/
+    2026-08-18-wp3-incident-response.md) is the source for these three
+    incident-specific field mappings, since they aren't external framework
+    category lookups the way framework_map.py's are.
+    """
+    nis2: dict = {}
+    gdpr: dict = {}
+    eu_ai_act: dict = {}
+
+    if inc.created_at:
+        nis2["detected_at"] = inc.created_at
+        gdpr["detected_at"] = inc.created_at
+        eu_ai_act["detected_at"] = inc.created_at
+    if inc.severity and inc.severity != "unknown":
+        nis2["severity"] = inc.severity
+        eu_ai_act["severity"] = inc.severity
+    if inc.aivss_score is not None:
+        eu_ai_act["aivss_score"] = inc.aivss_score
+    if inc.title:
+        nis2["incident_title"] = inc.title
+        gdpr["incident_title"] = inc.title
+        eu_ai_act["incident_title"] = inc.title
+    contained_events = [e for e in events if e.event_type == "status_change" and "contained" in e.detail]
+    if contained_events:
+        nis2["contained_at"] = contained_events[0].ts
+    resolved_events = [e for e in events if e.event_type == "status_change" and "resolved" in e.detail]
+    if resolved_events:
+        gdpr["resolved_at"] = resolved_events[0].ts
+
+    return {"nis2": nis2, "gdpr": gdpr, "eu_ai_act": eu_ai_act}
+
+
+@tool(name="export_incident_bundle", description="Export a signed (Ed25519) forensic bundle for an incident: the incident record, its events, correlated audit-trail records, and three regulatory-regime sections (NIS2 24h early-warning, GDPR 72h Art.33, EU AI Act Art.73 serious-incident fields) populated only from data the incident genuinely carries -- unavailable fields are omitted, never guessed. Reuses the exact Ed25519 sign+zip pipeline compliance bundles already use.",
+         schema={"type": "object", "properties": {
+             "incident_id": {"type": "integer"},
+             "correlation_key": {"type": "string", "description": "substring to match against the audit trail for this incident"}},
+         "required": ["incident_id", "correlation_key"]})
+async def _handle_export_incident_bundle(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.compliance_export import build_bundle, sign_bundle_ed25519
+    from promptwise.core.incidents import IncidentStore
+
+    incident_id = int(arguments.get("incident_id", -1))
+    store = IncidentStore()
+    inc = store.get(incident_id)
+    if inc is None:
+        return json.dumps({"error": f"no incident with id {incident_id}", "type": "UnknownIncident"})
+
+    events = store.list_events(incident_id)
+    audit_records = _get_audit_log().query(contains=arguments.get("correlation_key", ""))
+
+    bundle = build_bundle(audit_records)
+    bundle["manifest"].update(_regulatory_sections(inc, events))
+    bundle["manifest"]["incident"] = inc.to_dict()
+    bundle["manifest"]["incident_events"] = [e.to_dict() for e in events]
+
+    signed = sign_bundle_ed25519(bundle)
+    return json.dumps(signed)
+
+
 @tool(name="run_playbook", description="Load and run a YAML incident-response playbook (dry-run by default -- 'advise' mode, which reports what WOULD happen and changes nothing). Set mode='apply' (or the PROMPTWISE_AUTONOMY=apply env var) to actually execute steps -- same autonomy-gating posture as run_governor. Starter playbooks ship under config/playbooks/.",
          schema={"type": "object", "properties": {
              "path": {"type": "string", "description": "path to a playbook YAML file, e.g. config/playbooks/prompt_injection_confirmed.yaml"},
