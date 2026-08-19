@@ -42,7 +42,8 @@ def _maybe_alert_security(result) -> None:
 
 
 @tool(name="security_check", description="Run security check (secrets, injection, PII, destructive, permissions). Supply-chain OSV.dev lookups are off by default (air-gap safe); set allow_network=true to opt in.",
-         schema={"type": "object", "properties": {"text": {"type": "string"}, "allow_network": {"type": "boolean", "default": False}}, "required": ["text"]})
+         schema={"type": "object", "properties": {"text": {"type": "string"}, "allow_network": {"type": "boolean", "default": False}}, "required": ["text"]},
+         domain="security")
 async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.security.check(arguments.get("text", ""), allow_network=bool(arguments.get("allow_network", False)))
     _maybe_alert_security(r)
@@ -50,7 +51,8 @@ async def _handle_security_check(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="prompt_injection", description="Scan user input for prompt injection or jailbreak attempts",
-         schema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]})
+         schema={"type": "object", "properties": {"text": {"type": "string"}, "threshold": {"type": "number", "default": 0.7}}, "required": ["text"]},
+         domain="security")
 async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
     text = arguments.get("text", "")
     threshold = float(arguments.get("threshold", 0.7))
@@ -60,7 +62,8 @@ async def _handle_prompt_injection(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="owasp_scan", description="Scan code for OWASP Top-10 vulnerabilities",
-         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}}, "required": ["code"]})
+         schema={"type": "object", "properties": {"code": {"type": "string"}, "language": {"type": "string", "default": "python"}}, "required": ["code"]},
+         domain="security")
 async def _handle_owasp_scan(ctx: ServerContext, arguments: dict) -> str:
     vulns = ctx.security.check_owasp(arguments.get("code", ""))
     weights = {"critical": 3, "high": 2, "medium": 1}
@@ -93,7 +96,8 @@ async def _handle_validate_dependencies(ctx: ServerContext, arguments: dict) -> 
 
 
 @tool(name="scan_response", description="Scan a model response for PII leaks, injection echoes, canary leaks, and responsible-AI signals (factual grounding vs. provided sources, bias/fairness, ethical disclosure). Pass a canary token (issued via the indirect-injection canary) to flag if content that flowed through tool output/RAG leaks back into the response. Advisory.",
-         schema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}, "canary": {"type": "string", "default": "", "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here"}}, "required": ["response"]})
+         schema={"type": "object", "properties": {"response": {"type": "string"}, "original_prompt": {"type": "string", "default": ""}, "sources": {"type": "string", "default": "", "description": "Source/context text the response should be grounded in; enables grounding checks"}, "canary": {"type": "string", "default": "", "description": "Canary token placed in tool-output/RAG content; flags a leak if it reappears here"}}, "required": ["response"]},
+         domain="security")
 async def _handle_scan_response(ctx: ServerContext, arguments: dict) -> str:
     response = arguments.get("response", "")
     original = arguments.get("original_prompt", "")

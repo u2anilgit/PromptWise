@@ -26,7 +26,8 @@ async def _handle_tune_permissions(ctx: ServerContext, arguments: dict) -> str:
          schema={"type": "object", "properties": {
              "repo_root": {"type": "string", "default": "."},
              "extra_configs": {"type": "array", "items": {"type": "string"}},
-             "previous_snapshot_path": {"type": "string", "description": "Optional path to a prior audit_mcp_servers() snapshot to diff against for tool-poisoning detection; the new result is written back to this path."}}})
+             "previous_snapshot_path": {"type": "string", "description": "Optional path to a prior audit_mcp_servers() snapshot to diff against for tool-poisoning detection; the new result is written back to this path."}}},
+         domain="security")
 async def _handle_audit_mcp_servers(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.mcp_auditor import audit_mcp_servers
     return json.dumps(audit_mcp_servers(
