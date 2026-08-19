@@ -22,15 +22,17 @@ async def _handle_tune_permissions(ctx: ServerContext, arguments: dict) -> str:
         mcp_json=arguments.get("mcp_json")))
 
 
-@tool(name="audit_mcp_servers", description="Audit declared MCP servers (.mcp.json + plugin.json) for security flags, allow-surface, and redundancy. Offline; inspects config, does not call servers.",
+@tool(name="audit_mcp_servers", description="Audit declared MCP servers (.mcp.json + plugin.json) for security flags, allow-surface, and redundancy. Offline; inspects config, does not call servers. Pass previous_snapshot_path to also diff against the prior scan and flag scan-to-scan tool-poisoning (MCP03 rug-pull) changes to a server's declared command/args; the current result is persisted to that path for the next scan.",
          schema={"type": "object", "properties": {
              "repo_root": {"type": "string", "default": "."},
-             "extra_configs": {"type": "array", "items": {"type": "string"}}}})
+             "extra_configs": {"type": "array", "items": {"type": "string"}},
+             "previous_snapshot_path": {"type": "string", "description": "Optional path to a prior audit_mcp_servers() snapshot to diff against for tool-poisoning detection; the new result is written back to this path."}}})
 async def _handle_audit_mcp_servers(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.mcp_auditor import audit_mcp_servers
     return json.dumps(audit_mcp_servers(
         repo_root=arguments.get("repo_root", "."),
-        extra_configs=arguments.get("extra_configs")))
+        extra_configs=arguments.get("extra_configs"),
+        previous_snapshot_path=arguments.get("previous_snapshot_path")))
 
 
 @tool(name="search_trace", description="Search the trace (hash-chained audit trail + learnings) by meaning. Keyword/FTS by default; optional local embeddings if installed and enabled. Offline.",
