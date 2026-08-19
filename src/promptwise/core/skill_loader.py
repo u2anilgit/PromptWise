@@ -3,10 +3,28 @@ import os
 import re
 import yaml
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from promptwise.core.text_match import contains_keyword
 from promptwise.types import Skill
+
+# A single short trigger word (e.g. "research", len 8) can score just from
+# one collision; below this floor a match is too weak to report as a
+# confident suggestion. Tuned to sit above the single-generic-word case
+# reproduced in the 2026-08-19 gap audit (agile-analyst's "research").
+MIN_MATCH_SCORE = 10
+
+# Any other skill scoring within this fraction of the top score is reported
+# as a contender instead of being silently discarded by scan order.
+NEAR_TIE_RATIO = 0.85
+
+
+@dataclass
+class SkillMatch:
+    best: "Skill"
+    score: int
+    contenders: list["Skill"]
 
 
 class SkillLoader:
@@ -49,15 +67,25 @@ class SkillLoader:
     def get_skill(self, name: str) -> Skill | None:
         return self.skills.get(name)
 
-    def match_skill(self, text: str, role: str = "") -> Skill | None:
+    def match_skill(self, text: str, role: str = "") -> SkillMatch | None:
         text_lower = text.lower()
-        best = None
-        max_score = 0
+        scored: list[tuple[int, Skill]] = []
         for skill in self.skills.values():
             if skill.roles and role and role not in skill.roles:
                 continue
             score = sum(len(t) for t in skill.triggers if contains_keyword(text_lower, t.lower()))
-            if score > max_score:
-                max_score = score
-                best = skill
-        return best if max_score > 0 else None
+            if score > 0:
+                scored.append((score, skill))
+
+        if not scored:
+            return None
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        top_score, best = scored[0]
+        if top_score < MIN_MATCH_SCORE:
+            return None
+
+        contenders = [
+            skill for score, skill in scored[1:]
+            if score >= top_score * NEAR_TIE_RATIO
+        ]
+        return SkillMatch(best=best, score=top_score, contenders=contenders)
