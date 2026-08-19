@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from promptwise.core.skill_loader import SkillLoader, MIN_MATCH_SCORE
+from promptwise.core.skill_loader import SkillLoader
 
 
 def _write_skill(dir_: Path, name: str, triggers: list[str], desc: str = "test") -> None:
@@ -11,12 +11,30 @@ def _write_skill(dir_: Path, name: str, triggers: list[str], desc: str = "test")
     )
 
 
-def test_below_floor_score_returns_none(tmp_path):
-    _write_skill(tmp_path, "a", ["xy"])  # score 2, below any sane floor
+def test_collision_only_match_returns_none(tmp_path):
+    # Both skills share the single-word trigger "research" -- neither skill
+    # has any unique trigger backing this particular match, so it's the
+    # "research" -> agile-analyst gap-audit bug case: too weak to report.
+    _write_skill(tmp_path, "a", ["research"])
+    _write_skill(tmp_path, "b", ["research"])
     loader = SkillLoader(tmp_path)
     loader.load_skills()
 
-    assert loader.match_skill("please look at xy today") is None
+    assert loader.match_skill("please do some research today") is None
+
+
+def test_short_unique_trigger_is_confident(tmp_path):
+    # A short trigger (6 chars) that is NOT shared with any other skill
+    # should match confidently -- specificity, not raw length, is the
+    # confidence signal.
+    _write_skill(tmp_path, "deslop", ["deslop"])
+    loader = SkillLoader(tmp_path)
+    loader.load_skills()
+
+    match = loader.match_skill("please deslop this text")
+
+    assert match is not None
+    assert match.best.name == "deslop"
 
 
 def test_clear_winner_has_no_contenders(tmp_path):

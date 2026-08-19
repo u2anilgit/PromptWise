@@ -164,7 +164,7 @@ def audit_mcp_servers(repo_root: str | Path = ".",
         "total_always_allow": sum(s["always_allow_count"] for s in servers),
     }
 
-    if previous_snapshot_path is not None:
+    if previous_snapshot_path:
         snap_path = Path(previous_snapshot_path)
         tool_poisoning_flags = []
         if snap_path.exists():
@@ -176,6 +176,10 @@ def audit_mcp_servers(repo_root: str | Path = ".",
             except Exception:
                 pass
         result["tool_poisoning_flags"] = tool_poisoning_flags
-        snap_path.write_text(json.dumps(result), encoding="utf-8")
+        try:
+            snap_path.parent.mkdir(parents=True, exist_ok=True)
+            snap_path.write_text(json.dumps(result), encoding="utf-8")
+        except OSError:
+            pass
 
     return result
