@@ -1,5 +1,17 @@
+import sys
 import textwrap
 from pathlib import Path
+
+# repo_root/scripts is not a package the src-layout conftest.py puts on
+# sys.path (that conftest only prepends <worktree>/src, for `promptwise`
+# itself) -- under the full suite's collection order this makes
+# `scripts.lint_skill_triggers` unimportable even though it resolves fine
+# when this file is run standalone, the same class of ambient-sys.path
+# fragility conftest.py's own docstring warns about for worktrees. Insert
+# the repo root explicitly rather than depend on incidental cwd insertion.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.lint_skill_triggers import find_collisions
 

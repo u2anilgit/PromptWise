@@ -741,7 +741,7 @@
         },
         "tasks": {
           "type": "array",
-          "description": "Structured tasks [{id, depends_on:[ids], file}] \u2014 when present, returns a wave plan instead of executing",
+          "description": "Structured tasks [{id, depends_on:[ids], file}] — when present, returns a wave plan instead of executing",
           "items": {
             "type": "object",
             "properties": {
@@ -2059,7 +2059,7 @@
   },
   {
     "name": "propose_agent_config",
-    "description": "Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing \u2014 the review step before apply",
+    "description": "Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing — the review step before apply",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2155,7 +2155,7 @@
   },
   {
     "name": "check_portability",
-    "description": "Cross-host portability check (Phase 7 \u00a77.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, aider, goose, openhands, grok) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
+    "description": "Cross-host portability check (Phase 7 §7.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, aider, goose, openhands, grok) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2325,7 +2325,7 @@
   },
   {
     "name": "tune_permissions",
-    "description": "Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only \u2014 never edits config.",
+    "description": "Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2348,7 +2348,7 @@
   },
   {
     "name": "audit_mcp_servers",
-    "description": "Audit declared MCP servers (.mcp.json + plugin.json) for security flags, allow-surface, and redundancy. Offline; inspects config, does not call servers.",
+    "description": "Audit declared MCP servers (.mcp.json + plugin.json) for security flags, allow-surface, and redundancy. Offline; inspects config, does not call servers. Pass previous_snapshot_path to also diff against the prior scan and flag scan-to-scan tool-poisoning (MCP03 rug-pull) changes to a server's declared command/args; the current result is persisted to that path for the next scan.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2361,6 +2361,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "previous_snapshot_path": {
+          "type": "string",
+          "description": "Optional path to a prior audit_mcp_servers() snapshot to diff against for tool-poisoning detection; the new result is written back to this path."
         }
       }
     }
