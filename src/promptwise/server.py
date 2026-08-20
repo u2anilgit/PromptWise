@@ -98,11 +98,6 @@ def _add_handler_module(name: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-# set_feature_flag/get_admin_settings (handlers.admin) -- new admin config
-# category, no pre-split ordering to preserve.
-_add_handler_module("admin")
-
-
 # route_request/rewrite_prompt/optimize_context/compress_prompt/
 # plan_cache/cache_lookup/cache_store/cache_stats/batch_prompts/
 # summarize_thread/compare_providers (handlers.optimization) originally sat
@@ -264,6 +259,14 @@ _add_handler_module("incidents")
 # (handlers.knowledgebase) -- new org knowledgebase category, no pre-split
 # ordering to preserve.
 _add_handler_module("knowledgebase")
+
+
+# set_feature_flag/get_admin_settings (handlers.admin) -- new admin config
+# category, no pre-split ordering to preserve. Appended at the end of the
+# registration block, matching how every other new (no pre-split-ordering)
+# category on this branch and on main (e.g. knowledgebase above, incidents
+# on main) was added, instead of being inserted at the top.
+_add_handler_module("admin")
 
 
 async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:

@@ -1,35 +1,5 @@
 [
   {
-    "name": "set_feature_flag",
-    "description": "Turn an opt-in PromptWise feature on/off, globally or for one project (e.g. name='knowledgebase.enabled'). Project-scoped flags override the global default only when that project_id is passed by the caller checking the flag.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "project": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "enabled"
-      ]
-    }
-  },
-  {
-    "name": "get_admin_settings",
-    "description": "Read the full admin config: feature flags (global + per-project), knowledgebase settings. Budget limits live in BudgetGuardian/set_budget_limit, not here.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    }
-  },
-  {
     "name": "route_request",
     "description": "Route request to appropriate model tier based on intent, stakes, and budget",
     "inputSchema": {
@@ -771,7 +741,7 @@
         },
         "tasks": {
           "type": "array",
-          "description": "Structured tasks [{id, depends_on:[ids], file}] \u2014 when present, returns a wave plan instead of executing",
+          "description": "Structured tasks [{id, depends_on:[ids], file}] — when present, returns a wave plan instead of executing",
           "items": {
             "type": "object",
             "properties": {
@@ -2093,7 +2063,7 @@
   },
   {
     "name": "propose_agent_config",
-    "description": "Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing \u2014 the review step before apply",
+    "description": "Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing — the review step before apply",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2189,7 +2159,7 @@
   },
   {
     "name": "check_portability",
-    "description": "Cross-host portability check (Phase 7 \u00a77.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, aider, goose, openhands, grok) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
+    "description": "Cross-host portability check (Phase 7 §7.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, aider, goose, openhands, grok) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2359,7 +2329,7 @@
   },
   {
     "name": "tune_permissions",
-    "description": "Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only \u2014 never edits config.",
+    "description": "Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3239,6 +3209,36 @@
         "entry_id",
         "accepted"
       ]
+    }
+  },
+  {
+    "name": "set_feature_flag",
+    "description": "Turn an opt-in PromptWise feature on/off, globally or for one project (e.g. name='knowledgebase.enabled'). Project-scoped flags override the global default only when that project_id is passed by the caller checking the flag.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "enabled"
+      ]
+    }
+  },
+  {
+    "name": "get_admin_settings",
+    "description": "Read the full admin config: feature flags (global + per-project), knowledgebase settings. Budget limits live in BudgetGuardian/set_budget_limit, not here.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
     }
   }
 ]

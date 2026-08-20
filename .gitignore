@@ -18,6 +18,10 @@ promptwise_audit.jsonl
 .promptwise/
 # local governance policy (copy from policy.example.yaml)
 config/policy.yaml
+# local admin config (feature flags/budget/KB settings, copy from
+# admin.example.yaml) -- runtime-written by set_feature_flag, same
+# tracked-example/gitignored-real convention as policy.yaml above
+config/admin.yaml
 
 # ── Source bundle drop (not part of the package) ─────────────────────────
 files/
