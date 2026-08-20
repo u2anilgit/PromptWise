@@ -1,4 +1,21 @@
+import os
+from pathlib import Path
+
+from promptwise.core import admin_config
 from promptwise.core.admin_config import load_admin_config, set_feature_flag, get_admin_settings
+
+
+def test_default_path_is_package_root_relative_not_cwd(tmp_path, monkeypatch):
+    """_DEFAULT_PATH must resolve from the package root (like doctor.py/
+    hook_bridge.py/model_registry.py/effort_map.py), never from the process's
+    current working directory -- finding #1."""
+    expected = Path(admin_config.__file__).resolve().parents[3] / "config" / "admin.yaml"
+    assert admin_config._DEFAULT_PATH == expected
+
+    monkeypatch.chdir(tmp_path)
+    # Re-resolving from a fresh cwd must not change the module-level constant.
+    assert admin_config._DEFAULT_PATH == expected
+    assert admin_config._DEFAULT_PATH != Path("config") / "admin.yaml"
 
 
 def test_missing_config_file_returns_defaults(tmp_path):

@@ -5,29 +5,15 @@ requires a named reviewer."""
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from promptwise.core.tool_registry import ServerContext, tool
-
-
-def _store_path() -> Path:
-    """Overridden in tests via monkeypatch. Reads the shared/team path from
-    config/admin.yaml when set (Task 6); falls back to the FileBackend
-    default (~/.promptwise/knowledgebase.json) otherwise."""
-    try:
-        from promptwise.core.admin_config import get_admin_settings
-        configured = get_admin_settings().get("knowledgebase", {}).get("store_path")
-        if configured:
-            return Path(configured)
-    except Exception:
-        pass
-    from promptwise.core.knowledgebase import _DEFAULT_STORE_PATH
-    return _DEFAULT_STORE_PATH
-
-
-def _backend():
-    from promptwise.core.knowledgebase import FileBackend
-    return FileBackend(store_path=_store_path())
+# _backend/_store_path live in core/knowledgebase.py (core must never import
+# from handlers -- handlers depends on core, not the reverse; see finding #6
+# of the 2026-08-20 whole-branch review). Re-exported here so existing
+# callers/tests that reference promptwise.handlers.knowledgebase._backend
+# keep working, but the definition and the dependency direction now live
+# in core.
+from promptwise.core.knowledgebase import _backend, _store_path  # noqa: F401
 
 
 @tool(name="kb_lookup", description="Check the opt-in org knowledgebase for a prior design pattern/architecture/tech-stack decision matching this request, before generating a new one from scratch. Tag match first, embedding similarity fallback. Returns method='none' if nothing matches or the KB is empty.",

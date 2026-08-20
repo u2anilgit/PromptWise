@@ -5,12 +5,47 @@ docs/superpowers/specs/2026-07-22-handlers-package-split-design.md)."""
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from promptwise.core.tool_registry import (
     ServerContext, tool, _record_route_verdict, _record_effort_verdict,
     _record_technique_verdict, _get_audit_log,
 )
+
+# Minimal English stopword list -- just enough to keep filler words out of
+# auto-captured KB tags without pulling in a new dependency. Not meant to be
+# exhaustive; only words that would otherwise show up disproportionately in
+# task-descriptions-as-tags.
+_STOPWORDS = frozenset({
+    "this", "that", "these", "those", "with", "from", "have", "will",
+    "would", "should", "could", "about", "which", "their", "there",
+    "where", "when", "what", "then", "than", "into", "onto", "over",
+    "under", "your", "each", "some", "such", "only", "just", "also",
+    "being", "been", "were", "does", "doing", "done", "make", "made",
+    "using", "used", "need", "needs", "wants", "want", "like", "must",
+})
+
+_WORD_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9_-]*")
+
+
+def _derive_tags(text: str, cap: int = 6) -> list[str]:
+    """Cheap, deterministic tag derivation for auto-captured KB entries (no
+    LLM call, no extra dependency): lowercase whitespace/word-boundary
+    tokens of length >= 4, minus a small stopword list, deduped in
+    first-seen order, capped at `cap`. Gives auto-capture real tags so the
+    default tag-only match path (no `embeddings` extra installed) can
+    actually find these entries later -- see finding #2 of the 2026-08-20
+    whole-branch review."""
+    seen: list[str] = []
+    for raw in _WORD_RE.findall(text or ""):
+        word = raw.lower()
+        if len(word) < 4 or word in _STOPWORDS or word in seen:
+            continue
+        seen.append(word)
+        if len(seen) >= cap:
+            break
+    return seen
 
 
 @tool(name="agile_plan", description="Two-phase, persona-aware agile plan (analyst->pm->[ux]->architect->po, then per-story sm->dev->qa loop) layered on the workflow classifier; carries the compliance gate and model-tier routing",
@@ -25,7 +60,7 @@ async def _handle_agile_plan(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.knowledgebase import kb_precheck
     note = kb_precheck(task, capture={
         "title": task[:80],
-        "tags": [],  # left empty deliberately -- no tag-taxonomy inference in this pass; tag matching still works via embedding fallback, and a human reviewer can add tags on promote in a later enhancement
+        "tags": _derive_tags(task),
         "summary": f"agile_plan output for: {task[:200]}",
     })
     if note is not None:

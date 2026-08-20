@@ -115,6 +115,8 @@ class FileBackend(KnowledgeBackend):
         return None
 
     def update_status(self, entry_id: str, status: str, reviewed_by: str) -> bool:
+        if status not in VALID_STATUSES:
+            raise ValueError(f"status must be one of {VALID_STATUSES}, got {status!r}")
         with self._lock:
             data = self._load()
             entries = data.get("entries", [])
@@ -142,6 +144,26 @@ class FileBackend(KnowledgeBackend):
 
 
 from promptwise.core.text_match import contains_keyword
+
+
+def _store_path() -> Path:
+    """Overridden in tests via monkeypatch. Reads the shared/team path from
+    config/admin.yaml when set (Task 6); falls back to the FileBackend
+    default (~/.promptwise/knowledgebase.json) otherwise. Lives in core, not
+    handlers -- handlers/knowledgebase.py imports this (and _backend below)
+    FROM here, not the other way around, so core never depends on handlers."""
+    try:
+        from promptwise.core.admin_config import get_admin_settings
+        configured = get_admin_settings().get("knowledgebase", {}).get("store_path")
+        if configured:
+            return Path(configured)
+    except Exception:
+        pass
+    return _DEFAULT_STORE_PATH
+
+
+def _backend() -> "FileBackend":
+    return FileBackend(store_path=_store_path())
 
 
 @dataclass
@@ -212,18 +234,28 @@ def match(backend: KnowledgeBackend, text: str, min_tag_hits: int = 1,
     return MatchResult(best=None, score=0.0, method="none")
 
 
-def kb_precheck(text: str, created_by: str = "", capture: dict | None = None) -> dict | None:
+def kb_precheck(text: str, created_by: str = "", capture: dict | None = None,
+                 project: str | None = None) -> dict | None:
     """Fail-open pre-check. On a hit, returns a note dict (see Task 5). On
     a miss, if `capture` is given (derived by the caller from its own
     structured output, no extra LLM call), silently saves a new
     `unreviewed` entry and returns None -- capture is a background side
-    effect, never surfaced back to the caller's own output."""
+    effect, never surfaced back to the caller's own output.
+
+    `project`, when given, checks `project_features[project]` first and
+    falls back to the global `features` flag only when no project-specific
+    override is set (finding #3) -- lets a project opt in/out independently
+    of the org-wide default."""
     try:
         from promptwise.core.admin_config import get_admin_settings
         settings = get_admin_settings()
-        if not settings.get("features", {}).get("knowledgebase.enabled", False):
+        project_flags = settings.get("project_features", {}).get(project, {}) if project else {}
+        if "knowledgebase.enabled" in project_flags:
+            enabled = project_flags["knowledgebase.enabled"]
+        else:
+            enabled = settings.get("features", {}).get("knowledgebase.enabled", False)
+        if not enabled:
             return None
-        from promptwise.handlers.knowledgebase import _backend
         backend = _backend()
         result = match(backend, text)
         if result.best is not None:
@@ -243,4 +275,6 @@ def kb_precheck(text: str, created_by: str = "", capture: dict | None = None) ->
             ))
         return None
     except Exception:
+        import logging
+        logging.getLogger(__name__).debug("kb_precheck failed, skipping", exc_info=True)
         return None

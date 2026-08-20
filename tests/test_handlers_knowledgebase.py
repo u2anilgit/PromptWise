@@ -11,7 +11,7 @@ from promptwise.handlers.knowledgebase import (
 @pytest.fixture
 def kb_path(tmp_path, monkeypatch):
     path = tmp_path / "kb.json"
-    monkeypatch.setattr("promptwise.handlers.knowledgebase._store_path", lambda: path)
+    monkeypatch.setattr("promptwise.core.knowledgebase._store_path", lambda: path)
     return path
 
 

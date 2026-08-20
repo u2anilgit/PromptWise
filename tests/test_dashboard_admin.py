@@ -19,7 +19,7 @@ def _write_credentials(path, role="admin", raw="admin-secret"):
 
 def _admin_app(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.admin_config._DEFAULT_PATH", tmp_path / "admin.yaml")
-    monkeypatch.setattr("promptwise.handlers.knowledgebase._store_path", lambda: tmp_path / "kb.json")
+    monkeypatch.setattr("promptwise.core.knowledgebase._store_path", lambda: tmp_path / "kb.json")
     cred_path = tmp_path / "dashboard_auth.yaml"
     _write_credentials(cred_path, role="admin", raw="admin-secret")
     app = create_web_app(require_auth=True, credentials_path=cred_path)
@@ -41,7 +41,7 @@ def test_admin_settings_requires_admin_role(tmp_path, monkeypatch):
 
 def test_admin_settings_rejects_non_admin_role(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.admin_config._DEFAULT_PATH", tmp_path / "admin.yaml")
-    monkeypatch.setattr("promptwise.handlers.knowledgebase._store_path", lambda: tmp_path / "kb.json")
+    monkeypatch.setattr("promptwise.core.knowledgebase._store_path", lambda: tmp_path / "kb.json")
     cred_path = tmp_path / "dashboard_auth.yaml"
     _write_credentials(cred_path, role="viewer", raw="viewer-secret")
     app = create_web_app(require_auth=True, credentials_path=cred_path)

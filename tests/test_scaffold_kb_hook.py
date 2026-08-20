@@ -21,7 +21,7 @@ def test_kb_enabled_with_trusted_match_adds_note(tmp_path, monkeypatch):
         id="e1", title="cache-aside pattern", tags=["caching layer"], summary="s",
         source_prompt="build a caching layer", artifact_ref="", status="trusted",
         created_by="sess", created_at="2026-08-20T00:00:00Z"))
-    monkeypatch.setattr("promptwise.handlers.knowledgebase._store_path", lambda: kb_path)
+    monkeypatch.setattr("promptwise.core.knowledgebase._store_path", lambda: kb_path)
 
     result = scaffold_mod.scaffold("build a caching layer")
 
