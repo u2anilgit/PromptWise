@@ -80,17 +80,20 @@ async def _handle_predict_cost(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(r)
 
 
-@tool(name="set_budget_limit", description="Set monthly or daily spending limit; optionally switch the guardian between advisory (default) and opt-in hard-blocking enforcement",
+@tool(name="set_budget_limit", description="Set monthly or daily spending limit; optionally switch the guardian between advisory (default) and opt-in hard-blocking enforcement. Pass project to set a per-project limit instead of the global one.",
          schema={"type": "object", "properties": {
              "limit_usd": {"type": "number"}, "period": {"type": "string", "enum": ["daily", "monthly"], "default": "monthly"},
+             "project": {"type": "string", "description": "Set a per-project limit instead of the global one; monitor_budget/budget_report calls with this project_id use it in place of the global limit."},
              "mode": {"type": "string", "enum": ["advise", "block"], "description": "advise (default) never blocks; block hard-stops monitor_budget once spend crosses the limit. Opt-in only."}},
          "required": ["limit_usd"]})
 async def _handle_set_budget_limit(ctx: ServerContext, arguments: dict) -> str:
-    ctx.budget.set_limit(float(arguments.get("limit_usd", 0)), period=arguments.get("period", "monthly"))
+    ctx.budget.set_limit(float(arguments.get("limit_usd", 0)), period=arguments.get("period", "monthly"),
+                          project=arguments.get("project") or None)
     if "mode" in arguments:
         ctx.budget.set_mode(arguments["mode"])
     return json.dumps({"status": "ok", "limit_usd": arguments.get("limit_usd"),
-                       "period": arguments.get("period", "monthly"), "mode": ctx.budget.mode})
+                       "period": arguments.get("period", "monthly"), "project": arguments.get("project"),
+                       "mode": ctx.budget.mode})
 
 
 @tool(name="get_budget_status", description="Check current spend vs configured budget limits",

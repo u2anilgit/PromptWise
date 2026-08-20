@@ -863,7 +863,7 @@
   },
   {
     "name": "set_budget_limit",
-    "description": "Set monthly or daily spending limit; optionally switch the guardian between advisory (default) and opt-in hard-blocking enforcement",
+    "description": "Set monthly or daily spending limit; optionally switch the guardian between advisory (default) and opt-in hard-blocking enforcement. Pass project to set a per-project limit instead of the global one.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -877,6 +877,10 @@
             "monthly"
           ],
           "default": "monthly"
+        },
+        "project": {
+          "type": "string",
+          "description": "Set a per-project limit instead of the global one; monitor_budget/budget_report calls with this project_id use it in place of the global limit."
         },
         "mode": {
           "type": "string",

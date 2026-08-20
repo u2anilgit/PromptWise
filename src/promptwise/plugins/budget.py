@@ -81,6 +81,7 @@ class BudgetGuardian:
         self.limit_usd = limit
         self.team_budget_usd = team_budget_usd
         self._limits: dict[str, float] = {"monthly": limit}
+        self._project_limits: dict[str, float] = {}
         self._current_spend = 0.0
         self._daily_burn = 0.0
         # Advisory-by-default (project identity): hard-blocking is opt-in only,
@@ -102,12 +103,13 @@ class BudgetGuardian:
         (Phase 14 workflow-level cost attribution -- LangSmith attributes both).
         Every existing caller omits ``tool_cost_usd`` and sees identical output:
         the total collapses to ``used_usd`` and ``cost_breakdown`` stays ``None``."""
+        limit = self._project_limits.get(project_id, self.limit_usd) if project_id else self.limit_usd
         total = used_usd + tool_cost_usd
-        pct = round(total / self.limit_usd * 100, 1) if self.limit_usd else 0.0
+        pct = round(total / limit * 100, 1) if limit else 0.0
         daily_burn = round(total / max(days_elapsed, 1), 4)
         projected = round(daily_burn * 30, 4)
 
-        if total >= self.limit_usd:
+        if total >= limit:
             alert = "hard_stop"
         elif pct >= 90:
             alert = "critical"
@@ -118,7 +120,7 @@ class BudgetGuardian:
 
         breakdown = {"llm_usd": round(used_usd, 6), "tool_usd": round(tool_cost_usd, 6)} if tool_cost_usd else None
         blocked = alert == "hard_stop" and self.mode == "block"
-        return BudgetStatus(used_usd=round(total, 4), limit_usd=self.limit_usd, pct_used=pct,
+        return BudgetStatus(used_usd=round(total, 4), limit_usd=limit, pct_used=pct,
                             daily_burn_usd=daily_burn, projected_monthly_usd=projected,
                             alert_level=alert, project_id=project_id, cost_breakdown=breakdown,
                             blocked=blocked)
@@ -161,7 +163,10 @@ class BudgetGuardian:
         return {"estimated_input_tokens": inp, "estimated_output_tokens": out, "estimated_cost_usd": round(cost, 8),
                 "model": model, "recommendation": "haiku" if cost > self.limit_usd * 0.1 else label}
 
-    def set_limit(self, limit_usd: float, period: str = "monthly") -> None:
+    def set_limit(self, limit_usd: float, period: str = "monthly", project: str | None = None) -> None:
+        if project:
+            self._project_limits[project] = limit_usd
+            return
         self._limits[period] = limit_usd
         if period == "monthly":
             self.limit_usd = limit_usd
