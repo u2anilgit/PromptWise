@@ -65,7 +65,8 @@ async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="run_security_suite", description="Run all security checks as a suite",
-         schema={"type": "object", "properties": {"targets": {"type": "array", "items": {"type": "string"}}, "context": {"type": "object"}}})
+         schema={"type": "object", "properties": {"targets": {"type": "array", "items": {"type": "string"}}, "context": {"type": "object"}}},
+         domain="security")
 async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.security_log import SecurityScanStore
     from promptwise.handlers.security import _maybe_alert_security
@@ -126,7 +127,8 @@ async def _handle_run_security_suite(ctx: ServerContext, arguments: dict) -> str
 
 
 @tool(name="run_red_team_harness", description="Run a durable, offline red-team suite against the security scanners: known attack patterns (must be caught) and benign counterexamples (must NOT be flagged) across injection/owasp/secrets/destructive/permissions/pii/supply_chain checks. Diffs against a stored baseline to flag regressions (an attack that used to be caught now escapes, or a benign input starts false-positiving) and exposes a pass/fail gate. Defaults to a built-in corpus when no cases/cases_path given. Set save_baseline=true to bless this run as the new baseline.",
-         schema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "save_baseline": {"type": "boolean", "default": False}}})
+         schema={"type": "object", "properties": {"cases": {"type": "array", "items": {"type": "object"}, "default": []}, "cases_path": {"type": "string", "default": ""}, "suite": {"type": "string", "default": "default"}, "save_baseline": {"type": "boolean", "default": False}}},
+         domain="security")
 async def _handle_run_red_team_harness(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.redteam_harness import (
         RedTeamCase, RedTeamHarness, RedTeamResultStore, builtin_cases, load_cases)

@@ -101,3 +101,75 @@ def test_supply_chain_takes_precedence_over_other_flags(tmp_path):
     result = audit_mcp_servers(repo_root=tmp_path)
     server = result["servers"][0]
     assert server["owasp_mcp_category"] == _CAT_MCP04
+
+
+def test_diff_snapshot_flags_changed_command(tmp_path):
+    from promptwise.core.mcp_auditor import diff_snapshot
+
+    previous = {"servers": [{"name": "svc", "command_signature": "node old.js", "risk_flags": []}]}
+    current = {"servers": [{"name": "svc", "command_signature": "node new.js", "risk_flags": []}]}
+
+    diffs = diff_snapshot(previous, current)
+
+    assert diffs == [{"server": "svc", "field": "command", "change": "changed"}]
+
+
+def test_diff_snapshot_no_flags_when_unchanged(tmp_path):
+    from promptwise.core.mcp_auditor import diff_snapshot
+
+    snap = {"servers": [{"name": "svc", "command_signature": "node old.js", "risk_flags": []}]}
+
+    assert diff_snapshot(snap, snap) == []
+
+
+def test_audit_mcp_servers_writes_and_diffs_against_snapshot(tmp_path):
+    from promptwise.core.mcp_auditor import audit_mcp_servers
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".mcp.json").write_text(json.dumps({
+        "mcpServers": {"svc": {"command": "node", "args": ["old.js"]}}
+    }), encoding="utf-8")
+    snapshot_path = tmp_path / "snapshot.json"
+
+    first = audit_mcp_servers(repo_root=repo, previous_snapshot_path=snapshot_path)
+    assert first.get("tool_poisoning_flags", []) == []  # no prior snapshot yet
+    assert snapshot_path.exists()
+
+    (repo / ".mcp.json").write_text(json.dumps({
+        "mcpServers": {"svc": {"command": "node", "args": ["new.js"]}}
+    }), encoding="utf-8")
+
+    second = audit_mcp_servers(repo_root=repo, previous_snapshot_path=snapshot_path)
+    assert len(second["tool_poisoning_flags"]) == 1
+    assert second["tool_poisoning_flags"][0]["server"] == "svc"
+
+
+def test_audit_mcp_servers_empty_snapshot_path_behaves_like_none(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".mcp.json").write_text(json.dumps({
+        "mcpServers": {"svc": {"command": "node", "args": ["old.js"]}}
+    }), encoding="utf-8")
+
+    # Matches this repo's schema convention for optional string params
+    # ({"type": "string", "default": ""}) -- a client filling defaults the
+    # normal way must not crash the audit.
+    result = audit_mcp_servers(repo_root=repo, previous_snapshot_path="")
+
+    assert "tool_poisoning_flags" not in result
+    assert result["server_count"] == 1
+
+
+def test_audit_mcp_servers_creates_missing_parent_dir(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".mcp.json").write_text(json.dumps({
+        "mcpServers": {"svc": {"command": "node", "args": ["old.js"]}}
+    }), encoding="utf-8")
+    snapshot_path = tmp_path / "nope" / "does" / "not" / "exist" / "snap.json"
+
+    result = audit_mcp_servers(repo_root=repo, previous_snapshot_path=snapshot_path)
+
+    assert result["tool_poisoning_flags"] == []
+    assert snapshot_path.exists()

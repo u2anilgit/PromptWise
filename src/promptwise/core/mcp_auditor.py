@@ -47,6 +47,7 @@ _PIPE_INSTALL = re.compile(r"(?i)(curl|wget)\s+.*\|\s*(bash|sh)\b")
 _CAT_MCP01 = "MCP01:2025 Token Mis" "management & Secret Exp" "osure"
 _CAT_MCP02 = "MCP02:2025 Privilege Escalation via Scope Creep"
 _CAT_MCP04 = "MCP04:2025 Software Supply Chain Attacks & Dependency Tampering"
+_CAT_MCP03 = "MCP03:2025 Tool Poisoning"
 
 # Existing-flag prefix -> official category. Keyed on how each flag string is
 # built below (startswith match, since some flags append specifics after a ":").
@@ -89,8 +90,30 @@ def _iter_servers(*config_paths: Path):
             yield p.name, name, srv
 
 
+def diff_snapshot(previous: dict, current: dict) -> list[dict]:
+    """Compare two audit_mcp_servers() result dicts and flag any server
+    present in both whose declared command/args changed between scans --
+    the actual "rug pull" pattern behind MCP03 Tool Poisoning: a server
+    already approved silently changes what it does. A single-snapshot audit
+    can never see this; it requires comparing across scans, which is what
+    this function -- and audit_mcp_servers()'s optional snapshot
+    persistence -- adds.
+    """
+    prev_by_name = {s["name"]: s for s in previous.get("servers", [])}
+    diffs = []
+    for srv in current.get("servers", []):
+        name = srv["name"]
+        prior = prev_by_name.get(name)
+        if prior is None:
+            continue
+        if prior.get("command_signature") != srv.get("command_signature"):
+            diffs.append({"server": name, "field": "command", "change": "changed"})
+    return diffs
+
+
 def audit_mcp_servers(repo_root: str | Path = ".",
-                      extra_configs: list[str] | None = None) -> dict:
+                      extra_configs: list[str] | None = None,
+                      previous_snapshot_path: str | Path | None = None) -> dict:
     root = Path(repo_root)
     paths = [root / ".mcp.json", root / ".claude-plugin" / "plugin.json"]
     for e in (extra_configs or []):
@@ -133,10 +156,30 @@ def audit_mcp_servers(repo_root: str | Path = ".",
 
     redundant = [{"command_signature": s, "count": c} for s, c in command_sigs.items() if c > 1]
 
-    return {
+    result = {
         "server_count": len(servers),
         "servers": servers,
         "redundant_commands": redundant,
         "high_risk": [s["name"] for s in servers if s["risk"] == "high"],
         "total_always_allow": sum(s["always_allow_count"] for s in servers),
     }
+
+    if previous_snapshot_path:
+        snap_path = Path(previous_snapshot_path)
+        tool_poisoning_flags = []
+        if snap_path.exists():
+            try:
+                previous = json.loads(snap_path.read_text(encoding="utf-8"))
+                for d in diff_snapshot(previous, result):
+                    d["owasp_mcp_category"] = _CAT_MCP03
+                    tool_poisoning_flags.append(d)
+            except Exception:
+                pass
+        result["tool_poisoning_flags"] = tool_poisoning_flags
+        try:
+            snap_path.parent.mkdir(parents=True, exist_ok=True)
+            snap_path.write_text(json.dumps(result), encoding="utf-8")
+        except OSError:
+            pass
+
+    return result

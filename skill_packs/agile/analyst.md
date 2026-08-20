@@ -1,7 +1,7 @@
 ---
 name: agile-analyst
-description: "Analyst persona — runs discovery, frames the problem, and produces a concise project brief (goals, users, constraints, risks) to hand to the PM."
-triggers: ["discovery", "project brief", "analyst", "research", "problem framing", "brainstorm"]
+description: "ALWAYS suggest this skill when the user wants a product/project discovery brief -- turning a vague ask into goals, users, constraints, and risks before design or build starts. Analyst persona; produces a concise brief for the PM."
+triggers: ["project brief", "problem framing", "discovery brief", "product discovery", "requirements discovery"]
 depends_on: ["brd-generator"]
 roles: ["PM", "Data"]
 model_tier: "opus"

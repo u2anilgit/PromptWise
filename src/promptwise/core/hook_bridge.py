@@ -234,7 +234,10 @@ def userpromptsubmit_policy(payload: dict) -> HookDecision:
             loader.load_skills()
             match = loader.match_skill(prompt)
             if match:
-                notes.append(f"skill match: '{match.name}' — {match.description}")
+                notes.append(f"skill match: '{match.best.name}' — {match.best.description}")
+                if match.contenders:
+                    alt_names = ", ".join(c.name for c in match.contenders)
+                    notes.append(f"skill match: close alternative(s) also scored — {alt_names}")
         except Exception:
             pass
 

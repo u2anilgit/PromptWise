@@ -55,6 +55,7 @@ class ServerContext:
 class _RegistryEntry:
     tool: Tool
     handler: Callable[[ServerContext, dict], Awaitable[str]]
+    domain: str = "general"
 
 
 class ToolRegistry:
@@ -69,7 +70,7 @@ class ToolRegistry:
     def __init__(self) -> None:
         self.entries: dict[str, _RegistryEntry] = {}
 
-    def tool(self, name: str, description: str, schema: dict):
+    def tool(self, name: str, description: str, schema: dict, domain: str = "general"):
         def _register(fn):
             if name in self.entries:
                 raise ValueError(f"duplicate tool registration: {name!r}")
@@ -80,9 +81,22 @@ class ToolRegistry:
             self.entries[name] = _RegistryEntry(
                 tool=Tool(name=name, description=description, inputSchema=schema),
                 handler=fn,
+                domain=domain,
             )
             return fn
         return _register
+
+    def tools_by_domain(self) -> dict[str, list[str]]:
+        """Read-only introspection query: domain name -> sorted tool names.
+
+        No effect on what tools are exposed to a client -- purely a grouping
+        view over the existing entries, for scaling past a flat tool list."""
+        out: dict[str, list[str]] = {}
+        for name, entry in self.entries.items():
+            out.setdefault(entry.domain, []).append(name)
+        for names in out.values():
+            names.sort()
+        return out
 
 
 _registry = ToolRegistry()

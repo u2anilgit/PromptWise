@@ -48,7 +48,7 @@ async def _handle_suggest_skill(ctx: ServerContext, arguments: dict) -> str:
     text = arguments.get("text", "")
     match = ctx.skill_loader.match_skill(text)
     if match:
-        return json.dumps({"skill": match.name, "description": match.description})
+        return json.dumps({"skill": match.best.name, "description": match.best.description})
     scored = sorted([{"name": sk.name, "score": sum(1 for t in sk.triggers if t.lower() in text.lower()) / max(len(sk.triggers), 1),
                       "description": sk.description} for sk in ctx.skill_loader.skills.values()], key=lambda x: x["score"], reverse=True)[:3]
     return json.dumps({"top_matches": scored, "note": "No high-confidence match"})
