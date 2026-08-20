@@ -190,27 +190,35 @@ def match(backend: KnowledgeBackend, text: str, min_tag_hits: int = 1,
     return MatchResult(best=None, score=0.0, method="none")
 
 
-def kb_precheck(text: str, created_by: str = "") -> dict | None:
-    """Fail-open pre-check: returns a small dict for the caller to attach
-    as "knowledgebase_note" if the feature is enabled and a match is
-    found, else None. Never raises -- any error (config, backend,
-    embeddings) is swallowed and treated as "no note", exactly like
-    semantic_cache's embedding fallback discipline."""
+def kb_precheck(text: str, created_by: str = "", capture: dict | None = None) -> dict | None:
+    """Fail-open pre-check. On a hit, returns a note dict (see Task 5). On
+    a miss, if `capture` is given (derived by the caller from its own
+    structured output, no extra LLM call), silently saves a new
+    `unreviewed` entry and returns None -- capture is a background side
+    effect, never surfaced back to the caller's own output."""
     try:
         from promptwise.core.admin_config import get_admin_settings
         settings = get_admin_settings()
         if not settings.get("features", {}).get("knowledgebase.enabled", False):
             return None
         from promptwise.handlers.knowledgebase import _backend
-        result = match(_backend(), text)
-        if result.best is None:
-            return None
-        return {
-            "title": result.best.title,
-            "summary": result.best.summary,
-            "artifact_ref": result.best.artifact_ref,
-            "status": result.best.status,
-            "match_method": result.method,
-        }
+        backend = _backend()
+        result = match(backend, text)
+        if result.best is not None:
+            return {
+                "title": result.best.title,
+                "summary": result.best.summary,
+                "artifact_ref": result.best.artifact_ref,
+                "status": result.best.status,
+                "match_method": result.method,
+            }
+        if capture is not None:
+            backend.save_entry(KnowledgeEntry(
+                id=new_entry_id(), title=capture.get("title", ""),
+                tags=capture.get("tags", []), summary=capture.get("summary", ""),
+                source_prompt=text, artifact_ref=capture.get("artifact_ref", ""),
+                status="unreviewed", created_by=created_by, created_at=_now_iso(),
+            ))
+        return None
     except Exception:
         return None

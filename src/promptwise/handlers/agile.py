@@ -23,7 +23,11 @@ async def _handle_agile_plan(ctx: ServerContext, arguments: dict) -> str:
         task, arguments.get("regulated"), arguments.get("brownfield"))
     out = plan.to_dict()
     from promptwise.core.knowledgebase import kb_precheck
-    note = kb_precheck(task)
+    note = kb_precheck(task, capture={
+        "title": task[:80],
+        "tags": [],  # left empty deliberately -- no tag-taxonomy inference in this pass; tag matching still works via embedding fallback, and a human reviewer can add tags on promote in a later enhancement
+        "summary": f"agile_plan output for: {task[:200]}",
+    })
     if note is not None:
         out["knowledgebase_note"] = note
     return json.dumps(out)
