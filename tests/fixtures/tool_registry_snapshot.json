@@ -1,5 +1,35 @@
 [
   {
+    "name": "set_feature_flag",
+    "description": "Turn an opt-in PromptWise feature on/off, globally or for one project (e.g. name='knowledgebase.enabled'). Project-scoped flags override the global default only when that project_id is passed by the caller checking the flag.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "project": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "enabled"
+      ]
+    }
+  },
+  {
+    "name": "get_admin_settings",
+    "description": "Read the full admin config: feature flags (global + per-project), knowledgebase settings. Budget limits live in BudgetGuardian/set_budget_limit, not here.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
     "name": "route_request",
     "description": "Route request to appropriate model tier based on intent, stakes, and budget",
     "inputSchema": {

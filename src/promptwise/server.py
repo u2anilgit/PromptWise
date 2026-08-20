@@ -98,6 +98,11 @@ def _add_handler_module(name: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# set_feature_flag/get_admin_settings (handlers.admin) -- new admin config
+# category, no pre-split ordering to preserve.
+_add_handler_module("admin")
+
+
 # route_request/rewrite_prompt/optimize_context/compress_prompt/
 # plan_cache/cache_lookup/cache_store/cache_stats/batch_prompts/
 # summarize_thread/compare_providers (handlers.optimization) originally sat
@@ -346,6 +351,7 @@ def sync_main() -> None:
 
 # -- Backward-compat re-exports (15 existing test files reference
 #    server._handle_* directly; each move task adds its handlers here) --
+from promptwise.handlers.admin import _handle_set_feature_flag, _handle_get_admin_settings  # noqa: F401
 from promptwise.handlers.code_validation import _handle_validate_output  # noqa: F401
 from promptwise.handlers.skill_optimization import _handle_optimize_skill_pack  # noqa: F401
 from promptwise.handlers.compliance_export import _handle_export_compliance_bundle  # noqa: F401
