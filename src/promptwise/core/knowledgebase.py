@@ -121,3 +121,70 @@ class FileBackend(KnowledgeBackend):
                     self._save({"entries": entries})
                     return True
             return False
+
+
+from promptwise.core.text_match import contains_keyword
+
+
+@dataclass
+class MatchResult:
+    best: KnowledgeEntry | None
+    score: float
+    method: str  # "tag" | "embedding" | "none"
+
+
+def _get_embedding_provider():
+    """Lazy, fail-open -- mirrors core/semantic_cache.py's _get_provider()
+    exactly. Returns None (never raises) if the `embeddings` extra isn't
+    installed or the provider can't initialize."""
+    try:
+        from promptwise.embeddings.provider import EmbeddingProvider
+        return EmbeddingProvider()
+    except Exception:
+        return None
+
+
+def match(backend: KnowledgeBackend, text: str, min_tag_hits: int = 1,
+          min_similarity: float = 0.6) -> MatchResult:
+    candidates = [e for e in backend.list_entries() if e.status != "rejected"]
+    if not candidates:
+        return MatchResult(best=None, score=0.0, method="none")
+
+    # 1. tag filter -- cheap, same word-boundary matcher skill_loader uses
+    text_lower = text.lower()
+    tag_scored = []
+    for e in candidates:
+        hits = sum(1 for t in e.tags if contains_keyword(text_lower, t.lower()))
+        if hits >= min_tag_hits:
+            tag_scored.append((hits, e))
+    if tag_scored:
+        tag_scored.sort(key=lambda pair: pair[0], reverse=True)
+        # prefer trusted over unreviewed on a tie
+        top_hits = tag_scored[0][0]
+        tied = [e for hits, e in tag_scored if hits == top_hits]
+        tied.sort(key=lambda e: 0 if e.status == "trusted" else 1)
+        return MatchResult(best=tied[0], score=float(top_hits), method="tag")
+
+    # 2. embedding rerank fallback over the full candidate set
+    provider = _get_embedding_provider()
+    if provider is None:
+        return MatchResult(best=None, score=0.0, method="none")
+
+    from promptwise.embeddings.provider import cosine_similarity
+
+    query_vec = provider.embed(text)
+    if query_vec is None:
+        return MatchResult(best=None, score=0.0, method="none")
+
+    best_entry, best_sim = None, 0.0
+    for e in candidates:
+        vec = provider.embed(e.source_prompt or e.summary)
+        if vec is None:
+            continue
+        sim = cosine_similarity(query_vec, vec)
+        if sim > best_sim:
+            best_entry, best_sim = e, sim
+
+    if best_entry is not None and best_sim >= min_similarity:
+        return MatchResult(best=best_entry, score=best_sim, method="embedding")
+    return MatchResult(best=None, score=0.0, method="none")
