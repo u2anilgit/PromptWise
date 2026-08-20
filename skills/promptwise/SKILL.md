@@ -17,7 +17,7 @@ Tool/pack counts below reflect the current registry — if in doubt, `list_skill
 the MCP tool list are the source of truth, not this number.
 
 ```
-PromptWise — command groups (107 MCP tools · 81 skill packs):
+PromptWise — command groups (129 MCP tools · 81 skill packs):
 
   Optimization
   route_request        Pick the right model (Haiku/Sonnet/Opus) for a task, budget-aware

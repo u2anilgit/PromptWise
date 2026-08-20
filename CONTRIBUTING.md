@@ -8,7 +8,7 @@ Early-stage and built in public — contributions, issues, and ideas welcome.
 git clone https://github.com/u2anilgit/PromptWise.git
 cd PromptWise
 pip install -e ".[dev]"
-pytest            # ~950 tests: packs, planner, agile method, governance,
+pytest            # ~1301 tests: packs, planner, agile method, governance,
                   # enforcement hooks, learning loop, policy intel, tracker, tools
 ```
 
