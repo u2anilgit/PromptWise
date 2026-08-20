@@ -20,6 +20,12 @@ _INDEX_HTML = """<!DOCTYPE html>
     .tabbtn { background:var(--card); color:var(--mut); border:1px solid var(--line); border-radius:8px; padding:.5rem 1rem; font-size:.85rem; cursor:pointer; }
     .tabbtn.active { color:var(--ink); border-color:var(--accent); }
     #tab-exec { display:none; }
+    #tab-admin { display:none; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.5rem 0; border-bottom:1px solid var(--line); }
+    .row:last-child { border-bottom:none; }
+    input[type=text], input[type=number] { background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:.4rem .6rem; font-size:.85rem; }
+    button.act { background:var(--accent); color:#0a0c10; border:none; border-radius:8px; padding:.4rem .8rem; font-size:.8rem; cursor:pointer; font-weight:600; }
+    button.act.rej { background:var(--bad); }
     .hero { background:linear-gradient(135deg,rgba(129,140,248,.14),transparent); border:1px solid var(--line); border-radius:14px; padding:1.6rem 1.8rem; margin-bottom:1.2rem; }
     .hero .lbl { font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
     .hero .val { font-size:2.6rem; font-weight:700; color:var(--good); }
@@ -50,6 +56,7 @@ _INDEX_HTML = """<!DOCTYPE html>
       <div>
         <button id="tab-btn-ops" class="tabbtn active" onclick="showTab('ops')">Operational</button>
         <button id="tab-btn-exec" class="tabbtn" onclick="showTab('exec')">Executive</button>
+        <button id="tab-btn-admin" class="tabbtn" onclick="showTab('admin')">Admin</button>
       </div>
       <select id="win" onchange="load()">
         <option value="7">Last 7 days</option>
@@ -103,15 +110,79 @@ _INDEX_HTML = """<!DOCTYPE html>
     <div class="gov" id="exec-gov"></div>
   </div>
 
+  <div id="tab-admin">
+    <div class="sect">Feature flags</div>
+    <div class="card" id="admin-features"></div>
+
+    <div class="sect">Budget limit</div>
+    <div class="card">
+      <div class="row">
+        <input type="number" id="admin-budget-limit" placeholder="Limit USD" step="0.01">
+        <select id="admin-budget-period">
+          <option value="monthly" selected>Monthly</option>
+          <option value="daily">Daily</option>
+        </select>
+        <input type="text" id="admin-budget-project" placeholder="Project (optional)">
+        <button class="act" onclick="submitBudget()">Set limit</button>
+      </div>
+      <div class="muted" id="admin-budget-status"></div>
+    </div>
+
+    <div class="sect">Knowledgebase review queue <span class="muted">(unreviewed)</span></div>
+    <table><thead><tr><th>ID</th><th>Title</th><th>Tags</th><th>Actions</th></tr></thead><tbody id="admin-kb"></tbody></table>
+  </div>
+
   <script>
     function money(x){ return '$' + (Number(x)||0).toFixed(Math.abs(x)<1?4:2); }
     function showTab(name){
-      const isOps = name === 'ops';
+      const isOps = name === 'ops', isExec = name === 'exec', isAdmin = name === 'admin';
       document.getElementById('tab-ops').style.display = isOps ? '' : 'none';
-      document.getElementById('tab-exec').style.display = isOps ? 'none' : '';
+      document.getElementById('tab-exec').style.display = isExec ? '' : 'none';
+      document.getElementById('tab-admin').style.display = isAdmin ? '' : 'none';
       document.getElementById('tab-btn-ops').classList.toggle('active', isOps);
-      document.getElementById('tab-btn-exec').classList.toggle('active', !isOps);
-      if (!isOps) loadExecutive();
+      document.getElementById('tab-btn-exec').classList.toggle('active', isExec);
+      document.getElementById('tab-btn-admin').classList.toggle('active', isAdmin);
+      if (isExec) loadExecutive();
+      if (isAdmin) loadAdmin();
+    }
+    async function loadAdmin(){
+      let settings;
+      try { settings = await (await fetch('/api/admin/settings')).json(); }
+      catch(e){ console.error(e); settings = {}; }
+      const features = settings.features || {};
+      const names = Object.keys(features);
+      document.getElementById('admin-features').innerHTML = names.length
+        ? names.map(n=>`<div class="row"><span>${n}</span>`+
+            `<button class="act${features[n]?'':' rej'}" onclick="toggleFeature('${n}', ${!features[n]})">${features[n]?'Enabled':'Disabled'}</button></div>`).join('')
+        : '<span class="muted">no feature flags set yet</span>';
+      try {
+        const kb = await (await fetch('/api/admin/kb/unreviewed')).json();
+        const entries = kb.entries || [];
+        document.getElementById('admin-kb').innerHTML = entries.map(e=>
+          `<tr><td>${e.id}</td><td>${e.title||''}</td><td>${(e.tags||[]).join(', ')}</td>`+
+          `<td><button class="act" onclick="promoteKb('${e.id}','trusted')">Trust</button> `+
+          `<button class="act rej" onclick="promoteKb('${e.id}','rejected')">Reject</button></td></tr>`
+        ).join('') || '<tr><td colspan=4 class="muted">no unreviewed entries</td></tr>';
+      } catch(e){ document.getElementById('admin-kb').innerHTML = '<tr><td colspan=4 class="muted">no data</td></tr>'; }
+    }
+    async function toggleFeature(name, enabled){
+      try { await fetch('/api/admin/feature', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, enabled})}); }
+      catch(e){ console.error(e); }
+      loadAdmin();
+    }
+    async function submitBudget(){
+      const limit_usd = Number(document.getElementById('admin-budget-limit').value) || 0;
+      const period = document.getElementById('admin-budget-period').value;
+      const project = document.getElementById('admin-budget-project').value || null;
+      try {
+        const r = await (await fetch('/api/admin/budget', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({limit_usd, period, project})})).json();
+        document.getElementById('admin-budget-status').textContent = 'Limit set: ' + money(r.limit_usd) + (r.project ? (' for ' + r.project) : ' (global)');
+      } catch(e){ document.getElementById('admin-budget-status').textContent = 'Failed to set limit.'; }
+    }
+    async function promoteKb(id, action){
+      try { await fetch('/api/admin/kb/promote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ids:[id], action, reviewer:'dashboard-admin'})}); }
+      catch(e){ console.error(e); }
+      loadAdmin();
     }
     async function loadExecutive(){
       const days = document.getElementById('win').value;
@@ -436,5 +507,48 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
             },
             "governance": gov or {"audit_records": 0, "chain_ok": True, "denials": 0, "failures": 0},
         })
+
+    @app.route("/api/admin/settings")
+    @require_role("admin")
+    def api_admin_settings():
+        from promptwise.core.admin_config import get_admin_settings
+        return jsonify(get_admin_settings())
+
+    @app.route("/api/admin/feature", methods=["POST"])
+    @require_role("admin")
+    def api_admin_feature():
+        from promptwise.core.admin_config import set_feature_flag
+        body = request.get_json(force=True, silent=True) or {}
+        cfg = set_feature_flag(body.get("name", ""), bool(body.get("enabled", False)),
+                               project=body.get("project") or None)
+        return jsonify({"status": "ok", "features": cfg["features"], "project_features": cfg["project_features"]})
+
+    @app.route("/api/admin/budget", methods=["POST"])
+    @require_role("admin")
+    def api_admin_budget():
+        from promptwise.plugins.budget import BudgetGuardian
+        body = request.get_json(force=True, silent=True) or {}
+        g = BudgetGuardian()
+        g.set_limit(float(body.get("limit_usd", 0)), period=body.get("period", "monthly"),
+                    project=body.get("project") or None)
+        return jsonify({"status": "ok", "limit_usd": body.get("limit_usd"), "project": body.get("project")})
+
+    @app.route("/api/admin/kb/unreviewed")
+    @require_role("admin")
+    def api_admin_kb_unreviewed():
+        from promptwise.handlers.knowledgebase import _backend
+        entries = _backend().list_entries(status="unreviewed")
+        return jsonify({"entries": [e.to_dict() for e in entries]})
+
+    @app.route("/api/admin/kb/promote", methods=["POST"])
+    @require_role("admin")
+    def api_admin_kb_promote():
+        from promptwise.handlers.knowledgebase import _backend
+        body = request.get_json(force=True, silent=True) or {}
+        backend = _backend()
+        promoted = [eid for eid in body.get("ids", [])
+                    if backend.update_status(eid, body.get("action", "trusted"),
+                                             reviewed_by=body.get("reviewer", ""))]
+        return jsonify({"promoted": promoted})
 
     return app
