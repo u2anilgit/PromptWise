@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, g, jsonify, request, render_template_string
 
 from promptwise.dashboard.auth import load_credentials, find_identity, role_satisfies
 
@@ -134,6 +134,9 @@ _INDEX_HTML = """<!DOCTYPE html>
 
   <script>
     function money(x){ return '$' + (Number(x)||0).toFixed(Math.abs(x)<1?4:2); }
+    function escapeHtml(s){
+      return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
     function showTab(name){
       const isOps = name === 'ops', isExec = name === 'exec', isAdmin = name === 'admin';
       document.getElementById('tab-ops').style.display = isOps ? '' : 'none';
@@ -159,7 +162,7 @@ _INDEX_HTML = """<!DOCTYPE html>
         const kb = await (await fetch('/api/admin/kb/unreviewed')).json();
         const entries = kb.entries || [];
         document.getElementById('admin-kb').innerHTML = entries.map(e=>
-          `<tr><td>${e.id}</td><td>${e.title||''}</td><td>${(e.tags||[]).join(', ')}</td>`+
+          `<tr><td>${escapeHtml(e.id)}</td><td>${escapeHtml(e.title||'')}</td><td>${escapeHtml((e.tags||[]).join(', '))}</td>`+
           `<td><button class="act" onclick="promoteKb('${e.id}','trusted')">Trust</button> `+
           `<button class="act rej" onclick="promoteKb('${e.id}','rejected')">Reject</button></td></tr>`
         ).join('') || '<tr><td colspan=4 class="muted">no unreviewed entries</td></tr>';
@@ -285,9 +288,19 @@ def _run_async(coro):
 
 
 def create_web_app(stats_service=None, memory_manager=None, require_auth: bool = False,
-                    credentials_path: str = "config/dashboard_auth.yaml") -> Flask:
+                    credentials_path: str = "config/dashboard_auth.yaml",
+                    budget_guardian=None) -> Flask:
     app = Flask(__name__)
     credentials = load_credentials(credentials_path) if require_auth else []
+
+    # One shared BudgetGuardian instance for the life of this app -- every
+    # route that reads or mutates budget state (api_budget, api_executive,
+    # api_admin_budget) uses THIS instance, not a fresh throwaway, so a
+    # limit set via /api/admin/budget is actually visible to later requests
+    # (finding #5). Callers may inject their own (e.g. one shared across the
+    # whole process) via the budget_guardian= kwarg.
+    from promptwise.plugins.budget import BudgetGuardian
+    guardian = budget_guardian if budget_guardian is not None else BudgetGuardian()
 
     def require_role(minimum: str):
         def decorator(fn):
@@ -296,6 +309,7 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
             @wraps(fn)
             def wrapper(*args, **kwargs):
                 if not require_auth:
+                    g.identity = None
                     return fn(*args, **kwargs)
                 auth_header = request.headers.get("Authorization", "")
                 if not auth_header.startswith("Bearer "):
@@ -305,6 +319,7 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
                     return jsonify({"error": "invalid credential"}), 401
                 if not role_satisfies(identity.role, minimum):
                     return jsonify({"error": "insufficient role"}), 403
+                g.identity = identity
                 return fn(*args, **kwargs)
             return wrapper
         return decorator
@@ -399,9 +414,9 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
     @app.route("/api/budget")
     @require_role("viewer")
     def api_budget():
-        from promptwise.plugins.budget import BudgetGuardian
-        g = BudgetGuardian()
-        s = g.check(used_usd=float(request.args.get("used_usd", 0)), days_elapsed=int(request.args.get("days_elapsed", 1)))
+        s = guardian.check(used_usd=float(request.args.get("used_usd", 0)),
+                            days_elapsed=int(request.args.get("days_elapsed", 1)),
+                            project_id=request.args.get("project") or None)
         return jsonify({"used_usd": s.used_usd, "limit_usd": s.limit_usd, "pct_used": s.pct_used, "alert_level": s.alert_level})
 
     @app.route("/api/roi")
@@ -479,8 +494,7 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
             calls=h["total_calls"],
         )
 
-        from promptwise.plugins.budget import BudgetGuardian
-        budget_status = BudgetGuardian().check(used_usd=h["total_cost_usd"], days_elapsed=days)
+        budget_status = guardian.check(used_usd=h["total_cost_usd"], days_elapsed=days)
 
         gov = {}
         try:
@@ -518,7 +532,7 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
     @require_role("admin")
     def api_admin_feature():
         from promptwise.core.admin_config import set_feature_flag
-        body = request.get_json(force=True, silent=True) or {}
+        body = request.get_json(silent=True) or {}
         cfg = set_feature_flag(body.get("name", ""), bool(body.get("enabled", False)),
                                project=body.get("project") or None)
         return jsonify({"status": "ok", "features": cfg["features"], "project_features": cfg["project_features"]})
@@ -526,11 +540,9 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
     @app.route("/api/admin/budget", methods=["POST"])
     @require_role("admin")
     def api_admin_budget():
-        from promptwise.plugins.budget import BudgetGuardian
-        body = request.get_json(force=True, silent=True) or {}
-        g = BudgetGuardian()
-        g.set_limit(float(body.get("limit_usd", 0)), period=body.get("period", "monthly"),
-                    project=body.get("project") or None)
+        body = request.get_json(silent=True) or {}
+        guardian.set_limit(float(body.get("limit_usd", 0)), period=body.get("period", "monthly"),
+                           project=body.get("project") or None)
         return jsonify({"status": "ok", "limit_usd": body.get("limit_usd"), "project": body.get("project")})
 
     @app.route("/api/admin/kb/unreviewed")
@@ -543,12 +555,24 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
     @app.route("/api/admin/kb/promote", methods=["POST"])
     @require_role("admin")
     def api_admin_kb_promote():
+        from promptwise.core.knowledgebase import VALID_STATUSES
         from promptwise.handlers.knowledgebase import _backend
-        body = request.get_json(force=True, silent=True) or {}
+        body = request.get_json(silent=True) or {}
+        action = body.get("action", "trusted")
+        if action not in VALID_STATUSES:
+            return jsonify({"error": f"action must be one of {sorted(VALID_STATUSES)}"}), 400
+        # Same human-review gate the MCP tool (promote_kb_candidates) enforces --
+        # a blank reviewer is rejected, not silently allowed (finding #8).
+        # The reviewer is the authenticated identity's credential_id (stable,
+        # non-reversible, safe to log as an audit actor per dashboard/auth.py),
+        # never a client-supplied string, when auth is enforced.
+        identity = getattr(g, "identity", None)
+        reviewer = identity.credential_id if identity is not None else (body.get("reviewer") or "").strip()
+        if not reviewer:
+            return jsonify({"error": "reviewer is required"}), 400
         backend = _backend()
         promoted = [eid for eid in body.get("ids", [])
-                    if backend.update_status(eid, body.get("action", "trusted"),
-                                             reviewed_by=body.get("reviewer", ""))]
+                    if backend.update_status(eid, action, reviewed_by=reviewer)]
         return jsonify({"promoted": promoted})
 
     return app

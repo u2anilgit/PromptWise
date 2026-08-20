@@ -57,7 +57,11 @@ def test_admin_settings_succeeds_for_admin_credential(tmp_path, monkeypatch):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["features"] == {}
-    assert body["knowledgebase"] == {"enabled": False, "store_path": None}
+    # knowledgebase.enabled under the "knowledgebase" block is dead -- only
+    # features["knowledgebase.enabled"] and knowledgebase.store_path are
+    # ever read (finding #4). Assert what's actually consulted.
+    assert body["features"].get("knowledgebase.enabled") is None
+    assert body["knowledgebase"]["store_path"] is None
 
 
 def test_set_feature_flag_via_admin_route_requires_auth(tmp_path, monkeypatch):

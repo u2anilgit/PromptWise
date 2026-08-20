@@ -14,6 +14,9 @@ budget: {}
   # for future admin-tab display convenience, not currently read.
 
 knowledgebase:
-  enabled: false
+  # NOTE: there is no "enabled" key here -- the knowledgebase feature is
+  # turned on/off exclusively via features["knowledgebase.enabled"] above
+  # (or project_features[<project>]["knowledgebase.enabled"]). This block
+  # only holds the shared-store path.
   store_path: null   # null = local default (~/.promptwise/knowledgebase.json)
                       # set to a shared/synced folder path for team sharing
