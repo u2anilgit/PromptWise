@@ -18,9 +18,15 @@ from promptwise.core.tool_registry import (
 async def _handle_agile_plan(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.agile_planner import AgilePlanner
     cfg_path = Path(__file__).resolve().parents[3] / "config" / "agile.yaml"
+    task = arguments.get("task", "")
     plan = AgilePlanner(config_path=cfg_path).plan(
-        arguments.get("task", ""), arguments.get("regulated"), arguments.get("brownfield"))
-    return json.dumps(plan.to_dict())
+        task, arguments.get("regulated"), arguments.get("brownfield"))
+    out = plan.to_dict()
+    from promptwise.core.knowledgebase import kb_precheck
+    note = kb_precheck(task)
+    if note is not None:
+        out["knowledgebase_note"] = note
+    return json.dumps(out)
 
 
 @tool(name="shard_doc", description="Split a PRD/architecture markdown document into focused, anchored shards by heading level",

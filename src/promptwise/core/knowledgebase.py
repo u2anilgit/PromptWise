@@ -188,3 +188,29 @@ def match(backend: KnowledgeBackend, text: str, min_tag_hits: int = 1,
     if best_entry is not None and best_sim >= min_similarity:
         return MatchResult(best=best_entry, score=best_sim, method="embedding")
     return MatchResult(best=None, score=0.0, method="none")
+
+
+def kb_precheck(text: str, created_by: str = "") -> dict | None:
+    """Fail-open pre-check: returns a small dict for the caller to attach
+    as "knowledgebase_note" if the feature is enabled and a match is
+    found, else None. Never raises -- any error (config, backend,
+    embeddings) is swallowed and treated as "no note", exactly like
+    semantic_cache's embedding fallback discipline."""
+    try:
+        from promptwise.core.admin_config import get_admin_settings
+        settings = get_admin_settings()
+        if not settings.get("features", {}).get("knowledgebase.enabled", False):
+            return None
+        from promptwise.handlers.knowledgebase import _backend
+        result = match(_backend(), text)
+        if result.best is None:
+            return None
+        return {
+            "title": result.best.title,
+            "summary": result.best.summary,
+            "artifact_ref": result.best.artifact_ref,
+            "status": result.best.status,
+            "match_method": result.method,
+        }
+    except Exception:
+        return None

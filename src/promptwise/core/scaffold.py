@@ -262,5 +262,10 @@ def scaffold(text: str, repo_root: str = ".") -> dict:
     steps = _extract_steps(text)
     svg = flow_svg(steps)
     page = render_spec_page(text, mode, options, diagram, svg, cls["context"])
-    return {"mode": mode, "diagram_kind": kind, "context": cls["context"],
-            "options": options, "mermaid": diagram, "flow_svg": svg, "page_html": page}
+    result = {"mode": mode, "diagram_kind": kind, "context": cls["context"],
+              "options": options, "mermaid": diagram, "flow_svg": svg, "page_html": page}
+    from promptwise.core.knowledgebase import kb_precheck
+    note = kb_precheck(text)
+    if note is not None:
+        result["knowledgebase_note"] = note
+    return result
