@@ -3221,5 +3221,24 @@
         "reviewer"
       ]
     }
+  },
+  {
+    "name": "kb_record_outcome",
+    "description": "Record whether a surfaced knowledgebase match was actually reused/accepted or ignored/rejected. Feeds match()'s acceptance-rate tiebreak among same-status entries -- a lightweight outcome-learning signal, not a trained model.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "accepted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "entry_id",
+        "accepted"
+      ]
+    }
   }
 ]

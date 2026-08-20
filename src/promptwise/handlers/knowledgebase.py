@@ -72,3 +72,18 @@ async def _handle_promote_kb_candidates(ctx: ServerContext, arguments: dict) -> 
         if backend.update_status(entry_id, arguments.get("action", "trusted"), reviewed_by=reviewer):
             promoted.append(entry_id)
     return json.dumps({"promoted": promoted, "action": arguments.get("action", "trusted")})
+
+
+@tool(name="kb_record_outcome", description="Record whether a surfaced knowledgebase match was actually reused/accepted or ignored/rejected. Feeds match()'s acceptance-rate tiebreak among same-status entries -- a lightweight outcome-learning signal, not a trained model.",
+      schema={"type": "object", "properties": {
+          "entry_id": {"type": "string"}, "accepted": {"type": "boolean"}},
+          "required": ["entry_id", "accepted"]})
+async def _handle_kb_record_outcome(ctx: ServerContext, arguments: dict) -> str:
+    backend = _backend()
+    ok = backend.record_outcome(arguments.get("entry_id", ""), bool(arguments.get("accepted", False)))
+    entry = backend.get_entry(arguments.get("entry_id", "")) if ok else None
+    return json.dumps({
+        "status": "ok" if ok else "not_found",
+        "reuse_count": entry.reuse_count if entry else None,
+        "accepted_count": entry.accepted_count if entry else None,
+    })

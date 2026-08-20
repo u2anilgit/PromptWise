@@ -43,13 +43,15 @@ class KnowledgeEntry:
     created_at: str
     reviewed_by: str = ""
     reviewed_at: str = ""
+    reuse_count: int = 0
+    accepted_count: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "KnowledgeEntry":
-        return cls(**{f: d.get(f, "" if f not in ("tags",) else []) for f in cls.__dataclass_fields__})
+        return cls(**{f: d.get(f, [] if f == "tags" else (0 if f in ("reuse_count", "accepted_count") else "")) for f in cls.__dataclass_fields__})
 
 
 class KnowledgeBackend(ABC):
@@ -64,6 +66,9 @@ class KnowledgeBackend(ABC):
 
     @abstractmethod
     def update_status(self, entry_id: str, status: str, reviewed_by: str) -> bool: ...
+
+    @abstractmethod
+    def record_outcome(self, entry_id: str, accepted: bool) -> bool: ...
 
 
 class FileBackend(KnowledgeBackend):
@@ -122,6 +127,19 @@ class FileBackend(KnowledgeBackend):
                     return True
             return False
 
+    def record_outcome(self, entry_id: str, accepted: bool) -> bool:
+        with self._lock:
+            data = self._load()
+            entries = data.get("entries", [])
+            for e in entries:
+                if e.get("id") == entry_id:
+                    e["reuse_count"] = e.get("reuse_count", 0) + 1
+                    if accepted:
+                        e["accepted_count"] = e.get("accepted_count", 0) + 1
+                    self._save({"entries": entries})
+                    return True
+            return False
+
 
 from promptwise.core.text_match import contains_keyword
 
@@ -159,10 +177,14 @@ def match(backend: KnowledgeBackend, text: str, min_tag_hits: int = 1,
             tag_scored.append((hits, e))
     if tag_scored:
         tag_scored.sort(key=lambda pair: pair[0], reverse=True)
-        # prefer trusted over unreviewed on a tie
         top_hits = tag_scored[0][0]
         tied = [e for hits, e in tag_scored if hits == top_hits]
-        tied.sort(key=lambda e: 0 if e.status == "trusted" else 1)
+
+        def _rank(e: KnowledgeEntry) -> tuple:
+            rate = e.accepted_count / e.reuse_count if e.reuse_count else 0.0
+            return (0 if e.status == "trusted" else 1, -rate)
+
+        tied.sort(key=_rank)
         return MatchResult(best=tied[0], score=float(top_hits), method="tag")
 
     # 2. embedding rerank fallback over the full candidate set

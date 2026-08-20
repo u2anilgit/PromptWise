@@ -372,7 +372,7 @@ from promptwise.handlers.prompt_engineering import _handle_suggest_technique, _h
 from promptwise.handlers.energy_routing import _handle_check_energy, _handle_route_for_plugin, _handle_run_eval, _handle_run_eval_harness, _handle_get_sbom, _handle_run_security_suite, _handle_run_red_team_harness  # noqa: F401
 from promptwise.handlers.optimization import _handle_route_request, _handle_rewrite_prompt, _handle_optimize_context, _handle_compress_prompt, _handle_plan_cache, _handle_cache_lookup, _handle_cache_store, _handle_cache_stats, _handle_batch_prompts, _handle_summarize_thread, _handle_compare_providers  # noqa: F401
 from promptwise.handlers.agile import _handle_agile_plan, _handle_shard_doc, _handle_draft_story, _handle_run_quality_gate, _handle_check_policy, _handle_record_audit, _handle_export_audit, _handle_sync_agent_config, _handle_detect_agents, _handle_build_context_model, _handle_propose_agent_config, _handle_lint_agent_config, _handle_check_portability, _handle_export_web_bundle  # noqa: F401
-from promptwise.handlers.knowledgebase import _handle_kb_lookup, _handle_list_kb_entries, _handle_review_kb_candidates, _handle_promote_kb_candidates  # noqa: F401
+from promptwise.handlers.knowledgebase import _handle_kb_lookup, _handle_list_kb_entries, _handle_review_kb_candidates, _handle_promote_kb_candidates, _handle_kb_record_outcome  # noqa: F401
 
 _TOOL_DEFS = [entry.tool for entry in _registry.entries.values()]
 _HANDLERS = {name: entry.handler for name, entry in _registry.entries.items()}
