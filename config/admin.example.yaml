@@ -1,0 +1,19 @@
+# Copy to config/admin.yaml to customize. Every key is optional; a missing
+# file or missing key falls back to safe defaults (all features off).
+
+features:
+  knowledgebase.enabled: false
+
+project_features: {}
+  # team-a:
+  #   knowledgebase.enabled: true
+
+budget: {}
+  # per-project overrides set via set_budget_limit(..., project="team-a")
+  # are stored by plugins/budget.py, not here -- this section is reserved
+  # for future admin-tab display convenience, not currently read.
+
+knowledgebase:
+  enabled: false
+  store_path: null   # null = local default (~/.promptwise/knowledgebase.json)
+                      # set to a shared/synced folder path for team sharing
