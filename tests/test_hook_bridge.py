@@ -177,6 +177,59 @@ def test_sessionstart_replay_disabled_when_k_zero(tmp_path, monkeypatch):
     assert d.action == "allow"
 
 
+# ── SessionStart dashboard auto-launch (background, never blocks) ────────────
+def _write_dashboard_config(tmp_path, **dash_kw):
+    import yaml
+    cfg_dir = tmp_path / "config"
+    cfg_dir.mkdir(exist_ok=True)
+    dash = {"cli_enabled": True, "web_enabled": True, "web_port": 8765, "web_host": "127.0.0.1"}
+    dash.update(dash_kw)
+    (cfg_dir / "promptwise.yaml").write_text(yaml.safe_dump({"dashboard": dash}), encoding="utf-8")
+
+
+def test_sessionstart_dashboard_disabled_when_web_disabled(tmp_path, monkeypatch):
+    _write_dashboard_config(tmp_path, web_enabled=False)
+    called = []
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: called.append(1))
+    d = hb.sessionstart_dashboard(_payload(tmp_path))
+    assert d.action == "allow"
+    assert called == []
+
+
+def test_sessionstart_dashboard_disabled_when_auto_start_false(tmp_path, monkeypatch):
+    _write_dashboard_config(tmp_path, auto_start=False)
+    called = []
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: called.append(1))
+    d = hb.sessionstart_dashboard(_payload(tmp_path))
+    assert d.action == "allow"
+    assert called == []
+
+
+def test_sessionstart_dashboard_skips_launch_when_already_listening(tmp_path, monkeypatch):
+    _write_dashboard_config(tmp_path)
+    called = []
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: called.append(1))
+    monkeypatch.setattr("socket.create_connection", lambda *a, **k: io.BytesIO())
+    d = hb.sessionstart_dashboard(_payload(tmp_path))
+    assert d.action == "inject"
+    assert "http://127.0.0.1:8765" in d.reason
+    assert called == []
+
+
+def test_sessionstart_dashboard_launches_when_not_listening(tmp_path, monkeypatch):
+    _write_dashboard_config(tmp_path)
+    called = []
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: called.append((a, k)) or object())
+    monkeypatch.setattr("socket.create_connection", lambda *a, **k: (_ for _ in ()).throw(OSError()))
+    monkeypatch.setattr("time.sleep", lambda *a, **k: None)
+    d = hb.sessionstart_dashboard(_payload(tmp_path))
+    assert d.action == "inject"
+    assert d.extra["dashboard_url"] == "http://127.0.0.1:8765"
+    assert len(called) == 1
+    argv = called[0][0][0]
+    assert argv[1:4] == ["-m", "promptwise.cli", "serve"]
+
+
 # ── PreCompact guard (preserve governance state, never blocks) ───────────────
 def test_precompact_guard_preserves_audit_state(tmp_path):
     hb.posttooluse_audit(_payload(tmp_path, tool_name="Write",

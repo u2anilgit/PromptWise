@@ -404,6 +404,72 @@ def sessionstart_replay(payload: dict) -> HookDecision:
         return HookDecision(action="allow", event="SessionStart", extra={"hook_error": f"{type(e).__name__}: {e}"})
 
 
+def sessionstart_dashboard(payload: dict) -> HookDecision:
+    """On session start, auto-launch the web dashboard in the background if
+    nothing is already listening on its configured host:port, then surface
+    the URL as context. Off via config/promptwise.yaml dashboard.auto_start:
+    false or dashboard.web_enabled: false. A launch failure (missing Flask,
+    port already taken by something else, etc.) is swallowed -- this must
+    never block or slow session start beyond a brief local port probe."""
+    try:
+        import os
+        import socket
+        import subprocess
+        import sys as _sys
+        import time
+        from promptwise.config import load_config
+
+        cwd = payload.get("cwd") or "."
+        cfg = load_config(cwd)
+        dash = cfg.dashboard
+        if not dash.web_enabled or not getattr(dash, "auto_start", True):
+            return HookDecision(action="allow", event="SessionStart")
+
+        host, port = dash.web_host, dash.web_port
+
+        def _listening() -> bool:
+            try:
+                with socket.create_connection((host, port), timeout=0.3):
+                    return True
+            except OSError:
+                return False
+
+        if not _listening():
+            popen_kwargs: dict = {}
+            if os.name == "nt":
+                popen_kwargs["creationflags"] = (
+                    getattr(subprocess, "DETACHED_PROCESS", 0)
+                    | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                )
+            else:
+                popen_kwargs["start_new_session"] = True
+            try:
+                subprocess.Popen(
+                    [_sys.executable, "-m", "promptwise.cli", "serve", "--port", str(port)],
+                    cwd=cwd,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    **popen_kwargs,
+                )
+            except Exception:
+                return HookDecision(action="allow", event="SessionStart")
+            # Give it a moment to bind so the reported link is live, not required
+            # for correctness -- worst case the browser gets a refused connection
+            # for a second on a slow machine, then the caller retries.
+            for _ in range(10):
+                time.sleep(0.2)
+                if _listening():
+                    break
+
+        url = f"http://{host}:{port}"
+        return HookDecision(action="inject", event="SessionStart",
+                            reason=f"PromptWise dashboard: {url}",
+                            extra={"dashboard_url": url})
+    except Exception as e:  # fail-open
+        return HookDecision(action="allow", event="SessionStart", extra={"hook_error": f"{type(e).__name__}: {e}"})
+
+
 # ── WP16: scheduled org/compliance report export (pull-based, opt-in) ────────
 def scheduled_report_check(payload: dict) -> HookDecision:
     """On session start, ask the Phase 16 scheduler whether a periodic report
@@ -695,6 +761,7 @@ _HANDLERS = {
     "stop_quality_gate": stop_quality_gate,
     "permissiondenied_log": permissiondenied_log,
     "sessionstart_replay": sessionstart_replay,
+    "sessionstart_dashboard": sessionstart_dashboard,
     "scheduled_report_check": scheduled_report_check,
     "precompact_guard": precompact_guard,
     "pretooluse_bash_guard": pretooluse_bash_guard,

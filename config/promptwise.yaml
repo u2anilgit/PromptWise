@@ -248,6 +248,11 @@ dashboard:
   cli_enabled: true
   web_enabled: true
   web_port: 8765
+  # Auto-launch the web dashboard (detached, background) on SessionStart if
+  # nothing is already listening on web_host:web_port. Loopback-only by
+  # default (web_host above) -- no RBAC needed for that case. Set to false
+  # to go back to launching manually via `promptwise serve`.
+  auto_start: true
 
 # ============================================================================
 # Analytics
