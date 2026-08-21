@@ -4,6 +4,7 @@ import pytest
 
 import promptwise.core.fleet as _fleet_module
 import promptwise.handlers.fleet as fleet_handlers
+from promptwise.core.audit_log import AuditLog
 
 # Capture the real class once, before any test monkeypatches the module
 # attribute -- a lambda that re-imports promptwise.core.fleet and reads
@@ -14,6 +15,16 @@ _RealFleetRegistry = _fleet_module.FleetRegistry
 
 class _FakeCtx:
     pass
+
+
+def _patch_audit_log(monkeypatch, tmp_path):
+    """detect_agent_drift/fleet_report handlers now fetch the real
+    process-wide audit log via tool_registry._get_audit_log() -- point it
+    at a tmp-path log so handler tests never touch the real repo-root
+    promptwise_audit.jsonl file."""
+    log = AuditLog(path=tmp_path / "handler_audit.jsonl")
+    monkeypatch.setattr("promptwise.core.tool_registry._get_audit_log", lambda: log)
+    return log
 
 
 @pytest.mark.asyncio
@@ -56,6 +67,7 @@ async def test_detect_agent_drift_handler_unknown_agent(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "promptwise.core.fleet.FleetRegistry",
         lambda *a, **kw: _RealFleetRegistry(db_path=tmp_path / "fleet.db"))
+    _patch_audit_log(monkeypatch, tmp_path)
     out = await fleet_handlers._handle_detect_agent_drift(_FakeCtx(), {"agent_id": "ghost"})
     result = json.loads(out)
     assert result["type"] == "UnknownAgent"
@@ -66,6 +78,7 @@ async def test_fleet_report_handler(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "promptwise.core.fleet.FleetRegistry",
         lambda *a, **kw: _RealFleetRegistry(db_path=tmp_path / "fleet.db"))
+    _patch_audit_log(monkeypatch, tmp_path)
     out = await fleet_handlers._handle_fleet_report(_FakeCtx(), {})
     result = json.loads(out)
     assert result["agents"] == []

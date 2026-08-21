@@ -70,3 +70,16 @@ def test_summary_readable():
     assert "wave" in summarize_plan(plan_waves([{"id": "a"}]))
     assert "cycle" in summarize_plan(plan_waves([{"id": "a", "depends_on": ["b"]},
                                                  {"id": "b", "depends_on": ["a"]}]))
+
+
+def test_summary_mentions_over_budget_count_when_present():
+    tasks = [{"id": "a", "agent_id": "agent-broke"}]
+    plan = plan_waves(tasks, agent_budget_status={"agent-broke": {"remaining_usd": 0.0}})
+    assert plan["over_budget"] == ["a"]
+    assert "1 task(s) over budget" in summarize_plan(plan)
+
+
+def test_summary_omits_over_budget_when_absent():
+    plan = plan_waves([{"id": "a"}])
+    assert plan["over_budget"] == []
+    assert "over budget" not in summarize_plan(plan)

@@ -1,3 +1,6 @@
+import json
+import time
+
 from promptwise.core.audit_log import AuditLog
 from promptwise.core.fleet import FleetRegistry, detect_agent_drift
 from promptwise.core.incidents import IncidentStore
@@ -37,7 +40,7 @@ def test_read_only_agent_that_starts_writing_creates_incident(tmp_path):
     # both novel relative to the registered scope and matches
     # anomaly_detector.SUSPICIOUS_BIGRAMS' Read->Bash entry.
     for _ in range(4):
-        log.append("did work", actor="agent-a", rules_applied=["Read", "Bash", "Write"],
+        log.append("did work", agent="agent-a", rules_applied=["Read", "Bash", "Write"],
                     files_touched=["secret.env"])
 
     incidents = IncidentStore(db_path=tmp_path / "incidents.db")
@@ -59,7 +62,7 @@ def test_drift_below_threshold_does_not_create_incident(tmp_path):
     reg = _registry(tmp_path)
     reg.register("agent-a", role="reviewer", allowed_tools=["Read", "Grep"])
     log = AuditLog(path=tmp_path / "audit.jsonl")
-    log.append("looked around", actor="agent-a", rules_applied=["Read", "Grep"])
+    log.append("looked around", agent="agent-a", rules_applied=["Read", "Grep"])
     result = detect_agent_drift(reg, "agent-a", audit_log=log, drift_threshold=99999.0)
     assert result["incident_created"] is False
     assert result["incident_id"] is None
@@ -70,7 +73,35 @@ def test_auto_incident_false_never_creates_incident(tmp_path):
     reg.register("agent-a", role="read-only-reviewer", allowed_tools=["Read"])
     log = AuditLog(path=tmp_path / "audit.jsonl")
     for _ in range(4):
-        log.append("did work", actor="agent-a", rules_applied=["Read", "Bash", "Write"])
+        log.append("did work", agent="agent-a", rules_applied=["Read", "Bash", "Write"])
     result = detect_agent_drift(reg, "agent-a", audit_log=log, drift_threshold=0.0, auto_incident=False)
     assert result["incident_created"] is False
     assert result["incident_id"] is None
+
+
+def test_window_days_excludes_records_older_than_window(tmp_path):
+    """Records that would trigger a drift finding if included must be
+    excluded once they fall outside `window_days` -- detect_agent_drift
+    must bound its audit-log query with `since=`, not scan full history."""
+    reg = _registry(tmp_path)
+    reg.register("agent-a", role="read-only-reviewer", allowed_tools=["Read", "Grep"])
+    log = AuditLog(path=tmp_path / "audit.jsonl")
+    for _ in range(4):
+        log.append("did work", agent="agent-a", rules_applied=["Read", "Bash", "Write"],
+                    files_touched=["secret.env"])
+
+    # Back-date every appended record to well outside the 7-day window.
+    old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 30 * 86400))
+    audit_path = tmp_path / "audit.jsonl"
+    lines = audit_path.read_text(encoding="utf-8").splitlines()
+    rewritten = []
+    for line in lines:
+        rec = json.loads(line)
+        rec["timestamp"] = old_ts
+        rewritten.append(json.dumps(rec))
+    audit_path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+
+    result = detect_agent_drift(reg, "agent-a", audit_log=log, window_days=7, drift_threshold=1.0)
+    assert result["findings"] == []
+    assert result["drift_score"] == 0.0
+    assert result["incident_created"] is False

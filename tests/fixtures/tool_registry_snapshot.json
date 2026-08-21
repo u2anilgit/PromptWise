@@ -741,7 +741,7 @@
         },
         "tasks": {
           "type": "array",
-          "description": "Structured tasks [{id, depends_on:[ids], file}] \u2014 when present, returns a wave plan instead of executing",
+          "description": "Structured tasks [{id, depends_on:[ids], file, agent_id}] \u2014 when present, returns a wave plan instead of executing",
           "items": {
             "type": "object",
             "properties": {
@@ -756,6 +756,10 @@
               },
               "file": {
                 "type": "string"
+              },
+              "agent_id": {
+                "type": "string",
+                "default": ""
               }
             }
           }
@@ -3322,7 +3326,7 @@
   },
   {
     "name": "register_agent",
-    "description": "Register (or update, upsert by agent_id) an AI agent operating against this repo: role, responsibilities, allowed tools, budget, owner, and OWASP NHI Top 10 credential metadata (scoped_credential flag, last_rotation_date, jit_grant_signature linking back to a grant_jit_permission signature). Set prefill_from_detect_agents=true to seed role/allowed_tools from the read-only detect_agents() repo probe instead of passing them explicitly.",
+    "description": "Register (or update, upsert by agent_id) an AI agent operating against this repo: role, responsibilities, allowed tools, budget, owner, and OWASP NHI Top 10 credential metadata (scoped_credential flag, last_rotation_date, jit_grant_signature linking back to a grant_jit_permission signature). Set prefill_from_detect_agents=true to seed role (only) from the read-only detect_agents() repo probe instead of passing it explicitly.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3405,7 +3409,7 @@
   },
   {
     "name": "detect_agent_drift",
-    "description": "Compare a registered agent's recent audit-trail activity (rules_applied/files_touched from record_audit calls with actor=agent_id) against its registered role/allowed_tools, reusing the WP2 behavior-baseline/anomaly-detection machinery. A finding whose threat_score crosses drift_threshold auto-creates a WP3 incident (set auto_incident=false to only report). Advisory -- the OWASP 'rogue agent precursor' loop.",
+    "description": "Compare a registered agent's recent audit-trail activity (rules_applied/files_touched from record_audit calls with agent=agent_id) against its registered role/allowed_tools, reusing the WP2 behavior-baseline/anomaly-detection machinery. A finding whose threat_score crosses drift_threshold auto-creates a WP3 incident (set auto_incident=false to only report). Advisory -- the OWASP 'rogue agent precursor' loop.",
     "inputSchema": {
       "type": "object",
       "properties": {

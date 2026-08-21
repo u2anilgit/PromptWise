@@ -43,17 +43,32 @@ def plan_waves(
     ``agent_budget_status`` maps ``agent_id`` to ``{"remaining_usd": float}``;
     a task whose agent has ``remaining_usd <= 0`` is never scheduled into
     any wave and is reported in the returned ``"over_budget"`` list
-    instead. Both are planning-level filters only -- this module still
-    performs no real dispatch.
+    instead. Exclusion cascades transitively: any task that (directly or
+    indirectly) depends_on an over-budget task is added to
+    ``"over_budget"`` too, since its prerequisite never actually ran. Both
+    are planning-level filters only -- this module still performs no real
+    dispatch.
     """
     fan_out_cap = max(1, int(fan_out_cap))
     agent_priority = agent_priority or {}
     agent_budget_status = agent_budget_status or {}
 
     agent_ids = {t["id"]: t.get("agent_id", "") for t in tasks}
-    over_budget = sorted(
+    task_deps = {t["id"]: set(t.get("depends_on") or []) for t in tasks}
+    over_budget: set[str] = {
         tid for tid, aid in agent_ids.items()
-        if aid and agent_budget_status.get(aid, {}).get("remaining_usd", 1.0) <= 0)
+        if aid and agent_budget_status.get(aid, {}).get("remaining_usd", 1.0) <= 0}
+    # Cascade: any task (transitively) depending on an over-budget task is
+    # itself unschedulable -- its prerequisite never ran -- so it must join
+    # `over_budget` too, to a fixed point.
+    changed = True
+    while changed:
+        changed = False
+        for tid, deps in task_deps.items():
+            if tid not in over_budget and deps & over_budget:
+                over_budget.add(tid)
+                changed = True
+    over_budget = sorted(over_budget)
 
     tasks = [t for t in tasks if t["id"] not in over_budget]
     ids = [t["id"] for t in tasks]
@@ -126,4 +141,6 @@ def summarize_plan(plan: dict) -> str:
         parts.append(f"{len(plan['serialized'])} serialized on shared files")
     if plan.get("capped"):
         parts.append(f"fan-out capped at {plan['fan_out_cap']}")
+    if plan.get("over_budget"):
+        parts.append(f"{len(plan['over_budget'])} task(s) over budget")
     return "; ".join(parts)

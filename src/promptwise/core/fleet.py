@@ -189,7 +189,10 @@ def detect_agent_drift(
     threat_score crosses `drift_threshold` auto-creates a WP3 incident,
     fail-soft -- mirrors handlers/incidents.py's WP4 correlate_threats
     hook exactly: a broken/missing incident store must never raise out of
-    this function."""
+    this function. Audit records are matched via `log.query(agent=agent_id,
+    since=...)` -- record_audit's real schema only ever populates `agent=`,
+    never `actor=` (see handlers/agile.py's _handle_record_audit), and
+    `since` bounds the query to the trailing `window_days` window."""
     from promptwise.core.anomaly_detector import detect_anomalies
     from promptwise.core.audit_log import AuditLog
     from promptwise.core.behavior_baseline import BehaviorStats
@@ -199,7 +202,9 @@ def detect_agent_drift(
         return {"error": f"no registered agent '{agent_id}'", "type": "UnknownAgent"}
 
     log = audit_log if audit_log is not None else AuditLog()
-    records = log.query(actor=agent_id)
+    since_ts = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - window_days * 86400))
+    records = log.query(agent=agent_id, since=since_ts)
 
     allowed = agent["allowed_tools"] or []
     baseline_bigrams = {f"{a}->{b}": 1 for a in allowed for b in allowed}
@@ -275,7 +280,7 @@ def build_fleet_report(
         estimated_cost = sum(
             float(row.get("cost_usd", 0.0)) for row in logs if row.get("tool") in allowed)
 
-        gated = [r for r in log.query(actor=agent["agent_id"]) if r.get("gate_decision")]
+        gated = [r for r in log.query(agent=agent["agent_id"]) if r.get("gate_decision")]
         gate_pass_rate = (
             sum(1 for r in gated if r["gate_decision"] == "PASS") / len(gated) if gated else None)
 

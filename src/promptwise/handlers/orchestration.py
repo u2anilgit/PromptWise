@@ -14,7 +14,16 @@ def _fleet_planning_hints(tasks_arg: list[dict]) -> tuple[dict, dict]:
     built from the registered agents any of `tasks_arg`'s "agent_id" values
     reference. Fail-soft: a broken/missing FleetRegistry (or no agent_ids
     present at all) yields two empty dicts, which is byte-identical to
-    calling plan_waves() without these WP5 kwargs at all."""
+    calling plan_waves() without these WP5 kwargs at all.
+
+    Note on `remaining_usd`: WP5 is planning-level only -- there is no live
+    spend tracking yet, so this is the agent's registered `budget_usd`
+    ceiling as of registration time, not a decrementing live balance.
+    register_agent's own default is budget_usd=0.0, which means "no budget
+    configured" (unlimited), not "zero remaining budget" -- so an agent is
+    only added to the map when its configured budget_usd is > 0. An agent
+    absent from the map is never treated as over budget (plan_waves()
+    defaults an unknown agent_id to solvent)."""
     agent_ids = {t.get("agent_id") for t in tasks_arg if t.get("agent_id")}
     if not agent_ids:
         return {}, {}
@@ -28,7 +37,8 @@ def _fleet_planning_hints(tasks_arg: list[dict]) -> tuple[dict, dict]:
             if agent is None:
                 continue
             priority[agent_id] = agent["priority"]
-            budget_status[agent_id] = {"remaining_usd": agent["budget_usd"]}
+            if agent["budget_usd"] > 0:
+                budget_status[agent_id] = {"remaining_usd": agent["budget_usd"]}
         return priority, budget_status
     except Exception:
         return {}, {}
@@ -37,9 +47,10 @@ def _fleet_planning_hints(tasks_arg: list[dict]) -> tuple[dict, dict]:
 @tool(name="orchestrate_tasks", description="Parse a multi-step prompt into a DAG and execute with a failure strategy. Pass 'tasks' (with depends_on / file) to instead emit a safe parallel wave plan (which tasks can run at once) for the caller to dispatch.",
          schema={"type": "object", "properties": {
              "text": {"type": "string"}, "strategy": {"type": "string", "enum": ["stop", "retry", "fallback", "all"], "default": "fallback"},
-             "tasks": {"type": "array", "description": "Structured tasks [{id, depends_on:[ids], file}] — when present, returns a wave plan instead of executing",
+             "tasks": {"type": "array", "description": "Structured tasks [{id, depends_on:[ids], file, agent_id}] — when present, returns a wave plan instead of executing",
                        "items": {"type": "object", "properties": {
-                           "id": {"type": "string"}, "depends_on": {"type": "array", "items": {"type": "string"}}, "file": {"type": "string"}}}},
+                           "id": {"type": "string"}, "depends_on": {"type": "array", "items": {"type": "string"}}, "file": {"type": "string"},
+                           "agent_id": {"type": "string", "default": ""}}}},
              "fan_out_cap": {"type": "integer", "default": 8, "description": "Max tasks per parallel wave"}},
          "required": ["text"]})
 async def _handle_orchestrate_tasks(ctx: ServerContext, arguments: dict) -> str:

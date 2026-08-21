@@ -8,7 +8,7 @@ import json
 from promptwise.core.tool_registry import ServerContext, tool
 
 
-@tool(name="register_agent", description="Register (or update, upsert by agent_id) an AI agent operating against this repo: role, responsibilities, allowed tools, budget, owner, and OWASP NHI Top 10 credential metadata (scoped_credential flag, last_rotation_date, jit_grant_signature linking back to a grant_jit_permission signature). Set prefill_from_detect_agents=true to seed role/allowed_tools from the read-only detect_agents() repo probe instead of passing them explicitly.",
+@tool(name="register_agent", description="Register (or update, upsert by agent_id) an AI agent operating against this repo: role, responsibilities, allowed tools, budget, owner, and OWASP NHI Top 10 credential metadata (scoped_credential flag, last_rotation_date, jit_grant_signature linking back to a grant_jit_permission signature). Set prefill_from_detect_agents=true to seed role (only) from the read-only detect_agents() repo probe instead of passing it explicitly.",
          schema={"type": "object", "properties": {
              "agent_id": {"type": "string"}, "role": {"type": "string", "default": ""},
              "responsibilities": {"type": "array", "items": {"type": "string"}, "default": []},
@@ -51,7 +51,7 @@ async def _handle_detect_sprawl(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(result)
 
 
-@tool(name="detect_agent_drift", description="Compare a registered agent's recent audit-trail activity (rules_applied/files_touched from record_audit calls with actor=agent_id) against its registered role/allowed_tools, reusing the WP2 behavior-baseline/anomaly-detection machinery. A finding whose threat_score crosses drift_threshold auto-creates a WP3 incident (set auto_incident=false to only report). Advisory -- the OWASP 'rogue agent precursor' loop.",
+@tool(name="detect_agent_drift", description="Compare a registered agent's recent audit-trail activity (rules_applied/files_touched from record_audit calls with agent=agent_id) against its registered role/allowed_tools, reusing the WP2 behavior-baseline/anomaly-detection machinery. A finding whose threat_score crosses drift_threshold auto-creates a WP3 incident (set auto_incident=false to only report). Advisory -- the OWASP 'rogue agent precursor' loop.",
          schema={"type": "object", "properties": {
              "agent_id": {"type": "string"}, "window_days": {"type": "integer", "default": 7},
              "drift_threshold": {"type": "number", "default": 60.0},
@@ -59,8 +59,9 @@ async def _handle_detect_sprawl(ctx: ServerContext, arguments: dict) -> str:
          "required": ["agent_id"]})
 async def _handle_detect_agent_drift(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.fleet import FleetRegistry, detect_agent_drift
+    from promptwise.core.tool_registry import _get_audit_log
     result = detect_agent_drift(
-        FleetRegistry(), arguments.get("agent_id", ""),
+        FleetRegistry(), arguments.get("agent_id", ""), audit_log=_get_audit_log(),
         window_days=int(arguments.get("window_days", 7)),
         drift_threshold=float(arguments.get("drift_threshold", 60.0)),
         auto_incident=bool(arguments.get("auto_incident", True)))
@@ -71,6 +72,7 @@ async def _handle_detect_agent_drift(ctx: ServerContext, arguments: dict) -> str
          schema={"type": "object", "properties": {"stale_credential_days": {"type": "integer", "default": 90}}})
 async def _handle_fleet_report(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.fleet import FleetRegistry, build_fleet_report
+    from promptwise.core.tool_registry import _get_audit_log
 
     cost_logs: list[dict] = []
     try:
@@ -80,6 +82,6 @@ async def _handle_fleet_report(ctx: ServerContext, arguments: dict) -> str:
         pass  # fail-soft: report still runs with cost data omitted
 
     result = build_fleet_report(
-        FleetRegistry(), cost_logs=cost_logs,
+        FleetRegistry(), audit_log=_get_audit_log(), cost_logs=cost_logs,
         stale_credential_days=int(arguments.get("stale_credential_days", 90)))
     return json.dumps(result)
