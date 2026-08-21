@@ -66,3 +66,72 @@ def test_incident_timeline_surfaces_lineage_via_correlation_key(tmp_path):
         timeline.append({"source": "audit", "ts": rec.get("timestamp", ""), **rec})
     timeline.sort(key=lambda e: e.get("ts", ""))
     assert any(e.get("source") == "audit" and e.get("actor") == "context_lineage" for e in timeline)
+
+
+import json
+
+import pytest
+
+import promptwise.handlers.policy_intel as policy_intel_handlers
+
+
+class _FakeCtx:
+    pass
+
+
+@pytest.mark.asyncio
+async def test_context_lineage_handler_record_mode(tmp_path, monkeypatch):
+    from promptwise.core.audit_log import AuditLog
+    log = AuditLog(path=tmp_path / "audit.jsonl")
+    monkeypatch.setattr("promptwise.handlers.policy_intel._get_audit_log", lambda: log)
+
+    out = await policy_intel_handlers._handle_context_lineage(_FakeCtx(), {
+        "retrieval_query": "q", "shard_ids": ["doc:s1"], "origin_path": "a.md"})
+    result = json.loads(out)
+    assert result["recorded"] is True
+    assert result["origin"] == "a.md"
+
+
+@pytest.mark.asyncio
+async def test_context_lineage_handler_list_mode(tmp_path, monkeypatch):
+    from promptwise.core.audit_log import AuditLog
+    log = AuditLog(path=tmp_path / "audit.jsonl")
+    monkeypatch.setattr("promptwise.handlers.policy_intel._get_audit_log", lambda: log)
+
+    await policy_intel_handlers._handle_context_lineage(_FakeCtx(), {
+        "retrieval_query": "q", "shard_ids": ["doc:s1"], "origin_path": "a.md"})
+    out = await policy_intel_handlers._handle_context_lineage(_FakeCtx(), {"mode": "list"})
+    result = json.loads(out)
+    assert result["count"] == 1
+    assert result["records"][0]["actor"] == "context_lineage"
+
+
+@pytest.mark.asyncio
+async def test_incident_timeline_handler_surfaces_lineage_end_to_end(tmp_path, monkeypatch):
+    """Full end-to-end proof that the real _handle_incident_timeline (no
+    incidents.py changes) picks up a context_lineage record recorded
+    through the real _handle_context_lineage handler, both bound to the
+    same monkeypatched _get_audit_log() singleton -- the exact production
+    wiring, not a reimplementation."""
+    import promptwise.handlers.incidents as incidents_handlers
+    from promptwise.core.audit_log import AuditLog
+    from promptwise.core.incidents import IncidentStore
+
+    log = AuditLog(path=tmp_path / "audit.jsonl")
+    monkeypatch.setattr("promptwise.handlers.policy_intel._get_audit_log", lambda: log)
+    monkeypatch.setattr("promptwise.handlers.incidents._get_audit_log", lambda: log)
+    monkeypatch.setattr(
+        "promptwise.core.incidents.IncidentStore",
+        lambda *a, **kw: IncidentStore(db_path=tmp_path / "incidents.db"))
+
+    await policy_intel_handlers._handle_context_lineage(_FakeCtx(), {
+        "retrieval_query": "q", "shard_ids": ["doc:poisoned-shard"], "origin_path": "untrusted/inbox.md"})
+
+    create_out = await incidents_handlers._handle_create_incident(
+        _FakeCtx(), {"title": "agent acted on poisoned context"})
+    incident_id = json.loads(create_out)["id"]
+
+    timeline_out = await incidents_handlers._handle_incident_timeline(_FakeCtx(), {
+        "incident_id": incident_id, "correlation_key": "untrusted/inbox.md"})
+    timeline = json.loads(timeline_out)["timeline"]
+    assert any(e.get("source") == "audit" and e.get("actor") == "context_lineage" for e in timeline)

@@ -76,6 +76,47 @@ async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
         learning_db=arguments.get("learning_db")))
 
 
+@tool(name="score_context_quality", description="Structure/completeness/staleness/contradiction quality heuristics for a list of context shards (e.g. rank_context's 'included' candidates), extending rank_context's relevance ranking with an independent quality axis. Each shard needs {id, text}; optional source_path (only meaningful for doc-sourced shards -- a real file) enables mtime-based staleness scoring, skipped rather than penalized when absent. Cheap textual heuristics, not a real parser or semantic contradiction detector -- advisory.",
+         schema={"type": "object", "properties": {
+             "shards": {"type": "array", "items": {"type": "object", "properties": {
+                 "id": {"type": "string"}, "text": {"type": "string"},
+                 "source_path": {"type": "string"}}, "required": ["id", "text"]}},
+             "contradiction_overlap_threshold": {"type": "number", "default": 0.5}},
+         "required": ["shards"]})
+async def _handle_score_context_quality(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.context_ranker import score_context_quality
+    try:
+        result = score_context_quality(
+            arguments.get("shards", []),
+            contradiction_overlap_threshold=float(arguments.get("contradiction_overlap_threshold", 0.5)))
+    except ValueError as e:
+        return json.dumps({"error": str(e), "type": "DuplicateShardId"})
+    return json.dumps(result)
+
+
+@tool(name="context_lineage", description="Record (mode='record', default) or list (mode='list') context-shard provenance in the hash-chained audit trail -- origin file path / MCP server / retrieval query for each retrieved shard, as a new audit record class (actor='context_lineage'), never a new table. Recorded entries surface automatically in incident_timeline's correlation_key search -- the forensic 'what context poisoned this agent' trail (OWASP ASI06 Memory & Context Poisoning).",
+         schema={"type": "object", "properties": {
+             "mode": {"type": "string", "enum": ["record", "list"], "default": "record"},
+             "retrieval_query": {"type": "string", "default": ""},
+             "shard_ids": {"type": "array", "items": {"type": "string"}, "default": []},
+             "origin_path": {"type": "string", "default": ""},
+             "mcp_server": {"type": "string", "default": ""},
+             "contains": {"type": "string", "default": "", "description": "mode=list only: substring filter"},
+             "limit": {"type": "integer", "description": "mode=list only"}}})
+async def _handle_context_lineage(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.context_ranker import list_context_lineage, record_context_lineage
+    audit = _get_audit_log()
+    if arguments.get("mode", "record") == "list":
+        records = list_context_lineage(
+            audit, contains=arguments.get("contains", ""), limit=arguments.get("limit"))
+        return json.dumps({"count": len(records), "records": records})
+    result = record_context_lineage(
+        audit, retrieval_query=arguments.get("retrieval_query", ""),
+        shard_ids=arguments.get("shard_ids", []), origin_path=arguments.get("origin_path", ""),
+        mcp_server=arguments.get("mcp_server", ""))
+    return json.dumps(result)
+
+
 @tool(name="grant_jit_permission", description="Grant a time-boxed permission for a tool signature (e.g. 'Bash:git'), auto-expiring after ttl_minutes (default 60, max 480/8h). Independent of .mcp.json; enforced by the PreToolUse JIT guard hook, which auto-approves while active and falls back to the normal permission prompt once expired. Note: matching is coarse (first command token only, e.g. 'Bash:git' matches any git invocation) -- the same grain permission_tuner's suggestions use; grant narrowly-scoped, short-lived permissions for commands you trust broadly, not ones where the arguments matter.",
          schema={"type": "object", "properties": {
              "signature": {"type": "string", "description": "tool signature, e.g. 'Bash:git' or 'mcp__promptwise__run_governor'"},

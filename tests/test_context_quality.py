@@ -89,3 +89,31 @@ def test_duplicate_shard_ids_raise_value_error():
 
 def test_empty_shard_list_returns_empty():
     assert score_context_quality([]) == {"shards": []}
+
+
+import json
+
+import pytest
+
+import promptwise.handlers.policy_intel as policy_intel_handlers
+
+
+class _FakeCtx:
+    pass
+
+
+@pytest.mark.asyncio
+async def test_score_context_quality_handler_returns_shards():
+    out = await policy_intel_handlers._handle_score_context_quality(
+        _FakeCtx(), {"shards": [{"id": "s1", "text": "# Heading\n- one"}]})
+    result = json.loads(out)
+    assert result["shards"][0]["id"] == "s1"
+    assert result["shards"][0]["structure_score"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_score_context_quality_handler_duplicate_id_returns_error_object():
+    out = await policy_intel_handlers._handle_score_context_quality(
+        _FakeCtx(), {"shards": [{"id": "a", "text": "x"}, {"id": "a", "text": "y"}]})
+    result = json.loads(out)
+    assert result["type"] == "DuplicateShardId"
