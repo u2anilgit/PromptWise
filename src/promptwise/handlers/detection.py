@@ -20,9 +20,19 @@ async def _handle_baseline_behavior(ctx: ServerContext, arguments: dict) -> str:
     import time
     actor = arguments.get("actor", "")
     window_days = arguments.get("window_days", 30)
+    cost_logs = arguments.get("cost_logs")
+    if cost_logs is None:
+        # compute_baseline()'s own live-fetch fallback uses asyncio.run(), which
+        # cannot run inside this already-running async MCP event loop -- so we
+        # pre-fetch here (with the same since-window logic) and always pass
+        # cost_logs explicitly, keeping compute_baseline's asyncio.run() branch
+        # unreached from async context. See core/behavior_baseline.py.
+        from promptwise.db.models import MemoryManager, get_db_path
+        since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - window_days * 86400))
+        cost_logs = await MemoryManager(str(get_db_path())).raw_cost_logs(since=since)
     stats = compute_baseline(
         actor, window_days=window_days,
-        cost_logs=arguments.get("cost_logs"), audit_records=arguments.get("audit_records"))
+        cost_logs=cost_logs, audit_records=arguments.get("audit_records"))
     computed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     BaselineStore().save(actor, "behavior", window_days, stats.to_dict(), computed_at)
     out = stats.to_dict()
@@ -44,7 +54,10 @@ async def _handle_detect_anomalies(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.alerts import notify_anomaly
 
     actor = arguments.get("actor", "")
-    window = BehaviorStats(**arguments.get("window", {}))
+    window_dict = dict(arguments.get("window", {}))
+    window_dict.setdefault("actor", actor)
+    window_dict.setdefault("window_days", 30)
+    window = BehaviorStats(**window_dict)
     baseline_arg = arguments.get("baseline")
     if baseline_arg is not None:
         baseline = BehaviorStats(**baseline_arg)
