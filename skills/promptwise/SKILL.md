@@ -1,6 +1,6 @@
 ---
 name: promptwise
-description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, run governance/audit/JIT-permission workflows, plan an SDLC workflow from PromptWise's own skill packs, or invoke one of 81 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "how should I structure this build", "is this safe to ship", explicit cost/budget questions, or any time the user pastes a large doc.
+description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, run governance/audit/JIT-permission workflows, plan an SDLC workflow from PromptWise's own skill packs, or invoke one of 84 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "how should I structure this build", "is this safe to ship", explicit cost/budget questions, or any time the user pastes a large doc.
 ---
 
 # PromptWise — the cross-agent intelligence layer
@@ -17,7 +17,7 @@ Tool/pack counts below reflect the current registry — if in doubt, `list_skill
 the MCP tool list are the source of truth, not this number.
 
 ```
-PromptWise — command groups (129 MCP tools · 81 skill packs):
+PromptWise — command groups (142 MCP tools · 84 skill packs):
 
   Optimization
   route_request        Pick the right model (Haiku/Sonnet/Opus) for a task, budget-aware
@@ -77,7 +77,8 @@ PromptWise — command groups (129 MCP tools · 81 skill packs):
   get_sbom                 Software bill of materials (CycloneDX, transitive lockfile parsing)
   audit_mcp_servers         Audit declared MCP servers for supply-chain risk flags
   accept_risk / list_risk_register  Residual-risk register: sign off and list open findings
-  export_compliance_bundle / generate_ed25519_keypair  Signed compliance evidence bundle (OWASP LLM Top 10 / NIST AI RMF / MITRE ATLAS)
+  export_compliance_bundle / generate_ed25519_keypair  Signed compliance evidence bundle (OWASP LLM Top 10 / NIST AI RMF / MITRE ATLAS / OWASP Agentic Top 10 / NHI Top 10 / CSA AICM / GDPR / HIPAA controls coverage)
+  compliance_gap_analysis    Required-control checklist vs evidenced tools, per framework -- advisory, not a certification
   grant_jit_permission / revoke_jit_permission / list_jit_permissions  Time-boxed, scoped permission grants
 
   Cost, budget & ROI
@@ -100,6 +101,8 @@ PromptWise — command groups (129 MCP tools · 81 skill packs):
   tune_permissions           Learn allow/deny suggestions from denial telemetry
   search_trace              Search the audit trail + learnings by meaning
   rank_context              Retrieval-augmented context ranking from the trace, budget-pruned
+  score_context_quality      Structure / completeness / staleness / contradiction heuristics for context shards
+  context_lineage            Record or list context-shard provenance (file / MCP server / query) in the audit trail
   run_governor / governor_undo  Policy-gated, reversible autonomous governance actions + undo
   run_eval / run_eval_harness  Cost estimate / durable offline eval+regression suite
   optimize_skill_pack        Fold accumulated corrections into a skill pack (reversible managed block)
@@ -114,7 +117,7 @@ PromptWise — command groups (129 MCP tools · 81 skill packs):
   Roles & skill packs
   detect_role               Auto-detect organizational role
   suggest_skill              Suggest a skill pack for the request
-  list_skills                List the 81 portable skill packs
+  list_skills                List the 84 portable skill packs
   invoke_skill               Run a specific skill pack
   skill_chain                Chain multiple skill packs
 
@@ -141,17 +144,20 @@ Usage: describe your need and PromptWise selects the tool, or call a subcommand 
 - **"Did quality drift / catch a regression"** ("eval this prompt", "regression-test my prompts", "pin expected behavior") → `run_eval_harness` on a suite of prompt+rubric cases (e.g. `config/eval_suite.json`). Runs offline, scores with the quality gate, diffs against a stored per-tier baseline, gates pass/fail, and feeds outcomes back into adaptive routing. `save_baseline: true` blesses a reviewed run.
 - **Code or prompt before running** → `security_check`; deploying an app → `owasp_scan`; user-supplied prompt → `prompt_injection`; checking the injection detector itself → `benchmark_injection`; probing for gaps in the attack corpus → `run_red_team_harness`.
 - **"Is this safe to ship / are we governed"** → `run_security_suite` for a full pass, `export_compliance_bundle` for signed evidence, `list_risk_register`/`accept_risk` for known residual risk, `audit_mcp_servers` for MCP supply-chain risk.
+- **"We got hit / something's off"** → `create_incident` to open the case, `detect_anomalies` to check for a behavioral-baseline deviation first.
+- **"Too many agents / is this agent misbehaving"** → `detect_sprawl` (capability-overlap/role duplication across the registered fleet) or `detect_agent_drift` (a specific agent's recent activity vs its registered role).
+- **"Did the AI invent this package"** → `validate_dependencies`.
 - **Standing exception needed** ("let me write to this file without re-asking", "trust this project for an hour") → `grant_jit_permission` (time-boxed, scoped), `list_jit_permissions` to review, `revoke_jit_permission` to pull it early.
 - **Diagrams** ("draw the architecture / flow / ER / sequence") → `invoke_skill` the matching `*-diagram` pack (Mermaid out), then `validate_mermaid` before showing it.
 - **Tracking a build** ("track effort / tokens", "where's the project at") → `add_task` / `update_task` / `task_report`.
 - **Design help** ("which pattern", "make it faster", "solution/enterprise architecture") → `design-patterns`, `code-optimizer`, `solution-architecture`, `enterprise-architecture` packs.
-- **Role/domain work** (banking, HIPAA, QA, legal, TDD, ADR, etc.) → `suggest_skill` then `invoke_skill`. The 81 packs live in `skill_packs/` and load via the MCP server.
+- **Role/domain work** (banking, HIPAA, QA, legal, TDD, ADR, etc.) → `suggest_skill` then `invoke_skill`. The 84 packs live in `skill_packs/` and load via the MCP server.
 - **Spend/ROI/budget** → the cost-&-budget group; `insights_report` for ranked recommendations across routing/cost/quality/budget.
 - **"What have we decided / learned before"** → `query_decisions` for past architectural decisions, `replay_learnings`/`search_trace` for past corrections and the audit trail, `learning_insights` for correction trends.
 
 ## Cross-agent portability
 
-The 81 skill packs in `skill_packs/` are portable `SKILL.md` files (YAML frontmatter +
+The 84 skill packs in `skill_packs/` are portable `SKILL.md` files (YAML frontmatter +
 prompt). Copy them into any agent's skills dir (`~/.codex/skills/`, `.cursor/skills/`,
 `~/.gemini/skills/`) — same files run everywhere. `AGENTS.md` at the repo root carries
 project context + the active constitution. This is the "one source, three emitters"
