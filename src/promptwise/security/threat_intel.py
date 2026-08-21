@@ -217,3 +217,43 @@ def correlate(
             conn.close()
 
     return matches
+
+
+def enrich_audit(store: ThreatIntelStore, audit_log, audit_record_id: str) -> dict:
+    """Append a read-only enrichment annotation to the audit trail for the
+    intel matches already recorded against `audit_record_id`. Never mutates
+    an existing record -- the enrichment is itself a new AuditLog.append()
+    call, same as every other append pattern in this codebase."""
+    conn = store._connect()
+    try:
+        rows = conn.execute(
+            "SELECT im.matched_on, io.stix_id, io.name FROM intel_matches im "
+            "JOIN intel_objects io ON io.id = im.intel_object_id "
+            "WHERE im.audit_record_id = ?", (audit_record_id,)).fetchall()
+    finally:
+        conn.close()
+
+    matches = [{"matched_on": r["matched_on"], "stix_id": r["stix_id"], "name": r["name"]} for r in rows]
+    if not matches:
+        return {"audit_record_id": audit_record_id, "matches": [], "enriched": False}
+
+    names = ", ".join(m["stix_id"] for m in matches)
+    audit_log.append(
+        f"threat-intel enrichment for record {audit_record_id}: matched {names}",
+        actor="threat_intel", compliance_decision="intel_enrichment")
+    return {"audit_record_id": audit_record_id, "matches": matches, "enriched": True}
+
+
+def export_indicators(store: ThreatIntelStore, fmt: str = "json") -> str:
+    if fmt != "json":
+        raise ValueError(f"unsupported export format: {fmt!r} (only 'json' is supported)")
+    from promptwise.security.scanner import SecurityScanner
+    scanner = SecurityScanner()
+    out = []
+    for obj in store.list_objects("indicator"):
+        _, pattern = scanner.detect_pii(obj.get("pattern") or "", redact=True)
+        out.append({
+            "stix_id": obj["stix_id"], "name": obj.get("name", ""),
+            "pattern": pattern, "source": obj.get("source", ""),
+        })
+    return json.dumps({"indicators": out})
