@@ -9,6 +9,31 @@ import json
 from promptwise.core.tool_registry import ServerContext, tool
 
 
+def _fleet_planning_hints(tasks_arg: list[dict]) -> tuple[dict, dict]:
+    """Best-effort agent_priority/agent_budget_status maps for plan_waves(),
+    built from the registered agents any of `tasks_arg`'s "agent_id" values
+    reference. Fail-soft: a broken/missing FleetRegistry (or no agent_ids
+    present at all) yields two empty dicts, which is byte-identical to
+    calling plan_waves() without these WP5 kwargs at all."""
+    agent_ids = {t.get("agent_id") for t in tasks_arg if t.get("agent_id")}
+    if not agent_ids:
+        return {}, {}
+    try:
+        from promptwise.core.fleet import FleetRegistry
+        registry = FleetRegistry()
+        priority: dict = {}
+        budget_status: dict = {}
+        for agent_id in agent_ids:
+            agent = registry.get(agent_id)
+            if agent is None:
+                continue
+            priority[agent_id] = agent["priority"]
+            budget_status[agent_id] = {"remaining_usd": agent["budget_usd"]}
+        return priority, budget_status
+    except Exception:
+        return {}, {}
+
+
 @tool(name="orchestrate_tasks", description="Parse a multi-step prompt into a DAG and execute with a failure strategy. Pass 'tasks' (with depends_on / file) to instead emit a safe parallel wave plan (which tasks can run at once) for the caller to dispatch.",
          schema={"type": "object", "properties": {
              "text": {"type": "string"}, "strategy": {"type": "string", "enum": ["stop", "retry", "fallback", "all"], "default": "fallback"},
@@ -23,7 +48,8 @@ async def _handle_orchestrate_tasks(ctx: ServerContext, arguments: dict) -> str:
     tasks_arg = arguments.get("tasks")
     if isinstance(tasks_arg, list) and tasks_arg:
         # emit-not-execute: which tasks are safe to run in parallel
-        plan = plan_waves(tasks_arg, fan_out_cap=fan_out)
+        priority, budget_status = _fleet_planning_hints(tasks_arg)
+        plan = plan_waves(tasks_arg, fan_out_cap=fan_out, agent_priority=priority, agent_budget_status=budget_status)
         plan["summary"] = summarize_plan(plan)
         return json.dumps({"mode": "plan", **plan})
     r = ctx.orchestrator.execute(arguments.get("text", ""), strategy=arguments.get("strategy", "fallback"))
