@@ -172,3 +172,48 @@ def import_bundle_file(bundle_path: str, source: str, store: "ThreatIntelStore |
     store = store or ThreatIntelStore()
     imported = store.upsert_objects(parsed, source=source)
     return {"imported": imported, "source": source}
+
+
+def correlate(
+    store: ThreatIntelStore, *, content: str = "",
+    atlas_technique_ids: list[str] | None = None,
+    audit_record_id: str = "", incident_id: int = 0,
+) -> list[dict]:
+    """Join a piece of content and/or a list of ATLAS technique IDs against
+    stored intel. Fail-soft by construction: unmatched input returns an
+    empty list, never raises. Persists an `intel_matches` row per match
+    only when the caller actually has something to tag (an audit record or
+    an incident) -- a dry correlation probe with neither doesn't write."""
+    matches: list[dict] = []
+    atlas_ids = set(atlas_technique_ids or [])
+
+    for obj in store.list_objects("attack-pattern"):
+        if obj.get("atlas_technique_id") and obj["atlas_technique_id"] in atlas_ids:
+            matches.append({
+                "intel_object_id": obj["id"], "stix_id": obj["stix_id"],
+                "name": obj.get("name", ""), "matched_on": "atlas_technique_id",
+            })
+
+    if content:
+        for obj in store.list_objects("indicator"):
+            pattern = obj.get("pattern") or ""
+            if pattern and pattern in content:
+                matches.append({
+                    "intel_object_id": obj["id"], "stix_id": obj["stix_id"],
+                    "name": obj.get("name", ""), "matched_on": "indicator_pattern",
+                })
+
+    if matches and (audit_record_id or incident_id):
+        ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        conn = store._connect()
+        try:
+            for m in matches:
+                conn.execute(
+                    "INSERT INTO intel_matches (intel_object_id, audit_record_id, incident_id, matched_on, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (m["intel_object_id"], audit_record_id or None, incident_id or None, m["matched_on"], ts))
+            conn.commit()
+        finally:
+            conn.close()
+
+    return matches
