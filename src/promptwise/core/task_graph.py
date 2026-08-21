@@ -20,13 +20,42 @@ from __future__ import annotations
 DEFAULT_FAN_OUT = 8
 
 
-def plan_waves(tasks: list[dict], fan_out_cap: int = DEFAULT_FAN_OUT) -> dict:
+_PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+
+
+def plan_waves(
+    tasks: list[dict], fan_out_cap: int = DEFAULT_FAN_OUT,
+    agent_priority: dict[str, str] | None = None,
+    agent_budget_status: dict[str, dict] | None = None,
+) -> dict:
     """Return an execution plan: ordered waves of task ids safe to run together.
 
-    Each task is ``{"id": str, "depends_on": [ids], "file": optional target}``
-    (``target`` is accepted as an alias for ``file``). Unknown deps are ignored.
+    Each task is ``{"id": str, "depends_on": [ids], "file": optional target,
+    "agent_id": optional str}`` (``target`` is accepted as an alias for
+    ``file``). Unknown deps are ignored.
+
+    WP5 additions (both default None -- byte-identical behavior to the
+    pre-WP5 signature when omitted, so every existing caller is
+    unaffected): ``agent_priority`` maps a task's ``agent_id`` to
+    "low"/"medium"/"high" and reorders each wave's candidate list (high
+    first) before the fan-out cap trims it, so a capped wave keeps its
+    highest-priority agents' tasks rather than an arbitrary prefix.
+    ``agent_budget_status`` maps ``agent_id`` to ``{"remaining_usd": float}``;
+    a task whose agent has ``remaining_usd <= 0`` is never scheduled into
+    any wave and is reported in the returned ``"over_budget"`` list
+    instead. Both are planning-level filters only -- this module still
+    performs no real dispatch.
     """
     fan_out_cap = max(1, int(fan_out_cap))
+    agent_priority = agent_priority or {}
+    agent_budget_status = agent_budget_status or {}
+
+    agent_ids = {t["id"]: t.get("agent_id", "") for t in tasks}
+    over_budget = sorted(
+        tid for tid, aid in agent_ids.items()
+        if aid and agent_budget_status.get(aid, {}).get("remaining_usd", 1.0) <= 0)
+
+    tasks = [t for t in tasks if t["id"] not in over_budget]
     ids = [t["id"] for t in tasks]
     idset = set(ids)
     deps = {t["id"]: {d for d in (t.get("depends_on") or []) if d in idset and d != t["id"]}
@@ -48,6 +77,10 @@ def plan_waves(tasks: list[dict], fan_out_cap: int = DEFAULT_FAN_OUT) -> dict:
         ready = [i for i in ids if i in remaining and indeg[i] == 0]
         if not ready:
             break
+        if agent_priority:
+            ready = sorted(
+                ready,
+                key=lambda i: _PRIORITY_RANK.get(agent_priority.get(agent_ids.get(i, ""), "medium"), 1))
         wave: list[str] = []
         used_files: set[str] = set()
         for i in ready:
@@ -80,6 +113,7 @@ def plan_waves(tasks: list[dict], fan_out_cap: int = DEFAULT_FAN_OUT) -> dict:
         "fan_out_cap": fan_out_cap,
         "capped": capped_any,
         "task_effort": efforts,
+        "over_budget": over_budget,
     }
 
 
