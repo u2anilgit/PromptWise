@@ -164,6 +164,18 @@ FRAMEWORK_SOURCES["owasp_nhi_top10"] = {
     "fetched": "2026-08-21",
     "note": "OWASP Non-Human Identities Top 10, 2025 edition, NHI1:2025-NHI10:2025.",
 }
+FRAMEWORK_SOURCES["csa_aicm"] = {
+    "url": "https://cloudsecurityalliance.org/blog/2025/07/10/introducing-the-csa-ai-controls-matrix-a-comprehensive-framework-for-trustworthy-ai",
+    "fetched": "2026-08-21",
+    "note": (
+        "CSA AI Controls Matrix (AICM) v1.1, 18 domains / 247 control "
+        "objectives total. Only the 4 domains this codebase's checks can "
+        "genuinely evidence are mapped -- the other ~14 domains are "
+        "intentionally omitted (not listed with an empty evidence list), "
+        "because this plan's live source fetch confirmed only these 4 "
+        "domain names by title."
+    ),
+}
 
 _REQUIRED_CONTROLS_GDPR = {
     "gdpr:art5": {
@@ -220,10 +232,30 @@ _REQUIRED_CONTROLS_NHI = {
     "nhi10": {"title": "NHI10:2025 Human Use of NHI", "evidenced_by": ["detect_agent_drift"]},
 }
 
+_REQUIRED_CONTROLS_CSA_AICM = {
+    "csa_aicm:iam": {
+        "title": "Identity & Access Management",
+        "evidenced_by": ["grant_jit_permission", "revoke_jit_permission", "list_jit_permissions", "register_agent"],
+    },
+    "csa_aicm:data_security": {
+        "title": "Data Security & Privacy Lifecycle Management",
+        "evidenced_by": ["security_check", "scan_response", "export_compliance_bundle"],
+    },
+    "csa_aicm:model_security": {
+        "title": "Model Security",
+        "evidenced_by": ["prompt_injection", "benchmark_injection", "run_red_team_harness", "owasp_scan"],
+    },
+    "csa_aicm:supply_chain": {
+        "title": "Supply Chain Management, Transparency, & Accountability",
+        "evidenced_by": ["validate_dependencies", "get_sbom", "audit_mcp_servers", "import_threat_feed"],
+    },
+}
+
 _REQUIRED_CONTROLS: dict[str, dict] = {
     "gdpr": _REQUIRED_CONTROLS_GDPR,
     "hipaa": _REQUIRED_CONTROLS_HIPAA,
     "owasp_nhi_top10": _REQUIRED_CONTROLS_NHI,
+    "csa_aicm": _REQUIRED_CONTROLS_CSA_AICM,
 }
 
 

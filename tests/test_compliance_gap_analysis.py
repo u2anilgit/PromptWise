@@ -81,3 +81,21 @@ def test_nhi4_and_nhi6_and_nhi8_are_always_absent():
     assert by_id["nhi4"]["status"] == "absent"
     assert by_id["nhi6"]["status"] == "absent"
     assert by_id["nhi8"]["status"] == "absent"
+
+
+def test_csa_aicm_has_exactly_four_evidenced_domains():
+    """Ground rule #8: CSA AICM has ~18 domains total, but this project's
+    plan-research pass could only confirm 4 domain names from a live
+    source fetch -- the other ~14 are intentionally omitted, not listed
+    with an empty evidence list."""
+    result = gap_analysis("csa_aicm", registered_tools=[])
+    assert len(result["controls"]) == 4
+    ids = {c["control_id"] for c in result["controls"]}
+    assert ids == {"csa_aicm:iam", "csa_aicm:data_security", "csa_aicm:model_security", "csa_aicm:supply_chain"}
+
+
+def test_csa_aicm_model_security_implemented_with_all_four_tools():
+    result = gap_analysis("csa_aicm", registered_tools=[
+        "prompt_injection", "benchmark_injection", "run_red_team_harness", "owasp_scan"])
+    control = next(c for c in result["controls"] if c["control_id"] == "csa_aicm:model_security")
+    assert control["status"] == "implemented"
