@@ -2,6 +2,8 @@ import json
 
 import pytest
 
+import promptwise.server  # noqa: F401 -- collection-order guard, see WP1 Task 6 / WP2 Tasks 3/5/7/9 / WP4 Task 6/8 for the bug this guards against
+
 import promptwise.handlers.intel as intel_handlers
 
 
