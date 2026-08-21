@@ -79,3 +79,34 @@ async def test_check_policy_handler_record_to_audit_true_tags_control_ids(tmp_pa
     assert "control:gdpr:art32" in records[0]["rules_applied"]
     assert records[0]["gate_decision"] == "FAIL"
     assert records[0]["compliance_decision"] == "policy:advisory"
+
+
+from promptwise.core.compliance_export import build_bundle, derive_controls_coverage
+
+
+def test_derive_controls_coverage_counts_control_tags():
+    records = [
+        {"rules_applied": ["control:gdpr:art32", "control:hipaa:164.312(b)"]},
+        {"rules_applied": ["control:gdpr:art32"]},
+        {"rules_applied": ["unrelated:rule"]},
+    ]
+    coverage = derive_controls_coverage(records)
+    assert coverage == {"gdpr:art32": 2, "hipaa:164.312(b)": 1}
+
+
+def test_derive_controls_coverage_empty_when_no_control_tags():
+    assert derive_controls_coverage([{"rules_applied": ["some_rule"]}]) == {}
+
+
+def test_build_bundle_manifest_includes_controls_coverage():
+    records = [{
+        "index": 0, "timestamp": "2026-08-21T00:00:00Z", "task": "t", "actor": "", "agent": "",
+        "model": "", "cost_usd": 0.0, "rules_applied": ["control:gdpr:art32"], "gate_decision": "",
+        "compliance_decision": "", "files_touched": [], "prompt_capture": "",
+        "prev_hash": "0" * 64,
+        "hash": __import__("promptwise.core.audit_log", fromlist=["AuditRecord"]).AuditRecord(
+            index=0, timestamp="2026-08-21T00:00:00Z", task="t",
+            rules_applied=["control:gdpr:art32"]).compute_hash(),
+    }]
+    bundle = build_bundle(records)
+    assert bundle["manifest"]["controls_coverage"] == {"gdpr:art32": 1}

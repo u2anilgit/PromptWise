@@ -195,6 +195,23 @@ def derive_control_families(records: list[dict]) -> list[str]:
     return sorted(fams)
 
 
+def derive_controls_coverage(records: list[dict]) -> dict[str, int]:
+    """Count how many audit records evidence each framework control_id,
+    derived from check_policy's record_to_audit=True path (see
+    core/policy.py's maps_to / PolicyDecision.control_ids, WP6), which
+    tags rules_applied entries as 'control:<id>'. A control_id with zero
+    occurrences simply never appears in the returned dict -- never a
+    fabricated zero-count entry for a control this bundle's audit trail
+    carries no evidence for."""
+    coverage: dict[str, int] = {}
+    for rec in records:
+        for rule in rec.get("rules_applied", []) or []:
+            if rule.startswith("control:"):
+                cid = rule[len("control:"):]
+                coverage[cid] = coverage.get(cid, 0) + 1
+    return coverage
+
+
 # ── bundle build ─────────────────────────────────────────────────────────────
 def build_bundle(source, *, control_families=None) -> dict:
     """Verify the chain, then package records + a manifest into a bundle dict."""
@@ -214,6 +231,7 @@ def build_bundle(source, *, control_families=None) -> dict:
         "chain_message": chain.message,
         "first_broken_index": chain.first_broken_index,
         "control_families": sorted(fams),
+        "controls_coverage": derive_controls_coverage(records),
     }
     try:
         from promptwise.security.risk_register import RiskRegister
