@@ -35,7 +35,11 @@ async def test_create_incident_auto_correlates(tmp_path, monkeypatch):
         "description": "process reached out to evil.example.com",
     })
     result = json.loads(out)
-    assert "intel_matches" in result
+    assert len(result["intel_matches"]) == 1
+    match = result["intel_matches"][0]
+    assert match["matched_on"] == "indicator_pattern"
+    assert match["stix_id"] == "indicator--1"
+    assert match["name"] == "bad"
 
 
 @pytest.mark.asyncio
