@@ -80,3 +80,24 @@ def test_export_incident_bundle_unknown_incident_returns_error(tmp_path, monkeyp
     out = json.loads(asyncio.run(_handle_export_incident_bundle(_BCTX, {
         "incident_id": 999, "correlation_key": "x"})))
     assert "error" in out
+
+
+def test_export_incident_bundle_no_key_configured_returns_clean_error(tmp_path, monkeypatch):
+    """E2E smoke-test finding: on a fresh install with no Ed25519 key
+    configured, the handler must return a clean {"error", "type": "KeyError"}
+    JSON object instead of raising an uncaught KeyError."""
+    from promptwise.core.compliance_export import ENV_KEY_ED25519, ENV_KEY_FILE_ED25519
+    monkeypatch.delenv(ENV_KEY_ED25519, raising=False)
+    monkeypatch.delenv(ENV_KEY_FILE_ED25519, raising=False)
+    monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr(
+        "promptwise.handlers.incidents._get_audit_log",
+        lambda: AuditLog(tmp_path / "audit.jsonl"))
+    store = IncidentStore(tmp_path / "wp3.db")
+    inc = store.create("Test incident", severity="high")
+
+    out = json.loads(asyncio.run(_handle_export_incident_bundle(_BCTX, {
+        "incident_id": inc.id, "correlation_key": "x"})))
+
+    assert out["type"] == "KeyError"
+    assert "error" in out and "Ed25519" in out["error"]

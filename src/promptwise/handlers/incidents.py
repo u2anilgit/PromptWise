@@ -197,7 +197,10 @@ async def _handle_export_incident_bundle(ctx: ServerContext, arguments: dict) ->
     bundle["manifest"]["incident"] = inc.to_dict()
     bundle["manifest"]["incident_events"] = [e.to_dict() for e in events]
 
-    signed = sign_bundle_ed25519(bundle)
+    try:
+        signed = sign_bundle_ed25519(bundle)
+    except KeyError as e:
+        return json.dumps({"error": str(e), "type": "KeyError"})
     return json.dumps(signed)
 
 
