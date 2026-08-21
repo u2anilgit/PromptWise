@@ -2779,6 +2779,28 @@
     }
   },
   {
+    "name": "compliance_gap_analysis",
+    "description": "Per-framework required-control checklist vs controls evidenced by this server's actually-registered tools: implemented / partial / absent, with the evidencing tool names. Frameworks: owasp_agentic_top10 (ASI01-10), owasp_nhi_top10, csa_aicm (4 genuinely-evidenced domains only), gdpr (Arts. 5/25/32/33), hipaa (164.312 a-e). Advisory starting point, not a certification.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "framework": {
+          "type": "string",
+          "enum": [
+            "owasp_agentic_top10",
+            "owasp_nhi_top10",
+            "csa_aicm",
+            "gdpr",
+            "hipaa"
+          ]
+        }
+      },
+      "required": [
+        "framework"
+      ]
+    }
+  },
+  {
     "name": "export_org_report",
     "description": "Build a periodic summary (spend, security-scan verdicts, governance/governor actions) for a stakeholder who doesn't touch a CLI. Markdown or self-contained HTML; no PDF dependency. Pass out_path to write it; omit to just return the report data. Offline; no network.",
     "inputSchema": {

@@ -1,4 +1,9 @@
+import json
+
+import pytest
+
 from promptwise.security.framework_map import gap_analysis
+import promptwise.handlers.compliance_export as compliance_export_handlers
 
 
 def test_unknown_framework_returns_error_object():
@@ -99,3 +104,26 @@ def test_csa_aicm_model_security_implemented_with_all_four_tools():
         "prompt_injection", "benchmark_injection", "run_red_team_harness", "owasp_scan"])
     control = next(c for c in result["controls"] if c["control_id"] == "csa_aicm:model_security")
     assert control["status"] == "implemented"
+
+
+class _FakeCtx:
+    pass
+
+
+@pytest.mark.asyncio
+async def test_compliance_gap_analysis_handler_uses_real_registered_tools():
+    out = await compliance_export_handlers._handle_compliance_gap_analysis(
+        _FakeCtx(), {"framework": "gdpr"})
+    result = json.loads(out)
+    control = next(c for c in result["controls"] if c["control_id"] == "gdpr:art33")
+    # create_incident and export_incident_bundle are real, currently-registered
+    # tools -- this must reflect the live server, not a stub list.
+    assert control["status"] == "implemented"
+
+
+@pytest.mark.asyncio
+async def test_compliance_gap_analysis_handler_unknown_framework():
+    out = await compliance_export_handlers._handle_compliance_gap_analysis(
+        _FakeCtx(), {"framework": "not_a_real_framework"})
+    result = json.loads(out)
+    assert result["type"] == "UnknownFramework"

@@ -31,3 +31,17 @@ async def _handle_export_compliance_bundle(ctx: ServerContext, arguments: dict) 
 async def _handle_generate_ed25519_keypair(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.compliance_export import generate_ed25519_keypair
     return json.dumps(generate_ed25519_keypair())
+
+
+@tool(name="compliance_gap_analysis", description="Per-framework required-control checklist vs controls evidenced by this server's actually-registered tools: implemented / partial / absent, with the evidencing tool names. Frameworks: owasp_agentic_top10 (ASI01-10), owasp_nhi_top10, csa_aicm (4 genuinely-evidenced domains only), gdpr (Arts. 5/25/32/33), hipaa (164.312 a-e). Advisory starting point, not a certification.",
+         schema={"type": "object", "properties": {
+             "framework": {"type": "string", "enum": ["owasp_agentic_top10", "owasp_nhi_top10", "csa_aicm", "gdpr", "hipaa"]}},
+         "required": ["framework"]})
+async def _handle_compliance_gap_analysis(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.security.framework_map import gap_analysis
+    try:
+        from promptwise.server import _TOOL_DEFS
+        registered_tools = [t.name for t in _TOOL_DEFS]
+    except Exception:
+        registered_tools = []
+    return json.dumps(gap_analysis(arguments.get("framework", ""), registered_tools))
