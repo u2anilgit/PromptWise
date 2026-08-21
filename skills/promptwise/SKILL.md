@@ -1,6 +1,6 @@
 ---
 name: promptwise
-description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, run governance/audit/JIT-permission workflows, plan an SDLC workflow from PromptWise's own skill packs, or invoke one of 84 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "how should I structure this build", "is this safe to ship", explicit cost/budget questions, or any time the user pastes a large doc.
+description: Use PromptWise to optimize prompt cost, route requests to the right model tier, plan prompt caching, rewrite/compress verbose prompts, batch small tasks, summarize long threads for handoff, scan for security/compliance issues, run governance/audit/JIT-permission workflows, plan an SDLC workflow from PromptWise's own skill packs, or invoke one of 83 role/technique skill packs. Trigger on "which model should I use", "how can I save tokens", "this prompt is too long", "cache this", "compress this context", "scan this for vulnerabilities", "how should I structure this build", "is this safe to ship", explicit cost/budget questions, or any time the user pastes a large doc.
 ---
 
 # PromptWise — the cross-agent intelligence layer
@@ -17,7 +17,7 @@ Tool/pack counts below reflect the current registry — if in doubt, `list_skill
 the MCP tool list are the source of truth, not this number.
 
 ```
-PromptWise — command groups (142 MCP tools · 84 skill packs):
+PromptWise — command groups (142 MCP tools · 83 skill packs):
 
   Optimization
   route_request        Pick the right model (Haiku/Sonnet/Opus) for a task, budget-aware
@@ -117,7 +117,7 @@ PromptWise — command groups (142 MCP tools · 84 skill packs):
   Roles & skill packs
   detect_role               Auto-detect organizational role
   suggest_skill              Suggest a skill pack for the request
-  list_skills                List the 84 portable skill packs
+  list_skills                List the 83 portable skill packs
   invoke_skill               Run a specific skill pack
   skill_chain                Chain multiple skill packs
 
@@ -151,13 +151,13 @@ Usage: describe your need and PromptWise selects the tool, or call a subcommand 
 - **Diagrams** ("draw the architecture / flow / ER / sequence") → `invoke_skill` the matching `*-diagram` pack (Mermaid out), then `validate_mermaid` before showing it.
 - **Tracking a build** ("track effort / tokens", "where's the project at") → `add_task` / `update_task` / `task_report`.
 - **Design help** ("which pattern", "make it faster", "solution/enterprise architecture") → `design-patterns`, `code-optimizer`, `solution-architecture`, `enterprise-architecture` packs.
-- **Role/domain work** (banking, HIPAA, QA, legal, TDD, ADR, etc.) → `suggest_skill` then `invoke_skill`. The 84 packs live in `skill_packs/` and load via the MCP server.
+- **Role/domain work** (banking, HIPAA, QA, legal, TDD, ADR, etc.) → `suggest_skill` then `invoke_skill`. The 83 packs live in `skill_packs/` and load via the MCP server.
 - **Spend/ROI/budget** → the cost-&-budget group; `insights_report` for ranked recommendations across routing/cost/quality/budget.
 - **"What have we decided / learned before"** → `query_decisions` for past architectural decisions, `replay_learnings`/`search_trace` for past corrections and the audit trail, `learning_insights` for correction trends.
 
 ## Cross-agent portability
 
-The 84 skill packs in `skill_packs/` are portable `SKILL.md` files (YAML frontmatter +
+The 83 skill packs in `skill_packs/` are portable `SKILL.md` files (YAML frontmatter +
 prompt). Copy them into any agent's skills dir (`~/.codex/skills/`, `.cursor/skills/`,
 `~/.gemini/skills/`) — same files run everywhere. `AGENTS.md` at the repo root carries
 project context + the active constitution. This is the "one source, three emitters"
