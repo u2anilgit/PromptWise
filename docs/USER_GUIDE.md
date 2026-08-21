@@ -1,6 +1,6 @@
 # PromptWise User Guide
 
-A practical walkthrough: install, drive the `/promptwise` hub, work with the 81 skill
+A practical walkthrough: install, drive the `/promptwise` hub, work with the 83 skill
 packs, and real examples for routing, diagrams, task tracking, the governed agile method,
 security, and governance. The local engine runs without API keys or third-party tools
 (executing a skill's prompt via `invoke_skill` uses your configured model).
@@ -46,7 +46,7 @@ long", "draw the architecture", "track effort on this task", "scan this code".
 
 ## 3. Working with skill packs
 
-81 portable `SKILL.md` packs live in `skill_packs/`, grouped by category: `agile/`, `ai/`,
+83 portable `SKILL.md` packs live in `skill_packs/`, grouped by category: `agile/`, `ai/`,
 `dev/`, `devops/`, `diagrams/`, `docs/`, `industry/`, `security/`, `testing/`.
 
 Tools to use them:

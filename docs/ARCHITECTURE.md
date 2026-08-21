@@ -25,7 +25,7 @@ flowchart TB
   mcp --> cap["Response-size cap (call_tool choke point)"]
   cap --> emit["Emitters: MCP · SKILL.md · AGENTS.md"]
   Capabilities --> emit
-  packs[("81 skill packs")] --> mcp
+  packs[("83 skill packs")] --> mcp
   store[("SQLite ~/.promptwise")] --> Capabilities
 ```
 
