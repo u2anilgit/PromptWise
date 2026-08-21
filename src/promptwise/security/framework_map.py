@@ -17,6 +17,8 @@ MCP Top 10 mapping (P0 Task 3).
 """
 from __future__ import annotations
 
+from promptwise.security.agentic_framework_map import ASI_SOURCE as _ASI_SOURCE
+
 FRAMEWORK_SOURCES = {
     "owasp_llm_top10": {
         "url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
@@ -232,6 +234,21 @@ _REQUIRED_CONTROLS_NHI = {
     "nhi10": {"title": "NHI10:2025 Human Use of NHI", "evidenced_by": ["detect_agent_drift"]},
 }
 
+FRAMEWORK_SOURCES["owasp_agentic_top10"] = dict(_ASI_SOURCE)
+
+_REQUIRED_CONTROLS_ASI = {
+    "ASI01": {"title": "Agent Goal Hijack", "evidenced_by": ["prompt_injection", "benchmark_injection", "run_red_team_harness", "check_policy"]},
+    "ASI02": {"title": "Tool Misuse and Exploitation", "evidenced_by": ["security_check", "owasp_scan", "detect_agent_drift"]},
+    "ASI03": {"title": "Identity and Privilege Abuse", "evidenced_by": ["register_agent", "grant_jit_permission", "detect_sprawl"]},
+    "ASI04": {"title": "Agentic Supply Chain Vulnerabilities", "evidenced_by": ["validate_dependencies", "get_sbom", "audit_mcp_servers"]},
+    "ASI05": {"title": "Unexpected Code Execution (RCE)", "evidenced_by": ["security_check", "owasp_scan"]},
+    "ASI06": {"title": "Memory & Context Poisoning", "evidenced_by": ["context_lineage", "score_context_quality"]},
+    "ASI07": {"title": "Insecure Inter-Agent Communication", "evidenced_by": ["audit_mcp_servers"]},
+    "ASI08": {"title": "Cascading Failures", "evidenced_by": ["detect_anomalies", "run_governor"]},
+    "ASI09": {"title": "Human-Agent Trust Exploitation", "evidenced_by": ["scan_response"]},
+    "ASI10": {"title": "Rogue Agents", "evidenced_by": ["detect_agent_drift", "create_incident"]},
+}
+
 _REQUIRED_CONTROLS_CSA_AICM = {
     "csa_aicm:iam": {
         "title": "Identity & Access Management",
@@ -256,6 +273,7 @@ _REQUIRED_CONTROLS: dict[str, dict] = {
     "hipaa": _REQUIRED_CONTROLS_HIPAA,
     "owasp_nhi_top10": _REQUIRED_CONTROLS_NHI,
     "csa_aicm": _REQUIRED_CONTROLS_CSA_AICM,
+    "owasp_agentic_top10": _REQUIRED_CONTROLS_ASI,
 }
 
 

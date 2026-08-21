@@ -61,7 +61,7 @@ def test_framework_sources_are_cited():
     assert set(FRAMEWORK_SOURCES) == {
         "owasp_llm_top10", "nist_ai_rmf", "mitre_atlas",
         "soc2", "iso_42001", "eu_ai_act",
-        "gdpr", "hipaa", "owasp_nhi_top10", "csa_aicm",
+        "gdpr", "hipaa", "owasp_nhi_top10", "csa_aicm", "owasp_agentic_top10",
     }
     for meta in FRAMEWORK_SOURCES.values():
         assert meta["url"].startswith("https://")
