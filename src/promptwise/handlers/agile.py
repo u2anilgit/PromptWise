@@ -106,8 +106,8 @@ async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
     return json.dumps(res.to_dict())
 
 
-@tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons. The policy file may optionally set extends: <parent-path> for org->team->project inheritance -- a child can only tighten (narrow allowed tiers, add bans/gates, lower the budget cap), never loosen a parent's policy. Single-tier files with no extends key behave exactly as before.",
-         schema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}}})
+@tool(name="check_policy", description="Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons plus any WP6 maps_to control IDs the policy carries. The policy file may optionally set extends: <parent-path> for org->team->project inheritance -- a child can only tighten (narrow allowed tiers, add bans/gates, lower the budget cap, union maps_to), never loosen a parent's policy. Set record_to_audit=true (default false, zero behavior change otherwise) to append one control-tagged audit record for this decision -- the audit trail then doubles as control-referenced compliance evidence for export_compliance_bundle's controls-coverage section.",
+         schema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}, "actor": {"type": "string", "default": ""}, "record_to_audit": {"type": "boolean", "default": False}}})
 async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.policy import Policy
     policy_path = arguments.get("policy_path", "config/policy.yaml")
@@ -119,6 +119,14 @@ async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
         model_tier=arguments.get("model_tier"), estimated_cost=arguments.get("estimated_cost"),
         spent_so_far=arguments.get("spent_so_far"), operation=arguments.get("operation"),
         gates_passed=arguments.get("gates_passed", []))
+    if arguments.get("record_to_audit", False):
+        audit = _get_audit_log()
+        audit.append(
+            f"check_policy: operation={arguments.get('operation') or '-'} allowed={dec.allowed}",
+            actor=arguments.get("actor", ""),
+            rules_applied=[f"control:{c}" for c in dec.control_ids],
+            gate_decision="PASS" if dec.allowed else "FAIL",
+            compliance_decision=f"policy:{dec.enforcement}")
     return json.dumps(dec.to_dict())
 
 

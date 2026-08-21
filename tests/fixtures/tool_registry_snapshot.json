@@ -1865,7 +1865,7 @@
   },
   {
     "name": "check_policy",
-    "description": "Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons. The policy file may optionally set extends: <parent-path> for org->team->project inheritance -- a child can only tighten (narrow allowed tiers, add bans/gates, lower the budget cap), never loosen a parent's policy. Single-tier files with no extends key behave exactly as before.",
+    "description": "Evaluate a proposed action (model tier, cost, operation, gates) against the cross-agent governance policy; returns allow/block with recorded reasons plus any WP6 maps_to control IDs the policy carries. The policy file may optionally set extends: <parent-path> for org->team->project inheritance -- a child can only tighten (narrow allowed tiers, add bans/gates, lower the budget cap, union maps_to), never loosen a parent's policy. Set record_to_audit=true (default false, zero behavior change otherwise) to append one control-tagged audit record for this decision -- the audit trail then doubles as control-referenced compliance evidence for export_compliance_bundle's controls-coverage section.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1891,6 +1891,14 @@
         "policy_path": {
           "type": "string",
           "default": "config/policy.yaml"
+        },
+        "actor": {
+          "type": "string",
+          "default": ""
+        },
+        "record_to_audit": {
+          "type": "boolean",
+          "default": false
         }
       }
     }

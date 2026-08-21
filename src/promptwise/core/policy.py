@@ -26,10 +26,12 @@ class PolicyDecision:
     violations: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     enforcement: str = "advisory"
+    control_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {"allowed": self.allowed, "violations": list(self.violations),
-                "warnings": list(self.warnings), "enforcement": self.enforcement}
+                "warnings": list(self.warnings), "enforcement": self.enforcement,
+                "control_ids": list(self.control_ids)}
 
 
 def _merge_tighten(parent: "Policy", child: "Policy") -> "Policy":
@@ -63,6 +65,7 @@ def _merge_tighten(parent: "Policy", child: "Policy") -> "Policy":
 
     banned = sorted(set(parent.banned_operations) | set(child.banned_operations))
     gates = sorted(set(parent.required_gates) | set(child.required_gates))
+    maps_to = sorted(set(parent.maps_to) | set(child.maps_to))
 
     merged_enforcement = max(
         (parent.enforcement, child.enforcement), key=lambda m: _ENFORCEMENT_RANK[m])
@@ -73,6 +76,7 @@ def _merge_tighten(parent: "Policy", child: "Policy") -> "Policy":
         banned_operations=banned,
         required_gates=gates,
         enforcement=merged_enforcement,
+        maps_to=maps_to,
         raw={"parent": parent.raw, "child": child.raw},
     )
 
@@ -84,6 +88,7 @@ class Policy:
     banned_operations: list[str] = field(default_factory=list)
     required_gates: list[str] = field(default_factory=list)         # e.g. ["quality", "compliance"]
     enforcement: str = "advisory"
+    maps_to: list[str] = field(default_factory=list)  # WP6: framework control ids this policy evidences
     raw: dict = field(default_factory=dict)
 
     # ---- loaders ----
@@ -100,6 +105,7 @@ class Policy:
             banned_operations=[str(o).lower() for o in d.get("banned_operations", []) or []],
             required_gates=[str(g).lower() for g in d.get("required_gates", []) or []],
             enforcement=enforcement,
+            maps_to=[str(c) for c in d.get("maps_to", []) or []],
             raw=d,
         )
 
@@ -175,4 +181,4 @@ class Policy:
                 violations.append(f"required gate(s) not passed: {missing}")
 
         return PolicyDecision(allowed=not violations, violations=violations, warnings=warnings,
-                              enforcement=self.enforcement)
+                              enforcement=self.enforcement, control_ids=list(self.maps_to))
