@@ -4,6 +4,45 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## WP6 — Compliance Expansion + Context Quality/Lineage (2026-08-21)
+
+Five new framework mappings backed by a real required-control-vs-evidenced-tool
+gap analysis, policy-as-code control-ID threading into the audit trail and
+compliance bundle, and a second (quality/provenance) axis for context
+assembly. See `docs/IMPLEMENTATION_PLAN_2026-08.md` §WP6 for the full design.
+
+### Added
+- **`security/framework_map.py` framework additions** — OWASP Agentic Top 10
+  2026 (ASI01-ASI10, reusing `security/agentic_framework_map.py`'s already-
+  verified category titles), OWASP NHI Top 10 (2025), CSA AICM (4 genuinely-
+  evidenced domains only), GDPR (Arts. 5/25/32/33), HIPAA (§164.312(a)-(e)).
+- **New tool: `compliance_gap_analysis`** — per-framework required-control
+  checklist vs controls evidenced by this server's actually-registered
+  tools: implemented/partial/absent, with the evidencing tool names.
+  Advisory, not a certification.
+- **Compliance-as-code** — `Policy` (`core/policy.py`) gains an optional
+  `maps_to: [control_ids]` YAML field, unioned on `extends` inheritance;
+  `check_policy` carries `control_ids` in every decision and, opt-in
+  (`record_to_audit=true`, default off), tags an audit record with them;
+  `export_compliance_bundle`'s manifest gains a `controls_coverage` section
+  derived from those tags.
+- **New tool: `score_context_quality`** — structure/completeness/staleness
+  (shard-age from mtime)/keyword-overlap-contradiction heuristics for
+  context shards, a second axis alongside `rank_context`'s existing
+  relevance score. Advisory heuristics, not a real parser or semantic
+  contradiction detector.
+- **New tool: `context_lineage`** — records context-shard origin (file
+  path / MCP server / retrieval query) as a new audit-record class
+  (`actor="context_lineage"`, no new table); surfaces automatically in
+  `incident_timeline`'s correlation-key search for "what context poisoned
+  this agent" forensics (OWASP ASI06), with zero changes to
+  `handlers/incidents.py`.
+- **New skill packs** — `eu-ai-act-readiness`, `nhi-audit`
+  (`skill_packs/security/`).
+- **`skills/promptwise/SKILL.md`** — tool/pack counts refreshed; added
+  routing lines for incident/anomaly, fleet-sprawl/drift, and
+  dependency-hallucination questions.
+
 ## WP5 — Agent Fleet Governance (2026-08-21)
 
 Persistent agent registry + capability-sprawl/behavioral-drift detection +
