@@ -23,6 +23,9 @@ Design contract:
 """
 from __future__ import annotations
 
+import re
+import time
+from itertools import combinations
 from pathlib import Path
 
 from promptwise.core.doc_sharder import DocSharder
@@ -104,3 +107,117 @@ def rank_context(query: str, token_budget: int = 2000, *, doc_path: str | None =
         "assembled_context": "\n\n".join(c["text"] for c in included),
         "budget": {"total": budget, "used": used},
     }
+
+
+_TRUNCATION_MARKERS = ("...", "…", "[truncated]", "[content truncated]")
+_NEGATION_MARKERS = ("not ", "never ", "no longer ", "deprecated", "outdated", "obsolete", "removed")
+
+
+def _structure_score(text: str) -> float:
+    """Heuristic 0-1: fraction of non-empty lines that look structured
+    (heading, bullet, numbered item, or a short 'label:' line), plus a
+    bonus if any heading is present. A cheap line-shape proxy, not a real
+    markdown/doc parser -- same spirit as this module's existing
+    word-count-as-token-budget proxy in rank_context()."""
+    lines = [l for l in (text or "").splitlines() if l.strip()]
+    if not lines:
+        return 0.0
+    structured = sum(
+        1 for l in lines
+        if l.lstrip().startswith(("#", "-", "*"))
+        or re.match(r"^\s*\d+[.)]\s", l)
+        or (":" in l[:40] and len(l) < 80)
+    )
+    score = structured / len(lines)
+    if any(l.lstrip().startswith("#") for l in lines):
+        score = score + 0.2
+    return round(min(1.0, score), 4)
+
+
+def _is_truncated(text: str) -> bool:
+    """Flags a shard as truncated when it ends with a known truncation
+    marker, or is long (>200 chars) yet has no terminal punctuation at
+    all. Short shards are never penalized for missing punctuation --
+    titles/labels/list items legitimately lack it. A heuristic, not a
+    real completeness check."""
+    stripped = (text or "").rstrip()
+    if not stripped:
+        return False
+    lowered = stripped.lower()
+    if any(lowered.endswith(m) for m in _TRUNCATION_MARKERS):
+        return True
+    if len(stripped) > 200 and stripped[-1] not in ".!?:\"')]":
+        return True
+    return False
+
+
+def _staleness_score(source_path: str | None, *, now: float | None = None) -> tuple[float | None, float]:
+    """(age_days, freshness_score). age_days is None when source_path is
+    absent or unreadable -- 'unknown age' must never be scored as
+    'stale', so freshness_score stays 1.0 in that case. Otherwise
+    freshness decays linearly from 1.0 (today) to 0.0 (365+ days old)."""
+    if not source_path:
+        return None, 1.0
+    try:
+        mtime = Path(source_path).stat().st_mtime
+    except OSError:
+        return None, 1.0
+    age_days = max(0.0, ((now if now is not None else time.time()) - mtime) / 86400.0)
+    freshness = max(0.0, 1.0 - min(age_days, 365.0) / 365.0)
+    return round(age_days, 2), round(freshness, 4)
+
+
+def _contradiction_pairs(shards: list[dict], *, overlap_threshold: float) -> dict[str, list[str]]:
+    """Pairwise heuristic: two shards are flagged as contradicting when
+    they share >= overlap_threshold Jaccard token overlap (same topic)
+    AND exactly one of the pair contains a negation/deprecation marker
+    the other doesn't. This is a keyword-overlap heuristic, not semantic
+    contradiction detection -- documented as such, never claimed more
+    precise than it is (ground rule #8)."""
+    flags: dict[str, list[str]] = {s["id"]: [] for s in shards}
+    for a, b in combinations(shards, 2):
+        toks_a, toks_b = set(_tokenize(a["text"])), set(_tokenize(b["text"]))
+        union = toks_a | toks_b
+        if not union:
+            continue
+        jaccard = len(toks_a & toks_b) / len(union)
+        if jaccard < overlap_threshold:
+            continue
+        neg_a = any(m in a["text"].lower() for m in _NEGATION_MARKERS)
+        neg_b = any(m in b["text"].lower() for m in _NEGATION_MARKERS)
+        if neg_a != neg_b:
+            flags[a["id"]].append(b["id"])
+            flags[b["id"]].append(a["id"])
+    return flags
+
+
+def score_context_quality(
+    shards: list[dict], *, contradiction_overlap_threshold: float = 0.5, now: float | None = None,
+) -> dict:
+    """Structure/completeness/staleness/contradiction quality heuristics
+    for a list of already-assembled context shards ({"id", "text",
+    optional "source_path"}), extending rank_context's relevance scoring
+    with a second, independent quality axis. Advisory only: cheap textual
+    heuristics (line-shape, trailing-punctuation, mtime, keyword Jaccard
+    overlap), not a real document parser, completeness checker, or
+    semantic contradiction detector."""
+    ids = [s["id"] for s in shards]
+    if len(ids) != len(set(ids)):
+        raise ValueError("score_context_quality: shard ids must be unique")
+
+    contradictions = _contradiction_pairs(shards, overlap_threshold=contradiction_overlap_threshold)
+    out = []
+    for s in shards:
+        structure = _structure_score(s["text"])
+        truncated = _is_truncated(s["text"])
+        completeness = 0.4 if truncated else 1.0
+        age_days, freshness = _staleness_score(s.get("source_path"), now=now)
+        contradicts = sorted(contradictions.get(s["id"], []))
+        penalty = min(0.4, 0.2 * len(contradicts))
+        quality_score = round(max(0.0, (structure + completeness + freshness) / 3.0 - penalty), 4)
+        out.append({
+            "id": s["id"], "structure_score": structure, "completeness_score": completeness,
+            "truncated": truncated, "staleness_days": age_days, "freshness_score": freshness,
+            "contradicts": contradicts, "quality_score": quality_score,
+        })
+    return {"shards": out}
