@@ -246,3 +246,54 @@ def detect_agent_drift(
         "agent_id": agent_id, "findings": [f.to_dict() for f in findings],
         "drift_score": drift_score, "incident_created": incident_created, "incident_id": incident_id,
     }
+
+
+def build_fleet_report(
+    registry: "FleetRegistry", *, audit_log=None, cost_logs: list[dict] | None = None,
+    stale_credential_days: int = 90,
+) -> dict:
+    """Per-agent cost/gate-pass/drift/credential-staleness report, feeds
+    export_org_report.
+
+    Cost-attribution caveat (ground rule #8, matches behavior_baseline.py's
+    documented cost_logs gap): cost_logs carries no actor/agent column, so
+    `estimated_cost_usd` is a best-effort attribution by tool-name overlap
+    with each agent's registered allowed_tools -- a cost_logs row invoked
+    by a tool two agents both claim is counted toward both (disclosed here,
+    not hidden), and rows whose tool matches no registered agent's scope
+    are excluded entirely. This is advisory, not a ledger."""
+    import datetime
+
+    from promptwise.core.audit_log import AuditLog
+
+    log = audit_log if audit_log is not None else AuditLog()
+    logs = cost_logs if cost_logs is not None else []
+
+    agents_out = []
+    for agent in registry.list_all():
+        allowed = set(agent["allowed_tools"])
+        estimated_cost = sum(
+            float(row.get("cost_usd", 0.0)) for row in logs if row.get("tool") in allowed)
+
+        gated = [r for r in log.query(actor=agent["agent_id"]) if r.get("gate_decision")]
+        gate_pass_rate = (
+            sum(1 for r in gated if r["gate_decision"] == "PASS") / len(gated) if gated else None)
+
+        stale = False
+        if agent["scoped_credential"]:
+            if not agent["last_rotation_date"]:
+                stale = True
+            else:
+                try:
+                    rotated = datetime.date.fromisoformat(agent["last_rotation_date"])
+                    stale = (datetime.date.today() - rotated).days > stale_credential_days
+                except ValueError:
+                    stale = True  # unparseable rotation date -- treat as stale, never silently pass
+
+        agents_out.append({
+            "agent_id": agent["agent_id"], "role": agent["role"], "owner": agent["owner"],
+            "estimated_cost_usd": round(estimated_cost, 4), "gate_pass_rate": gate_pass_rate,
+            "drift_score": agent["last_drift_score"], "stale_credential": stale,
+        })
+
+    return {"generated_at": _now(), "agents": agents_out}
