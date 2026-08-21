@@ -175,3 +175,73 @@ def detect_sprawl(registry: "FleetRegistry", *, jaccard_threshold: float = 0.6) 
     role_duplicates = {role: sorted(ids) for role, ids in role_map.items() if len(ids) >= 2}
 
     return {"pairs": pairs, "role_duplicates": role_duplicates}
+
+
+def detect_agent_drift(
+    registry: "FleetRegistry", agent_id: str, *, audit_log=None, window_days: int = 7,
+    drift_threshold: float = 60.0, auto_incident: bool = True,
+) -> dict:
+    """Compare an agent's recent audit-trail activity against its
+    registered role/allowed_tools by reusing WP2's baseline machinery
+    verbatim: two BehaviorStats snapshots (one synthesized from the
+    registered scope, one built from observed rules_applied/files_touched)
+    handed to anomaly_detector.detect_anomalies(). A finding whose
+    threat_score crosses `drift_threshold` auto-creates a WP3 incident,
+    fail-soft -- mirrors handlers/incidents.py's WP4 correlate_threats
+    hook exactly: a broken/missing incident store must never raise out of
+    this function."""
+    from promptwise.core.anomaly_detector import detect_anomalies
+    from promptwise.core.audit_log import AuditLog
+    from promptwise.core.behavior_baseline import BehaviorStats
+
+    agent = registry.get(agent_id)
+    if agent is None:
+        return {"error": f"no registered agent '{agent_id}'", "type": "UnknownAgent"}
+
+    log = audit_log if audit_log is not None else AuditLog()
+    records = log.query(actor=agent_id)
+
+    allowed = agent["allowed_tools"] or []
+    baseline_bigrams = {f"{a}->{b}": 1 for a in allowed for b in allowed}
+    baseline = BehaviorStats(actor=agent_id, window_days=window_days, tool_bigram_freq=baseline_bigrams)
+
+    observed_bigrams: dict[str, int] = {}
+    files: set[str] = set()
+    for rec in records:
+        actions = rec.get("rules_applied", []) or []
+        for a, b in zip(actions, actions[1:]):
+            key = f"{a}->{b}"
+            observed_bigrams[key] = observed_bigrams.get(key, 0) + 1
+        files.update(rec.get("files_touched", []) or [])
+    window = BehaviorStats(
+        actor=agent_id, window_days=window_days, tool_bigram_freq=observed_bigrams,
+        distinct_files_touched=len(files))
+
+    findings = detect_anomalies(agent_id, window=window, baseline=baseline)
+    drift_score = max((f.threat_score for f in findings), default=0.0)
+
+    now = _now()
+    registry.update_drift(agent_id, drift_score, now)
+
+    incident_created = False
+    incident_id = None
+    if auto_incident and findings and drift_score >= drift_threshold:
+        try:
+            from promptwise.core.incidents import IncidentStore
+            categories = ", ".join(sorted({f.category for f in findings}))
+            inc = IncidentStore().create(
+                title=f"agent drift: {agent_id}",
+                description=f"detect_agent_drift flagged {categories} for registered agent "
+                             f"'{agent_id}' (role={agent['role']!r}, drift_score={drift_score:.1f})",
+                severity="high" if drift_score >= 80 else "medium",
+                metadata={"agent_id": agent_id, "drift_score": drift_score,
+                          "categories": sorted({f.category for f in findings})})
+            incident_created = True
+            incident_id = inc.id
+        except Exception:
+            pass
+
+    return {
+        "agent_id": agent_id, "findings": [f.to_dict() for f in findings],
+        "drift_score": drift_score, "incident_created": incident_created, "incident_id": incident_id,
+    }
