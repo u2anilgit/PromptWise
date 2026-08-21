@@ -137,3 +137,109 @@ def build_report_card(violations: list[dict]) -> dict[str, list[str]]:
                 seen.append(category)
         card[framework] = seen
     return card
+
+
+# ── WP6: required-control catalogs feeding gap_analysis() ─────────────────────
+# Unlike _TABLES above (check-value -> category, which OMITS an unmapped
+# check because it has no "required" list to be gapped against), each
+# catalog here is a FULL required-control list for its framework -- a
+# control with an empty evidenced_by is kept (never omitted) so
+# gap_analysis() can honestly report it "absent". Every evidenced_by tool
+# name below is drawn from the live `@tool(name=...)` registry (139 tools
+# as of this plan's research pass, 2026-08-21) -- see this plan's "Research-
+# verified real tool/check names" section and each task's own citation
+# comments for the specific reasoning per control.
+FRAMEWORK_SOURCES["gdpr"] = {
+    "url": "https://gdpr-info.eu/",
+    "fetched": "2026-08-21",
+    "note": "GDPR (Regulation (EU) 2016/679), Arts. 5, 25, 32, 33 only -- the articles this codebase's audit/governance surface can genuinely evidence.",
+}
+FRAMEWORK_SOURCES["hipaa"] = {
+    "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-164.312",
+    "fetched": "2026-08-21",
+    "note": "HIPAA Security Rule, 45 CFR 164.312 Technical Safeguards (a)-(e).",
+}
+
+_REQUIRED_CONTROLS_GDPR = {
+    "gdpr:art5": {
+        "title": "Art. 5 Principles relating to processing of personal data",
+        "evidenced_by": ["security_check", "scan_response"],
+    },
+    "gdpr:art25": {
+        "title": "Art. 25 Data protection by design and by default",
+        "evidenced_by": ["check_policy"],
+    },
+    "gdpr:art32": {
+        "title": "Art. 32 Security of processing",
+        "evidenced_by": ["run_security_suite", "export_compliance_bundle", "generate_ed25519_keypair"],
+    },
+    "gdpr:art33": {
+        "title": "Art. 33 Notification of a personal data breach to the supervisory authority",
+        "evidenced_by": ["create_incident", "export_incident_bundle"],
+    },
+}
+
+_REQUIRED_CONTROLS_HIPAA = {
+    "hipaa:164.312(a)": {
+        "title": "§164.312(a) Access Control",
+        "evidenced_by": ["grant_jit_permission", "list_jit_permissions", "revoke_jit_permission", "tune_permissions"],
+    },
+    "hipaa:164.312(b)": {
+        "title": "§164.312(b) Audit Controls",
+        "evidenced_by": ["record_audit", "query_audit", "export_audit", "compact_audit"],
+    },
+    "hipaa:164.312(c)": {
+        "title": "§164.312(c) Integrity",
+        "evidenced_by": ["export_compliance_bundle"],
+    },
+    "hipaa:164.312(d)": {
+        "title": "§164.312(d) Person or Entity Authentication",
+        "evidenced_by": [],  # no genuine evidence in this codebase -- always "absent"
+    },
+    "hipaa:164.312(e)": {
+        "title": "§164.312(e) Transmission Security",
+        "evidenced_by": [],  # offline-first tool, no network transport layer of its own
+    },
+}
+
+_REQUIRED_CONTROLS: dict[str, dict] = {
+    "gdpr": _REQUIRED_CONTROLS_GDPR,
+    "hipaa": _REQUIRED_CONTROLS_HIPAA,
+}
+
+
+def gap_analysis(framework: str, registered_tools: list[str]) -> dict:
+    """Per-framework required-control checklist vs controls evidenced by
+    `registered_tools` (the caller's live tool-name list -- see
+    handlers/compliance_export.py for the production caller). A control
+    is "implemented" when every one of its evidenced_by tools is
+    registered, "partial" when some but not all are, and "absent" when
+    none are (including controls with a genuinely empty evidenced_by
+    list -- an honest gap, not a fabrication). Advisory starting point,
+    never a certification."""
+    catalog = _REQUIRED_CONTROLS.get(framework)
+    if catalog is None:
+        return {"error": f"unknown framework '{framework}'", "type": "UnknownFramework",
+                "available": sorted(_REQUIRED_CONTROLS)}
+    registered = set(registered_tools)
+    controls = []
+    counts = {"implemented": 0, "partial": 0, "absent": 0}
+    for control_id, spec in catalog.items():
+        required = spec["evidenced_by"]
+        evidence = [t for t in required if t in registered]
+        if not required or not evidence:
+            status = "absent"
+        elif len(evidence) == len(required):
+            status = "implemented"
+        else:
+            status = "partial"
+        counts[status] += 1
+        controls.append({
+            "control_id": control_id, "title": spec["title"], "status": status,
+            "evidenced_by": evidence,
+        })
+    return {
+        "framework": framework, "source": FRAMEWORK_SOURCES.get(framework, {}),
+        "controls": controls, "summary": counts,
+        "advisory_note": "Advisory starting point, not a certification -- see GAP_ANALYSIS item 10.",
+    }
