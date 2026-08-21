@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from itertools import combinations
 from pathlib import Path
 
 
@@ -145,3 +146,32 @@ class FleetRegistry:
             conn.commit()
         finally:
             conn.close()
+
+
+def detect_sprawl(registry: "FleetRegistry", *, jaccard_threshold: float = 0.6) -> dict:
+    """Capability-overlap report across registered agents: tool-set Jaccard
+    similarity for every pair above `jaccard_threshold`, plus role
+    duplication (2+ agents sharing a non-empty role string). Pure
+    read-only comparison over FleetRegistry.list_all() -- no side effects."""
+    agents = registry.list_all()
+    pairs: list[dict] = []
+    for a, b in combinations(agents, 2):
+        set_a, set_b = set(a["allowed_tools"]), set(b["allowed_tools"])
+        union = set_a | set_b
+        if not union:
+            continue
+        jaccard = len(set_a & set_b) / len(union)
+        if jaccard >= jaccard_threshold:
+            pairs.append({
+                "agent_a": a["agent_id"], "agent_b": b["agent_id"], "jaccard": round(jaccard, 4),
+                "shared_tools": sorted(set_a & set_b),
+            })
+    pairs.sort(key=lambda p: (-p["jaccard"], p["agent_a"], p["agent_b"]))
+
+    role_map: dict[str, list[str]] = {}
+    for a in agents:
+        if a["role"]:
+            role_map.setdefault(a["role"], []).append(a["agent_id"])
+    role_duplicates = {role: sorted(ids) for role, ids in role_map.items() if len(ids) >= 2}
+
+    return {"pairs": pairs, "role_duplicates": role_duplicates}
