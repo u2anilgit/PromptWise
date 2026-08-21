@@ -4,6 +4,38 @@ All notable changes to PromptWise are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to adhere to
 semantic versioning.
 
+## WP5 — Agent Fleet Governance (2026-08-21)
+
+Persistent agent registry + capability-sprawl/behavioral-drift detection +
+per-agent cost/gate/credential reporting. See
+`docs/IMPLEMENTATION_PLAN_2026-08.md` §WP5 for the full design.
+
+### Added
+- **New module `core/fleet.py`** — `FleetRegistry` (raw-sqlite
+  `agent_registry` table): role, responsibilities, allowed tools, budget,
+  owner, and OWASP NHI Top 10 credential metadata (scoped-credential flag,
+  last-rotation date, JIT-grant-signature linkage).
+- **New tool: `register_agent`** — upsert an agent registration; can
+  pre-fill role from the existing read-only `detect_agents()` repo probe.
+- **New tool: `detect_sprawl`** — capability-overlap report across
+  registered agents (tool-set Jaccard similarity + role duplication).
+- **New tool: `detect_agent_drift`** — compares an agent's recent
+  audit-trail activity against its registered role/allowed_tools by
+  reusing WP2's `behavior_baseline`/`anomaly_detector`/`aivss` machinery
+  verbatim; a finding above threshold auto-creates a WP3 incident
+  (fail-soft, mirrors WP4's `correlate_threats`-on-`create_incident`
+  hook).
+- **New tool: `fleet_report`** — per-agent best-effort cost attribution
+  (from `cost_logs`), gate pass rate, last-known drift score, and
+  stale-credential flags; feeds `export_org_report`.
+- **`orchestrate_tasks` extension** — `task_graph.plan_waves` gains
+  additive `agent_priority`/`agent_budget_status` keyword args so a wave
+  plan can honor a registered agent's priority/budget at planning time
+  only (no real dispatch; execution remains simulated by design).
+- **New handler category `handlers/fleet.py`**, registered last in
+  `server.py`'s `_add_handler_module` order; golden tool-registry snapshot
+  regenerated.
+
 ## WP0 — AI-Generated-Code Trust Gate (2026-08-13)
 
 Dependency-hallucination/slopsquatting defense plus OWASP scanner hardening.
