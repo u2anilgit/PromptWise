@@ -20,7 +20,23 @@ async def _handle_create_incident(ctx: ServerContext, arguments: dict) -> str:
     inc = IncidentStore().create(
         arguments.get("title", ""), description=arguments.get("description", ""),
         severity=arguments.get("severity", "unknown"), metadata=arguments.get("metadata", {}))
-    return json.dumps(inc.to_dict())
+
+    # WP4: tag the new incident with any matching threat-intel context.
+    # Fail-soft -- a broken/missing intel store must never block incident
+    # creation (matches the project's fail-open/fail-soft detector rule).
+    intel_matches: list = []
+    try:
+        from promptwise.security.threat_intel import ThreatIntelStore, correlate
+        intel_matches = correlate(
+            ThreatIntelStore(),
+            content=f"{arguments.get('title', '')} {arguments.get('description', '')}",
+            incident_id=inc.id)
+    except Exception:
+        pass
+
+    out = inc.to_dict()
+    out["intel_matches"] = intel_matches
+    return json.dumps(out)
 
 
 @tool(name="list_incidents", description="List incidents, optionally filtered by status (open/triaged/contained/resolved/closed).",
