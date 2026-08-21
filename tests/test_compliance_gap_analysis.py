@@ -58,3 +58,26 @@ def test_advisory_note_present_on_every_gap_analysis():
     result = gap_analysis("gdpr", registered_tools=[])
     assert "advisory" in result["advisory_note"].lower()
     assert "not a certification" in result["advisory_note"].lower() or "not a certification" in result["advisory_note"]
+
+
+def test_owasp_nhi_top10_has_all_ten_controls():
+    result = gap_analysis("owasp_nhi_top10", registered_tools=[])
+    ids = {c["control_id"] for c in result["controls"]}
+    assert ids == {f"nhi{i}" for i in range(1, 11)}
+
+
+def test_nhi5_overprivileged_implemented_with_fleet_tools():
+    result = gap_analysis("owasp_nhi_top10", registered_tools=["register_agent", "detect_sprawl"])
+    control = next(c for c in result["controls"] if c["control_id"] == "nhi5")
+    assert control["status"] == "implemented"
+
+
+def test_nhi4_and_nhi6_and_nhi8_are_always_absent():
+    result = gap_analysis("owasp_nhi_top10", registered_tools=[
+        "register_agent", "detect_sprawl", "detect_agent_drift", "fleet_report",
+        "revoke_jit_permission", "security_check", "scan_response", "audit_mcp_servers",
+        "validate_dependencies", "get_sbom"])
+    by_id = {c["control_id"]: c for c in result["controls"]}
+    assert by_id["nhi4"]["status"] == "absent"
+    assert by_id["nhi6"]["status"] == "absent"
+    assert by_id["nhi8"]["status"] == "absent"

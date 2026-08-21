@@ -159,6 +159,11 @@ FRAMEWORK_SOURCES["hipaa"] = {
     "fetched": "2026-08-21",
     "note": "HIPAA Security Rule, 45 CFR 164.312 Technical Safeguards (a)-(e).",
 }
+FRAMEWORK_SOURCES["owasp_nhi_top10"] = {
+    "url": "https://owasp.org/www-project-non-human-identities-top-10/2025/top-10-2025/",
+    "fetched": "2026-08-21",
+    "note": "OWASP Non-Human Identities Top 10, 2025 edition, NHI1:2025-NHI10:2025.",
+}
 
 _REQUIRED_CONTROLS_GDPR = {
     "gdpr:art5": {
@@ -202,9 +207,23 @@ _REQUIRED_CONTROLS_HIPAA = {
     },
 }
 
+_REQUIRED_CONTROLS_NHI = {
+    "nhi1": {"title": "NHI1:2025 Improper Offboarding", "evidenced_by": ["revoke_jit_permission"]},
+    "nhi2": {"title": "NHI2:2025 Secret Leakage", "evidenced_by": ["security_check", "scan_response"]},
+    "nhi3": {"title": "NHI3:2025 Vulnerable Third-Party NHI", "evidenced_by": ["audit_mcp_servers", "validate_dependencies", "get_sbom"]},
+    "nhi4": {"title": "NHI4:2025 Insecure Authentication", "evidenced_by": []},
+    "nhi5": {"title": "NHI5:2025 Overprivileged NHI", "evidenced_by": ["register_agent", "detect_sprawl"]},
+    "nhi6": {"title": "NHI6:2025 Insecure Cloud Deployment Configurations", "evidenced_by": []},
+    "nhi7": {"title": "NHI7:2025 Long-Lived Secrets", "evidenced_by": ["register_agent", "fleet_report"]},
+    "nhi8": {"title": "NHI8:2025 Environment Isolation", "evidenced_by": []},
+    "nhi9": {"title": "NHI9:2025 NHI Reuse", "evidenced_by": ["detect_sprawl"]},
+    "nhi10": {"title": "NHI10:2025 Human Use of NHI", "evidenced_by": ["detect_agent_drift"]},
+}
+
 _REQUIRED_CONTROLS: dict[str, dict] = {
     "gdpr": _REQUIRED_CONTROLS_GDPR,
     "hipaa": _REQUIRED_CONTROLS_HIPAA,
+    "owasp_nhi_top10": _REQUIRED_CONTROLS_NHI,
 }
 
 
