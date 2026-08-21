@@ -151,8 +151,13 @@ def bootstrap(cwd: str | Path | None = None, sync_agents: bool = False) -> dict:
 
                 detection = detect_agents(str(base))
                 bundle = build_surface_bundle(base, project=base.name or "this project")
+                # "antigravity" has no rules-file emitter (Antigravity only documents
+                # reading the global ~/.gemini/GEMINI.md, no project-local rules
+                # surface to safely write) -- it's MCP-registration only, handled
+                # below via sync_antigravity_mcp, so exclude it from the rules sync.
+                rules_targets = [t for t in detection.targets if t != "antigravity"]
                 written = ConfigEmitter().sync(
-                    bundle, base, targets=detection.targets, mode="apply"
+                    bundle, base, targets=rules_targets, mode="apply"
                 )
                 result["synced_agents"] = detection.targets
                 result["agent_files"] = written
@@ -163,6 +168,13 @@ def bootstrap(cwd: str | Path | None = None, sync_agents: bool = False) -> dict:
                         result["codex_mcp"] = sync_codex_mcp(base)
                     except Exception as e:
                         result["codex_mcp_error"] = f"{type(e).__name__}: {e}"
+
+                if "antigravity" in detection.targets:
+                    try:
+                        from promptwise.core.config_emitter import sync_antigravity_mcp
+                        result["antigravity_mcp"] = sync_antigravity_mcp(base)
+                    except Exception as e:
+                        result["antigravity_mcp_error"] = f"{type(e).__name__}: {e}"
             except Exception as e:
                 result["agent_sync_error"] = f"{type(e).__name__}: {e}"
 

@@ -49,6 +49,26 @@ def test_bootstrap_sync_agents_skips_codex_mcp_when_codex_not_detected(tmp_path)
     assert not (tmp_path / ".codex").exists()
 
 
+def test_bootstrap_sync_agents_registers_antigravity_mcp_when_detected(tmp_path):
+    (tmp_path / ".agents").mkdir()
+
+    result = bootstrap(cwd=tmp_path, sync_agents=True)
+
+    assert result["antigravity_mcp"] == "written"
+    config = json.loads((tmp_path / ".agents" / "mcp_config.json").read_text(encoding="utf-8"))
+    assert config["mcpServers"]["promptwise"]["command"] == "python"
+
+
+def test_bootstrap_sync_agents_skips_antigravity_mcp_when_not_detected(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text("", encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+
+    result = bootstrap(cwd=tmp_path, sync_agents=True)
+
+    assert "antigravity" not in result["synced_agents"]
+    assert "antigravity_mcp" not in result
+
+
 def test_bootstrap_sync_agents_includes_skill_pack_surface(tmp_path):
     (tmp_path / ".claude").mkdir()
     fam_dir = tmp_path / "skill_packs" / "testfam"

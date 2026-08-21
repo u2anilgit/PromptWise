@@ -430,3 +430,77 @@ def sync_codex_mcp(repo_root: str | Path) -> str:
     separator = "" if existing.endswith("\n\n") else ("\n" if existing.endswith("\n") else "\n\n")
     dest.write_text(existing + separator + _CODEX_MCP_STANZA, encoding="utf-8")
     return "appended"
+
+
+_ANTIGRAVITY_MCP_ENTRY = {
+    "command": "python",
+    "args": ["-m", "promptwise.server"],
+    "cwd": "${projectDir}",
+    "env": {"PYTHONPATH": "${projectDir}/src"},
+}
+
+
+def sync_antigravity_mcp(repo_root: str | Path) -> str:
+    """Register PromptWise's MCP server in Antigravity's project-local config.
+
+    Antigravity (the Gemini-based agentic IDE) reads MCP server definitions
+    from two places: a user-global ``~/.gemini/config/mcp_config.json``
+    (shared across every project on the machine) and a project-local
+    ``.agents/mcp_config.json`` (documented at antigravity.google/docs/mcp).
+    This function only ever touches the repo-scoped file -- the global one
+    is deliberately out of scope and is never read or written here, matching
+    every other emitter's blast radius (repo-local only, git-trackable).
+
+    Unlike TOML's comment-free, append-only text format (see
+    ``sync_codex_mcp``), JSON has no place to hang the managed-block markers
+    used by ``merge_managed``, but it *is* structured enough to parse and
+    merge safely -- so this does a real read-modify-write: it adds or
+    updates only the top-level ``mcpServers.promptwise`` key and leaves
+    every other key in the file untouched.
+
+    Returns one of:
+      * "written"             -- the file did not exist; created with just
+                                  our own ``mcpServers.promptwise`` entry.
+      * "updated"              -- the file existed (with or without other
+                                  servers) and the ``promptwise`` entry was
+                                  added or changed.
+      * "already-configured"  -- the ``promptwise`` entry already matched
+                                  exactly; the file was left untouched (no
+                                  unnecessary rewrite/diff/touch).
+
+    Raises ``ValueError`` if the existing file is not valid JSON or its
+    top-level shape is not a JSON object. Fail-soft by design: this never
+    rewrites or destroys a file it can't safely parse -- the caller
+    (``doctor.bootstrap``) wraps this in its own try/except so a malformed
+    pre-existing file surfaces as a warning, not a crash.
+    """
+    import json
+
+    dest = Path(repo_root) / ".agents" / "mcp_config.json"
+
+    if not dest.exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        data = {"mcpServers": {"promptwise": _ANTIGRAVITY_MCP_ENTRY}}
+        dest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        return "written"
+
+    raw = dest.read_text(encoding="utf-8")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"existing {dest} is not valid JSON; refusing to overwrite it: {e}"
+        ) from e
+    if not isinstance(data, dict):
+        raise ValueError(f"existing {dest} is not a JSON object at the top level")
+
+    servers = data.setdefault("mcpServers", {})
+    if not isinstance(servers, dict):
+        raise ValueError(f"existing {dest} has a non-object 'mcpServers' value")
+
+    if servers.get("promptwise") == _ANTIGRAVITY_MCP_ENTRY:
+        return "already-configured"
+
+    servers["promptwise"] = _ANTIGRAVITY_MCP_ENTRY
+    dest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return "updated"

@@ -50,6 +50,25 @@ def test_agents_override_adds_confidence(tmp_path: Path):
     assert boosted > base
 
 
+def test_antigravity_mcp_config_detected(tmp_path: Path):
+    agents = tmp_path / ".agents"
+    agents.mkdir()
+    (agents / "mcp_config.json").write_text("{}", encoding="utf-8")
+    result = detect_agents(tmp_path)
+    assert "antigravity" in result.targets
+
+
+def test_antigravity_dir_alone_detected(tmp_path: Path):
+    (tmp_path / ".agents").mkdir()
+    result = detect_agents(tmp_path)
+    assert "antigravity" in result.targets
+
+
+def test_antigravity_not_detected_when_absent(tmp_path: Path):
+    result = detect_agents(tmp_path)
+    assert "antigravity" not in result.targets
+
+
 def test_copilot_instructions_detected(tmp_path: Path):
     gh = tmp_path / ".github"
     gh.mkdir()

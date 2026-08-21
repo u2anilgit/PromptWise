@@ -113,6 +113,14 @@ def detect_agents(repo_root: str | Path = ".") -> DetectionResult:
     elif (root / ".openhands").is_dir():
         probe("openhands").add(".openhands/", SECONDARY)
 
+    # --- antigravity: .agents/mcp_config.json (project-local MCP registration
+    # surface; the dir alone is weaker secondary evidence, the config file is
+    # the canonical marker) ---
+    if (root / ".agents" / "mcp_config.json").is_file():
+        probe("antigravity").add(".agents/mcp_config.json", PRIMARY)
+    elif (root / ".agents").is_dir():
+        probe("antigravity").add(".agents/", SECONDARY)
+
     # NOTE: no "grok" probe. Grok Build/Grok CLI has no rules file of its own
     # -- it natively auto-reads CLAUDE.md/AGENTS.md (see config_emitter.py's
     # _TARGET_ALIASES) -- so its presence isn't independently detectable; a
