@@ -276,6 +276,13 @@ _add_handler_module("admin")
 _add_handler_module("intel")
 
 
+# register_agent/detect_sprawl/detect_agent_drift/fleet_report (handlers.fleet)
+# -- new agent-fleet-governance category, no pre-split ordering to preserve.
+# Appended at the end of the registration block, matching how every other
+# new category was added (see intel above).
+_add_handler_module("fleet")
+
+
 async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
     try:
         handler = _HANDLERS.get(name)

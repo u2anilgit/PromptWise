@@ -3319,5 +3319,128 @@
         }
       }
     }
+  },
+  {
+    "name": "register_agent",
+    "description": "Register (or update, upsert by agent_id) an AI agent operating against this repo: role, responsibilities, allowed tools, budget, owner, and OWASP NHI Top 10 credential metadata (scoped_credential flag, last_rotation_date, jit_grant_signature linking back to a grant_jit_permission signature). Set prefill_from_detect_agents=true to seed role/allowed_tools from the read-only detect_agents() repo probe instead of passing them explicitly.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "default": ""
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "budget_usd": {
+          "type": "number",
+          "default": 0.0
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "default": "medium"
+        },
+        "owner": {
+          "type": "string",
+          "default": ""
+        },
+        "scoped_credential": {
+          "type": "boolean",
+          "default": false
+        },
+        "last_rotation_date": {
+          "type": "string",
+          "default": ""
+        },
+        "jit_grant_signature": {
+          "type": "string",
+          "default": ""
+        },
+        "prefill_from_detect_agents": {
+          "type": "boolean",
+          "default": false
+        },
+        "repo_root": {
+          "type": "string",
+          "default": "."
+        }
+      },
+      "required": [
+        "agent_id"
+      ]
+    }
+  },
+  {
+    "name": "detect_sprawl",
+    "description": "Capability-overlap report across every registered agent: tool-set Jaccard similarity for pairs above jaccard_threshold, plus role duplication (2+ agents sharing a role string). Advisory -- flags candidates for consolidation, doesn't merge anything.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "jaccard_threshold": {
+          "type": "number",
+          "default": 0.6
+        }
+      }
+    }
+  },
+  {
+    "name": "detect_agent_drift",
+    "description": "Compare a registered agent's recent audit-trail activity (rules_applied/files_touched from record_audit calls with actor=agent_id) against its registered role/allowed_tools, reusing the WP2 behavior-baseline/anomaly-detection machinery. A finding whose threat_score crosses drift_threshold auto-creates a WP3 incident (set auto_incident=false to only report). Advisory -- the OWASP 'rogue agent precursor' loop.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "window_days": {
+          "type": "integer",
+          "default": 7
+        },
+        "drift_threshold": {
+          "type": "number",
+          "default": 60.0
+        },
+        "auto_incident": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "agent_id"
+      ]
+    }
+  },
+  {
+    "name": "fleet_report",
+    "description": "Per-agent rollup across every registered agent: best-effort cost attribution (from cost_logs, by tool-name overlap with allowed_tools), gate pass rate (from the audit trail), last-known drift score, and stale-credential flags (scoped_credential agents whose last_rotation_date is older than stale_credential_days, default 90). Feeds export_org_report.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "stale_credential_days": {
+          "type": "integer",
+          "default": 90
+        }
+      }
+    }
   }
 ]
