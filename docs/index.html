@@ -457,39 +457,69 @@
   .diagram-frame .out-box { fill: none; stroke: var(--sage); stroke-width: 1.5; }
   .diagram-frame .conn { stroke: var(--hairline-card); stroke-width: 1.5; }
 
-  /* ---------- works with ---------- */
+  /* ---------- taxonomy tree ---------- */
+  .taxonomy {
+    padding: clamp(48px, 7vw, 72px) 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .taxonomy h2 {
+    font-family: var(--mono);
+    font-size: clamp(22px, 3vw, 28px);
+    margin: 0 0 6px;
+  }
+  .taxonomy p.lead { color: var(--text-dim); max-width: 58ch; margin: 0 0 32px; }
+  .tree-frame {
+    overflow-x: auto;
+    background: var(--paper);
+    border-radius: 4px;
+    box-shadow: 0 6px 18px var(--shadow), 0 1px 0 var(--hairline-card) inset;
+    padding: clamp(20px, 4vw, 32px) clamp(16px, 3vw, 28px);
+  }
+  .tree-frame svg { width: 100%; height: auto; min-width: 760px; display: block; margin: 0 auto; font-family: var(--mono); }
+  .tree-root-box { fill: var(--brass); }
+  .tree-root-box text { fill: var(--paper); }
+  .tree-branch { fill: var(--paper); stroke-width: 1.6; }
+  .tree-branch text { fill: var(--paper-ink); font-weight: 600; }
+  .tree-leaf { fill: var(--paper-ink-dim); font-size: 10.5px; }
+  .tree-link { fill: none; stroke: var(--hairline-card); stroke-width: 1.4; }
+  .tree-dot { r: 3; }
+
+  /* ---------- works with (host wheel) ---------- */
   .works {
     padding: clamp(48px, 7vw, 72px) 0;
     border-top: 1px solid var(--hairline);
   }
-  .works h2 {
+  .works-head { max-width: 60ch; margin-bottom: clamp(20px, 3vw, 28px); }
+  .works-head h2 {
     font-family: var(--mono);
-    font-size: 14px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin: 0 0 20px;
-    font-weight: 500;
+    font-size: clamp(22px, 3vw, 28px);
+    margin: 0 0 6px;
   }
-  .worktag-grid {
+  .works-head p { color: var(--text-dim); margin: 0; font-size: 14px; }
+  .wheel-frame {
+    overflow-x: auto;
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    justify-content: center;
   }
-  .worktag {
-    font-family: var(--mono);
-    font-size: 12.5px;
-    padding: 7px 12px;
-    border: 1px solid var(--hairline);
-    border-radius: 3px;
-    color: var(--text-dim);
-    position: relative;
+  .wheel-frame svg { width: 100%; max-width: 640px; height: auto; display: block; font-family: var(--mono); }
+  .wheel-hub { fill: var(--brass); }
+  .wheel-hub text { fill: var(--paper); font-size: 15px; }
+  .wheel-hub .sub { fill: var(--paper); opacity: .8; font-size: 10px; }
+  .wheel-spoke { stroke: var(--hairline); stroke-width: 1.2; stroke-dasharray: 2 4; }
+  .wheel-node {
+    fill: var(--paper);
+    stroke: var(--sage);
+    stroke-width: 1.6;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    transform: scale(0.4);
+    animation: orbit-in 0.5s ease-out forwards;
   }
-  .worktag::before {
-    content: "✓";
-    color: var(--sage);
-    margin-right: 6px;
-  }
+  .wheel-node.alt { stroke: var(--brass); }
+  .wheel-label { fill: var(--text); font-size: 11px; text-anchor: middle; opacity: 0; animation: label-in 0.5s ease-out forwards; }
+  @keyframes orbit-in { to { opacity: 1; transform: scale(1); } }
+  @keyframes label-in { to { opacity: 1; } }
 
   /* ---------- coverage (compliance) ---------- */
   .coverage {
@@ -574,6 +604,7 @@
   @media (prefers-reduced-motion: reduce) {
     .demo-line { animation: none !important; opacity: 1; transform: none; }
     .block { transition: none; opacity: 1; transform: none; }
+    .wheel-node, .wheel-label { animation: none !important; opacity: 1; transform: none; }
   }
 </style>
 </head>
@@ -793,23 +824,78 @@
   </div>
 </section>
 
+<section class="taxonomy wrap">
+  <h2>What's actually inside the 142</h2>
+  <p class="lead">Not a marketing simplification — the real handler categories the tools are
+    organized into.</p>
+  <div class="tree-frame">
+    <svg viewBox="0 0 1000 300" role="img" aria-label="142 tools organized into five categories: governance and policy, security and compliance, incident and threat, memory and learning, cost and routing">
+      <rect class="tree-root-box" x="410" y="10" width="180" height="46" rx="4"/>
+      <text x="500" y="38" text-anchor="middle" font-size="14">142 tools</text>
+
+      <path class="tree-link" d="M500,56 C500,78 120,78 120,100"/>
+      <path class="tree-link" d="M500,56 C500,78 320,78 320,100"/>
+      <path class="tree-link" d="M500,56 L500,100"/>
+      <path class="tree-link" d="M500,56 C500,78 680,78 680,100"/>
+      <path class="tree-link" d="M500,56 C500,78 880,78 880,100"/>
+
+      <rect class="tree-branch" x="40" y="100" width="160" height="46" rx="4" stroke="var(--brass)"/>
+      <text x="120" y="128" text-anchor="middle" font-size="12">Governance &amp; policy</text>
+      <rect class="tree-branch" x="240" y="100" width="160" height="46" rx="4" stroke="var(--clay)"/>
+      <text x="320" y="128" text-anchor="middle" font-size="12">Security &amp; compliance</text>
+      <rect class="tree-branch" x="420" y="100" width="160" height="46" rx="4" stroke="var(--sage)"/>
+      <text x="500" y="128" text-anchor="middle" font-size="12">Incident &amp; threat</text>
+      <rect class="tree-branch" x="600" y="100" width="160" height="46" rx="4" stroke="var(--brass)"/>
+      <text x="680" y="128" text-anchor="middle" font-size="12">Memory &amp; learning</text>
+      <rect class="tree-branch" x="800" y="100" width="160" height="46" rx="4" stroke="var(--clay)"/>
+      <text x="880" y="128" text-anchor="middle" font-size="12">Cost &amp; routing</text>
+
+      <circle class="tree-dot" cx="120" cy="146" fill="var(--brass)"/>
+      <path class="tree-link" d="M120,146 L120,172"/>
+      <text class="tree-leaf" x="120" y="188" text-anchor="middle">check_policy</text>
+      <text class="tree-leaf" x="120" y="202" text-anchor="middle">run_governor</text>
+      <text class="tree-leaf" x="120" y="216" text-anchor="middle">run_quality_gate</text>
+
+      <circle class="tree-dot" cx="320" cy="146" fill="var(--clay)"/>
+      <path class="tree-link" d="M320,146 L320,172"/>
+      <text class="tree-leaf" x="320" y="188" text-anchor="middle">security_check</text>
+      <text class="tree-leaf" x="320" y="202" text-anchor="middle">owasp_scan</text>
+      <text class="tree-leaf" x="320" y="216" text-anchor="middle">compliance_gap_analysis</text>
+
+      <circle class="tree-dot" cx="500" cy="146" fill="var(--sage)"/>
+      <path class="tree-link" d="M500,146 L500,172"/>
+      <text class="tree-leaf" x="500" y="188" text-anchor="middle">create_incident</text>
+      <text class="tree-leaf" x="500" y="202" text-anchor="middle">correlate_threats</text>
+      <text class="tree-leaf" x="500" y="216" text-anchor="middle">detect_agent_drift</text>
+
+      <circle class="tree-dot" cx="680" cy="146" fill="var(--brass)"/>
+      <path class="tree-link" d="M680,146 L680,172"/>
+      <text class="tree-leaf" x="680" y="188" text-anchor="middle">capture_learning</text>
+      <text class="tree-leaf" x="680" y="202" text-anchor="middle">query_memory</text>
+      <text class="tree-leaf" x="680" y="216" text-anchor="middle">kb_lookup</text>
+
+      <circle class="tree-dot" cx="880" cy="146" fill="var(--clay)"/>
+      <path class="tree-link" d="M880,146 L880,172"/>
+      <text class="tree-leaf" x="880" y="188" text-anchor="middle">route_request</text>
+      <text class="tree-leaf" x="880" y="202" text-anchor="middle">predict_cost</text>
+      <text class="tree-leaf" x="880" y="216" text-anchor="middle">project_cost_report</text>
+    </svg>
+  </div>
+</section>
+
 <section class="works wrap">
-  <h2>Works with what you already run</h2>
-  <div class="worktag-grid">
-    <span class="worktag">Claude Code</span>
-    <span class="worktag">Claude Desktop</span>
-    <span class="worktag">Codex</span>
-    <span class="worktag">Cursor</span>
-    <span class="worktag">Gemini CLI</span>
-    <span class="worktag">Copilot</span>
-    <span class="worktag">Windsurf</span>
-    <span class="worktag">JetBrains AI Assistant</span>
-    <span class="worktag">Cline</span>
-    <span class="worktag">Aider</span>
-    <span class="worktag">Goose</span>
-    <span class="worktag">OpenHands</span>
-    <span class="worktag">Grok CLI</span>
-    <span class="worktag">Google Antigravity</span>
+  <div class="works-head">
+    <span class="eyebrow">Coverage</span>
+    <h2>14 hosts, all peers — none more "supported" than another.</h2>
+    <p>One governance core, compiled to whatever your agent already reads.</p>
+  </div>
+  <div class="wheel-frame">
+    <svg viewBox="0 0 620 620" role="img" aria-label="PromptWise core with 14 agent hosts arranged radially around it">
+      <circle class="wheel-hub" cx="310" cy="310" r="70"/>
+      <text x="310" y="305" text-anchor="middle">PromptWise</text>
+      <text class="sub" x="310" y="323" text-anchor="middle">core</text>
+      <g id="wheelRing"></g>
+    </svg>
   </div>
 </section>
 
@@ -870,6 +956,57 @@ pip install -e .
     blocks.forEach(function (b, i) {
       b.style.transitionDelay = (i * 60) + 'ms';
       io.observe(b);
+    });
+  })();
+
+  (function () {
+    var hosts = ["Claude Code", "Claude Desktop", "Codex", "Cursor", "Gemini CLI",
+      "Copilot", "Windsurf", "JetBrains", "Cline", "Aider", "Goose", "OpenHands",
+      "Grok CLI", "Antigravity"];
+    var ring = document.getElementById('wheelRing');
+    if (!ring) return;
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var cx = 310, cy = 310, rHub = 70, rNode = 230, nodeR = 27;
+    var n = hosts.length;
+
+    hosts.forEach(function (name, i) {
+      var angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+      var x = cx + rNode * Math.cos(angle);
+      var y = cy + rNode * Math.sin(angle);
+      var sx = cx + rHub * Math.cos(angle);
+      var sy = cy + rHub * Math.sin(angle);
+      var lx = cx + (rNode + 38) * Math.cos(angle);
+      var ly = cy + (rNode + 38) * Math.sin(angle);
+
+      var spoke = document.createElementNS(svgNS, 'line');
+      spoke.setAttribute('x1', sx); spoke.setAttribute('y1', sy);
+      spoke.setAttribute('x2', x); spoke.setAttribute('y2', y);
+      spoke.setAttribute('class', 'wheel-spoke');
+      ring.appendChild(spoke);
+
+      var circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('cx', x); circle.setAttribute('cy', y); circle.setAttribute('r', nodeR);
+      circle.setAttribute('class', 'wheel-node' + (i % 2 ? ' alt' : ''));
+      circle.style.animationDelay = (i * 45) + 'ms';
+      ring.appendChild(circle);
+
+      var idx = document.createElementNS(svgNS, 'text');
+      idx.setAttribute('x', x); idx.setAttribute('y', y + 4);
+      idx.setAttribute('text-anchor', 'middle');
+      idx.setAttribute('font-size', '10');
+      idx.setAttribute('fill', i % 2 ? 'var(--brass)' : 'var(--sage)');
+      idx.textContent = String(i + 1).padStart(2, '0');
+      idx.style.opacity = '0';
+      idx.style.animation = 'label-in 0.5s ease-out forwards';
+      idx.style.animationDelay = (i * 45 + 150) + 'ms';
+      ring.appendChild(idx);
+
+      var label = document.createElementNS(svgNS, 'text');
+      label.setAttribute('x', lx); label.setAttribute('y', ly + 4);
+      label.setAttribute('class', 'wheel-label');
+      label.textContent = name;
+      label.style.animationDelay = (i * 45 + 150) + 'ms';
+      ring.appendChild(label);
     });
   })();
 </script>
