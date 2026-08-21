@@ -741,7 +741,7 @@
         },
         "tasks": {
           "type": "array",
-          "description": "Structured tasks [{id, depends_on:[ids], file}] — when present, returns a wave plan instead of executing",
+          "description": "Structured tasks [{id, depends_on:[ids], file}] \u2014 when present, returns a wave plan instead of executing",
           "items": {
             "type": "object",
             "properties": {
@@ -2063,7 +2063,7 @@
   },
   {
     "name": "propose_agent_config",
-    "description": "Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing — the review step before apply",
+    "description": "Preview a unified diff of the agent rules files PromptWise would write, per target, WITHOUT writing \u2014 the review step before apply",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2159,7 +2159,7 @@
   },
   {
     "name": "check_portability",
-    "description": "Cross-host portability check (Phase 7 §7.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, aider, goose, openhands, grok) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
+    "description": "Cross-host portability check (Phase 7 \u00a77.4): verify the emitted governance configs for every supported host (CLAUDE.md, AGENTS.md, .cursor/rules, copilot, .clinerules, GEMINI.md, .windsurfrules, .aiassistant/rules, aider, goose, openhands, grok) are present, well-formed, and in sync with the current skill/agent surface (skill_packs / agents / commands); reports drift precisely. Set emit_ci to also return a host-neutral CI-snippet that runs the governance gates using tiers/families only. Offline.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -2329,7 +2329,7 @@
   },
   {
     "name": "tune_permissions",
-    "description": "Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only — never edits config.",
+    "description": "Learn allow/deny permission suggestions from denial telemetry (the Phase 1 PermissionDenied log). Proposals only \u2014 never edits config.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -3239,6 +3239,85 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    }
+  },
+  {
+    "name": "import_threat_feed",
+    "description": "Parse and import a local STIX 2.1 bundle file (indicator/attack-pattern/intrusion-set/relationship objects only -- other types are skipped, not errored) into the threat-intel store, deduped by STIX id. allow_network=True is a documented forward-compat seam for TAXII 2.1 polling and is NOT implemented -- it raises NotImplementedError today; the default (offline, file-based) path is what's supported.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "bundle_path": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "default": ""
+        },
+        "allow_network": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "bundle_path"
+      ]
+    }
+  },
+  {
+    "name": "correlate_threats",
+    "description": "Join content and/or a list of MITRE ATLAS technique IDs against the imported threat-intel store (ATLAS-ID match + indicator string match). Writes intel_matches rows when audit_record_id or incident_id is given; a dry probe with neither is not persisted. Called automatically (fail-soft) by create_incident -- also callable standalone for backfill.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "default": ""
+        },
+        "atlas_technique_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "audit_record_id": {
+          "type": "string",
+          "default": ""
+        },
+        "incident_id": {
+          "type": "integer",
+          "default": 0
+        }
+      }
+    }
+  },
+  {
+    "name": "enrich_audit",
+    "description": "Append a read-only threat-intel enrichment annotation to the audit trail for a record's already-recorded intel matches (see correlate_threats). Never mutates the hash chain -- the enrichment is a new audit record, same as every other audit append in this codebase.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "audit_record_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "audit_record_id"
+      ]
+    }
+  },
+  {
+    "name": "export_indicators",
+    "description": "Export imported indicator objects (PII-scrubbed) for sharing back to a SOC/SIEM. Returns data for the caller to send -- makes no network call itself.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "default": "json"
+        }
+      }
     }
   }
 ]
