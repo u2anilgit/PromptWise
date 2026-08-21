@@ -117,3 +117,11 @@ async def test_score_context_quality_handler_duplicate_id_returns_error_object()
         _FakeCtx(), {"shards": [{"id": "a", "text": "x"}, {"id": "a", "text": "y"}]})
     result = json.loads(out)
     assert result["type"] == "DuplicateShardId"
+
+
+@pytest.mark.asyncio
+async def test_score_context_quality_handler_bad_threshold_is_not_mislabeled_duplicate():
+    with pytest.raises(ValueError):
+        await policy_intel_handlers._handle_score_context_quality(
+            _FakeCtx(), {"shards": [{"id": "s1", "text": "x"}],
+                         "contradiction_overlap_threshold": "high"})

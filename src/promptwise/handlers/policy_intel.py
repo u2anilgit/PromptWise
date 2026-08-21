@@ -85,10 +85,11 @@ async def _handle_rank_context(ctx: ServerContext, arguments: dict) -> str:
          "required": ["shards"]})
 async def _handle_score_context_quality(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.context_ranker import score_context_quality
+    threshold = float(arguments.get("contradiction_overlap_threshold", 0.5))
     try:
         result = score_context_quality(
             arguments.get("shards", []),
-            contradiction_overlap_threshold=float(arguments.get("contradiction_overlap_threshold", 0.5)))
+            contradiction_overlap_threshold=threshold)
     except ValueError as e:
         return json.dumps({"error": str(e), "type": "DuplicateShardId"})
     return json.dumps(result)

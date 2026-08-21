@@ -120,13 +120,16 @@ async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
         spent_so_far=arguments.get("spent_so_far"), operation=arguments.get("operation"),
         gates_passed=arguments.get("gates_passed", []))
     if arguments.get("record_to_audit", False):
-        audit = _get_audit_log()
-        audit.append(
-            f"check_policy: operation={arguments.get('operation') or '-'} allowed={dec.allowed}",
-            actor=arguments.get("actor", ""),
-            rules_applied=[f"control:{c}" for c in dec.control_ids],
-            gate_decision="PASS" if dec.allowed else "FAIL",
-            compliance_decision=f"policy:{dec.enforcement}")
+        try:
+            audit = _get_audit_log()
+            audit.append(
+                f"check_policy: operation={arguments.get('operation') or '-'} allowed={dec.allowed}",
+                actor=arguments.get("actor", ""),
+                rules_applied=[f"control:{c}" for c in dec.control_ids],
+                gate_decision="PASS" if dec.allowed else "FAIL",
+                compliance_decision=f"policy:{dec.enforcement}")
+        except Exception:
+            pass
     return json.dumps(dec.to_dict())
 
 

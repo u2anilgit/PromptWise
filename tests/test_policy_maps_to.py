@@ -81,6 +81,31 @@ async def test_check_policy_handler_record_to_audit_true_tags_control_ids(tmp_pa
     assert records[0]["compliance_decision"] == "policy:advisory"
 
 
+@pytest.mark.asyncio
+async def test_check_policy_handler_record_to_audit_is_fail_soft(tmp_path, monkeypatch):
+    """If the audit sink raises, check_policy must still return the governance
+    decision, not an error object, and must not propagate the exception."""
+    import promptwise.handlers.agile as agile_handlers
+
+    class _BrokenAuditLog:
+        def append(self, *args, **kwargs):
+            raise RuntimeError("audit sink unavailable")
+
+    monkeypatch.setattr("promptwise.handlers.agile._get_audit_log", lambda: _BrokenAuditLog())
+
+    policy_path = tmp_path / "policy.yaml"
+    policy_path.write_text(yaml.dump({"maps_to": ["gdpr:art32"], "banned_operations": ["deploy"]}), encoding="utf-8")
+
+    out = await agile_handlers._handle_check_policy(_FakeCtx(), {
+        "policy_path": str(policy_path), "operation": "deploy", "actor": "ci-bot",
+        "record_to_audit": True})
+    result = json.loads(out)
+    assert "error" not in result
+    assert result["allowed"] is False
+    assert result["control_ids"] == ["gdpr:art32"]
+    assert result["enforcement"] == "advisory"
+
+
 from promptwise.core.compliance_export import build_bundle, derive_controls_coverage
 
 

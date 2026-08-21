@@ -119,17 +119,17 @@ def _structure_score(text: str) -> float:
     bonus if any heading is present. A cheap line-shape proxy, not a real
     markdown/doc parser -- same spirit as this module's existing
     word-count-as-token-budget proxy in rank_context()."""
-    lines = [l for l in (text or "").splitlines() if l.strip()]
+    lines = [line for line in (text or "").splitlines() if line.strip()]
     if not lines:
         return 0.0
     structured = sum(
-        1 for l in lines
-        if l.lstrip().startswith(("#", "-", "*"))
-        or re.match(r"^\s*\d+[.)]\s", l)
-        or (":" in l[:40] and len(l) < 80)
+        1 for line in lines
+        if line.lstrip().startswith(("#", "-", "*"))
+        or re.match(r"^\s*\d+[.)]\s", line)
+        or (":" in line[:40] and len(line) < 80)
     )
     score = structured / len(lines)
-    if any(l.lstrip().startswith("#") for l in lines):
+    if any(line.lstrip().startswith("#") for line in lines):
         score = score + 0.2
     return round(min(1.0, score), 4)
 

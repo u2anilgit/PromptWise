@@ -4,3 +4,6 @@ budget_cap_usd: 5.00            # per session/day; null = unlimited
 allowed_model_tiers: [haiku, sonnet]   # empty list = allow all tiers
 banned_operations: [force_push, delete_branch, disable_tests]
 required_gates: [quality]       # add "compliance" for regulated repos
+maps_to: [gdpr:art32, hipaa:164.312(b)]  # optional: framework control IDs this policy evidences.
+                                          # Tags check_policy's audit records (when record_to_audit=true)
+                                          # and feeds export_compliance_bundle's controls-coverage section.

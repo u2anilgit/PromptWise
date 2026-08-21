@@ -2,7 +2,7 @@
 
 **The governance & intelligence layer for AI agents.** Role-aware prompting, model
 routing, cost & budget control, security/compliance scanning, responsible-AI advisories,
-workflow planning, a governed agile method, runtime enforcement hooks, and 81 portable skill
+workflow planning, a governed agile method, runtime enforcement hooks, and 83 portable skill
 packs — emitted in the formats every agent already reads.
 
 > Built on open standards, not against them. PromptWise is a *conductor*, not a replacement
@@ -16,8 +16,8 @@ OpenHands · Grok Build/Grok CLI (reads CLAUDE.md natively) · any MCP host
 [![CI](https://github.com/u2anilgit/PromptWise/actions/workflows/ci.yml/badge.svg)](https://github.com/u2anilgit/PromptWise/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![Skill packs](https://img.shields.io/badge/skill%20packs-81-7C5BD4.svg)
-![MCP tools](https://img.shields.io/badge/MCP%20tools-139-4C5BD4.svg)
+![Skill packs](https://img.shields.io/badge/skill%20packs-83-7C5BD4.svg)
+![MCP tools](https://img.shields.io/badge/MCP%20tools-142-4C5BD4.svg)
 
 📖 **[User Guide](docs/USER_GUIDE.md)** · [Install](INSTALL.md) · [Configuration](CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [Landing page](https://u2anilgit.github.io/PromptWise/)
 
@@ -47,7 +47,7 @@ them have:
   `call_tool` choke point before reaching the caller; a generic recursive walker bounds
   any over-limit list at any nesting depth, exempting the handful of tools (exports) where
   the full payload is the point.
-- **Role intelligence** — 81 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
+- **Role intelligence** — 83 role/technique skill packs (banking, HIPAA, QA, TDD, ADR, …).
 - **Compliance gating** — auditable PRD→architecture→story→commit chain for regulated teams.
 - **Runtime enforcement** — Claude Code lifecycle hooks auto-run security/policy/audit checks on every Write/Edit and tool call. A flagged write defers to Claude Code's normal allow/deny prompt (never a hard, opaque block) and is logged silently either way; standing exceptions are time-boxed JIT grants (`grant_jit_permission`), scoped to one file or a whole project. Destructive shell commands and runaway tool-call loops still hard-deny. Fail-open throughout: a hook error never wedges the session. See `hooks/`.
 - **Red-team regression harness** — a durable, offline attack/benign corpus run against the security scanner, diffed against a stored baseline to catch both missed detections and false-positive regressions (`run_red_team_harness`). All scanning is air-gapped by default — no unconditional network calls.
@@ -60,8 +60,8 @@ them have:
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (139)
-        ├─▶ SKILL.md packs → 81 portable packs in skill_packs/
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan …  (142)
+        ├─▶ SKILL.md packs → 83 portable packs in skill_packs/
         ├─▶ Lifecycle hooks→ enforce security/policy/audit at runtime (hooks/)
         └─▶ AGENTS.md      → project context + active constitution
 ```
@@ -97,7 +97,7 @@ Restart your agent, run `/mcp` — PromptWise tools appear. Then just `/promptwi
 | Path | What |
 |------|------|
 | `src/promptwise/` | Engine: MCP server + core logic, security, plugins, transports |
-| `skill_packs/` | 81 portable `SKILL.md` role/technique packs (incl. `agile/` personas; copy into any agent) |
+| `skill_packs/` | 83 portable `SKILL.md` role/technique packs (incl. `agile/` personas; copy into any agent) |
 | `hooks/` | Claude Code lifecycle hooks — runtime security/policy/audit enforcement (fail-open) |
 | `commands/`, `agents/` | Plugin slash commands and sub-agents |
 | `.claude-plugin/` | Plugin + marketplace manifests, the `/promptwise` hub skill |
