@@ -179,7 +179,7 @@ def detect_sprawl(registry: "FleetRegistry", *, jaccard_threshold: float = 0.6) 
 
 def detect_agent_drift(
     registry: "FleetRegistry", agent_id: str, *, audit_log=None, window_days: int = 7,
-    drift_threshold: float = 60.0, auto_incident: bool = True,
+    drift_threshold: float = 60.0, auto_incident: bool = True, incident_store=None,
 ) -> dict:
     """Compare an agent's recent audit-trail activity against its
     registered role/allowed_tools by reusing WP2's baseline machinery
@@ -229,7 +229,8 @@ def detect_agent_drift(
         try:
             from promptwise.core.incidents import IncidentStore
             categories = ", ".join(sorted({f.category for f in findings}))
-            inc = IncidentStore().create(
+            store = incident_store if incident_store is not None else IncidentStore()
+            inc = store.create(
                 title=f"agent drift: {agent_id}",
                 description=f"detect_agent_drift flagged {categories} for registered agent "
                              f"'{agent_id}' (role={agent['role']!r}, drift_score={drift_score:.1f})",

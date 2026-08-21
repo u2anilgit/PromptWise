@@ -43,7 +43,7 @@ def test_read_only_agent_that_starts_writing_creates_incident(tmp_path):
     incidents = IncidentStore(db_path=tmp_path / "incidents.db")
     result = detect_agent_drift(
         reg, "agent-a", audit_log=log, drift_threshold=1.0,
-        auto_incident=True)
+        auto_incident=True, incident_store=incidents)
 
     assert result["findings"], "expected at least one drift finding"
     assert result["drift_score"] > 0.0
