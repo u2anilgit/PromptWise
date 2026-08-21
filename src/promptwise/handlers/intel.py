@@ -12,7 +12,8 @@ from promptwise.core.tool_registry import ServerContext, tool, _get_audit_log
          schema={"type": "object", "properties": {
              "bundle_path": {"type": "string"}, "source": {"type": "string", "default": ""},
              "allow_network": {"type": "boolean", "default": False}},
-         "required": ["bundle_path"]})
+         "required": ["bundle_path"]},
+         domain="security")
 async def _handle_import_threat_feed(ctx: ServerContext, arguments: dict) -> str:
     if arguments.get("allow_network"):
         return json.dumps({
@@ -34,7 +35,8 @@ async def _handle_import_threat_feed(ctx: ServerContext, arguments: dict) -> str
              "content": {"type": "string", "default": ""},
              "atlas_technique_ids": {"type": "array", "items": {"type": "string"}, "default": []},
              "audit_record_id": {"type": "string", "default": ""},
-             "incident_id": {"type": "integer", "default": 0}}})
+             "incident_id": {"type": "integer", "default": 0}}},
+         domain="security")
 async def _handle_correlate_threats(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.security.threat_intel import ThreatIntelStore, correlate
     matches = correlate(
@@ -46,7 +48,8 @@ async def _handle_correlate_threats(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="enrich_audit", description="Append a read-only threat-intel enrichment annotation to the audit trail for a record's already-recorded intel matches (see correlate_threats). Never mutates the hash chain -- the enrichment is a new audit record, same as every other audit append in this codebase.",
-         schema={"type": "object", "properties": {"audit_record_id": {"type": "string"}}, "required": ["audit_record_id"]})
+         schema={"type": "object", "properties": {"audit_record_id": {"type": "string"}}, "required": ["audit_record_id"]},
+         domain="security")
 async def _handle_enrich_audit(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.security.threat_intel import ThreatIntelStore, enrich_audit
     result = enrich_audit(ThreatIntelStore(), _get_audit_log(), arguments.get("audit_record_id", ""))
@@ -54,7 +57,8 @@ async def _handle_enrich_audit(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="export_indicators", description="Export imported indicator objects (PII-scrubbed) for sharing back to a SOC/SIEM. Returns data for the caller to send -- makes no network call itself.",
-         schema={"type": "object", "properties": {"format": {"type": "string", "default": "json"}}})
+         schema={"type": "object", "properties": {"format": {"type": "string", "default": "json"}}},
+         domain="security")
 async def _handle_export_indicators(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.security.threat_intel import ThreatIntelStore, export_indicators
     try:

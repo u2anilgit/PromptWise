@@ -7,6 +7,12 @@ errored -- fail-soft, matches the project's detector-failure discipline.
 """
 from __future__ import annotations
 
+import json
+import re
+import sqlite3
+import time
+from pathlib import Path
+
 _SUPPORTED_TYPES = {
     "indicator": "indicators",
     "attack-pattern": "attack_patterns",
@@ -41,12 +47,6 @@ def parse_bundle(bundle: dict) -> dict:
             continue
         result[bucket].append(obj)
     return result
-
-
-import json
-import sqlite3
-import time
-from pathlib import Path
 
 
 def _default_db() -> Path:
@@ -108,6 +108,15 @@ class ThreatIntelStore:
                        matched_on          TEXT NOT NULL,
                        created_at          TEXT NOT NULL
                    )""")
+            # audit_record_id/incident_id are nullable (a match is tagged
+            # with only one of the two), and SQLite treats NULL as distinct
+            # from NULL for UNIQUE purposes -- COALESCE the nullable columns
+            # to sentinel values so two matches that both leave the same
+            # column NULL are still recognized as duplicates.
+            conn.execute(
+                """CREATE UNIQUE INDEX IF NOT EXISTS idx_intel_matches_unique
+                   ON intel_matches (intel_object_id, COALESCE(audit_record_id, ''),
+                                      COALESCE(incident_id, -1), matched_on)""")
             conn.commit()
         finally:
             conn.close()
@@ -180,10 +189,15 @@ def correlate(
     audit_record_id: str = "", incident_id: int = 0,
 ) -> list[dict]:
     """Join a piece of content and/or a list of ATLAS technique IDs against
-    stored intel. Fail-soft by construction: unmatched input returns an
-    empty list, never raises. Persists an `intel_matches` row per match
-    only when the caller actually has something to tag (an audit record or
-    an incident) -- a dry correlation probe with neither doesn't write."""
+    stored intel. Returns an empty list on no match; callers that must not
+    fail (e.g. the create_incident hook) should wrap this call themselves --
+    this function can still raise on a sqlite error, it does not guarantee
+    fail-soft on its own. Persists an `intel_matches` row per match only
+    when the caller actually has something to tag (an audit record or an
+    incident) -- a dry correlation probe with neither doesn't write. Repeat
+    calls with identical arguments are deduped via INSERT OR IGNORE against
+    a unique index on (intel_object_id, audit_record_id, incident_id,
+    matched_on) -- safe to call repeatedly for backfill."""
     matches: list[dict] = []
     atlas_ids = set(atlas_technique_ids or [])
 
@@ -195,21 +209,26 @@ def correlate(
             })
 
     if content:
+        content_lower = content.lower()
         for obj in store.list_objects("indicator"):
             pattern = obj.get("pattern") or ""
-            if pattern and pattern in content:
+            if pattern and _pattern_matches(pattern, content_lower):
                 matches.append({
                     "intel_object_id": obj["id"], "stix_id": obj["stix_id"],
                     "name": obj.get("name", ""), "matched_on": "indicator_pattern",
                 })
 
     if matches and (audit_record_id or incident_id):
+        # NOTE: audit_record_id is the audit record's `index` field at the
+        # time of the match. AuditLog.compact() renumbers indices during
+        # compaction, so a stored audit_record_id could point at the wrong
+        # record after a compaction runs -- known limitation, not fixed here.
         ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         conn = store._connect()
         try:
             for m in matches:
                 conn.execute(
-                    "INSERT INTO intel_matches (intel_object_id, audit_record_id, incident_id, matched_on, created_at) "
+                    "INSERT OR IGNORE INTO intel_matches (intel_object_id, audit_record_id, incident_id, matched_on, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
                     (m["intel_object_id"], audit_record_id or None, incident_id or None, m["matched_on"], ts))
             conn.commit()
@@ -217,6 +236,19 @@ def correlate(
             conn.close()
 
     return matches
+
+
+def _pattern_matches(pattern: str, content_lower: str) -> bool:
+    """Match an indicator's STIX `pattern` field against lower-cased content.
+    Real STIX 2.1 patterning syntax (e.g. `[domain-name:value =
+    'evil.example.com']`) never appears verbatim in free text, so quoted
+    literals are extracted and matched individually. Falls back to a plain
+    substring check for bare-token patterns (e.g. the seed bundle's
+    "shai-hulud") so existing behavior is unchanged for those."""
+    quoted = re.findall(r"'([^']+)'", pattern)
+    if quoted:
+        return any(q.lower() in content_lower for q in quoted)
+    return pattern.lower() in content_lower
 
 
 def enrich_audit(store: ThreatIntelStore, audit_log, audit_record_id: str) -> dict:
@@ -252,8 +284,9 @@ def export_indicators(store: ThreatIntelStore, fmt: str = "json") -> str:
     out = []
     for obj in store.list_objects("indicator"):
         _, pattern = scanner.detect_pii(obj.get("pattern") or "", redact=True)
+        _, name = scanner.detect_pii(obj.get("name") or "", redact=True)
         out.append({
-            "stix_id": obj["stix_id"], "name": obj.get("name", ""),
+            "stix_id": obj["stix_id"], "name": name,
             "pattern": pattern, "source": obj.get("source", ""),
         })
     return json.dumps({"indicators": out})

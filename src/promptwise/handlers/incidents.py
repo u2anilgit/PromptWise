@@ -5,8 +5,11 @@ core/incidents.py, core/playbooks.py, core/aivss.py (shared with WP2).
 from __future__ import annotations
 
 import json
+import logging
 
 from promptwise.core.tool_registry import ServerContext, tool, _get_audit_log
+
+_logger = logging.getLogger(__name__)
 
 
 @tool(name="create_incident", description="Open a new incident (status starts 'open'). Optional metadata dict can link back to a triggering source, e.g. a WP2 anomaly finding.",
@@ -31,8 +34,11 @@ async def _handle_create_incident(ctx: ServerContext, arguments: dict) -> str:
             ThreatIntelStore(),
             content=f"{arguments.get('title', '')} {arguments.get('description', '')}",
             incident_id=inc.id)
-    except Exception:
-        pass
+    except Exception as e:
+        try:
+            _logger.debug("threat-intel correlation failed: %s", e)
+        except Exception:
+            pass
 
     out = inc.to_dict()
     out["intel_matches"] = intel_matches

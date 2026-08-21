@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from promptwise.core.audit_log import AuditLog
 from promptwise.security.threat_intel import (
     ThreatIntelStore, correlate, enrich_audit, export_indicators,
@@ -50,8 +52,5 @@ def test_export_indicators_json(tmp_path):
 
 def test_export_indicators_unsupported_format_raises(tmp_path):
     store = _seeded_store(tmp_path)
-    try:
+    with pytest.raises(ValueError):
         export_indicators(store, fmt="csv")
-        assert False, "expected ValueError"
-    except ValueError:
-        pass

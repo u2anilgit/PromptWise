@@ -107,6 +107,7 @@ _ICTX = typing.cast(ServerContext, None)
 
 def test_create_incident_tool(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     out = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {
         "title": "Suspicious prompt injection", "severity": "high"})))
     assert out["status"] == "open"
@@ -115,6 +116,7 @@ def test_create_incident_tool(tmp_path, monkeypatch):
 
 def test_list_incidents_tool(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     asyncio.run(_handle_create_incident(_ICTX, {"title": "A"}))
     asyncio.run(_handle_create_incident(_ICTX, {"title": "B"}))
     out = _json.loads(asyncio.run(_handle_list_incidents(_ICTX, {})))
@@ -126,6 +128,7 @@ from promptwise.handlers.incidents import _handle_update_incident, _handle_close
 
 def test_update_incident_tool_transitions(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
     out = _json.loads(asyncio.run(_handle_update_incident(_ICTX, {
         "incident_id": created["id"], "status": "triaged", "actor": "alice"})))
@@ -134,6 +137,7 @@ def test_update_incident_tool_transitions(tmp_path, monkeypatch):
 
 def test_update_incident_tool_illegal_transition_returns_error(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
     out = _json.loads(asyncio.run(_handle_update_incident(_ICTX, {
         "incident_id": created["id"], "status": "closed", "actor": "alice"})))
@@ -143,6 +147,7 @@ def test_update_incident_tool_illegal_transition_returns_error(tmp_path, monkeyp
 def test_close_incident_requires_resolved_status(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
     monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
     out = _json.loads(asyncio.run(_handle_close_incident(_ICTX, {
         "incident_id": created["id"], "mistake": "m", "correction": "c"})))
@@ -168,6 +173,7 @@ from promptwise.handlers.incidents import _handle_score_incident
 
 def test_score_incident_tool_persists_score(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
+    monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
     out = _json.loads(asyncio.run(_handle_score_incident(_ICTX, {
         "incident_id": created["id"],

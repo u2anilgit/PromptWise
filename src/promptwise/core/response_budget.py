@@ -32,6 +32,7 @@ DEFAULT_MAX_ITEMS = 200
 # artifact (an audit export missing rows is worse than a large one).
 EXEMPT_TOOLS = frozenset({
     "export_audit", "get_sbom", "export_compliance_bundle", "export_web_bundle",
+    "export_indicators",
 })
 
 

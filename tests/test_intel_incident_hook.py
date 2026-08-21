@@ -48,6 +48,12 @@ async def test_create_incident_correlation_failure_does_not_block_creation(tmp_p
     monkeypatch.setattr(
         "promptwise.core.incidents.IncidentStore",
         lambda *a, **kw: IncidentStore(db_path=tmp_path / "incidents.db"))
+    # ThreatIntelStore() is constructed as an argument to correlate(...)
+    # before correlate() itself is reached, so it must also be redirected
+    # away from the real user db even though correlate() is what's patched
+    # to raise below.
+    monkeypatch.setattr(
+        "promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
 
     def _broken_correlate(*a, **kw):
         raise RuntimeError("intel store unreachable")
