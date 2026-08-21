@@ -41,3 +41,134 @@ def parse_bundle(bundle: dict) -> dict:
             continue
         result[bucket].append(obj)
     return result
+
+
+import json
+import sqlite3
+import time
+from pathlib import Path
+
+
+def _default_db() -> Path:
+    try:
+        from promptwise.db.models import get_db_path
+        return get_db_path()
+    except Exception:
+        d = Path.home() / ".promptwise"
+        d.mkdir(parents=True, exist_ok=True)
+        return d / "promptwise.db"
+
+
+def _atlas_technique_id(obj: dict) -> str:
+    for ref in obj.get("external_references", []) or []:
+        if isinstance(ref, dict) and ref.get("source_name") == "mitre-atlas":
+            return ref.get("external_id", "") or ""
+    return ""
+
+
+_TYPE_LABEL = {
+    "indicators": "indicator", "attack_patterns": "attack-pattern",
+    "intrusion_sets": "intrusion-set", "relationships": "relationship",
+}
+
+
+class ThreatIntelStore:
+    def __init__(self, db_path: str | Path | None = None):
+        self.db_path = Path(db_path) if db_path else _default_db()
+        if str(self.db_path) != ":memory:":
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._ensure()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _ensure(self) -> None:
+        conn = self._connect()
+        try:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS intel_objects (
+                       id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                       stix_id             TEXT NOT NULL UNIQUE,
+                       type                TEXT NOT NULL,
+                       name                TEXT,
+                       pattern             TEXT,
+                       atlas_technique_id  TEXT,
+                       source              TEXT NOT NULL,
+                       imported_at         TEXT NOT NULL,
+                       raw_json            TEXT NOT NULL
+                   )""")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS intel_matches (
+                       id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                       intel_object_id     INTEGER NOT NULL,
+                       audit_record_id     TEXT,
+                       incident_id         INTEGER,
+                       matched_on          TEXT NOT NULL,
+                       created_at          TEXT NOT NULL
+                   )""")
+            conn.commit()
+        finally:
+            conn.close()
+
+    def upsert_objects(self, parsed: dict, source: str) -> int:
+        ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        count = 0
+        conn = self._connect()
+        try:
+            for bucket, objs in parsed.items():
+                obj_type = _TYPE_LABEL.get(bucket, bucket)
+                for obj in objs:
+                    stix_id = obj.get("id", "")
+                    if not stix_id:
+                        continue
+                    existing = conn.execute(
+                        "SELECT id FROM intel_objects WHERE stix_id = ?", (stix_id,)).fetchone()
+                    if existing:
+                        conn.execute(
+                            "UPDATE intel_objects SET name=?, pattern=?, atlas_technique_id=?, "
+                            "source=?, imported_at=?, raw_json=? WHERE stix_id=?",
+                            (obj.get("name", ""), obj.get("pattern", ""), _atlas_technique_id(obj),
+                             source, ts, json.dumps(obj), stix_id))
+                    else:
+                        conn.execute(
+                            "INSERT INTO intel_objects "
+                            "(stix_id, type, name, pattern, atlas_technique_id, source, imported_at, raw_json) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (stix_id, obj_type, obj.get("name", ""), obj.get("pattern", ""),
+                             _atlas_technique_id(obj), source, ts, json.dumps(obj)))
+                    count += 1
+            conn.commit()
+        finally:
+            conn.close()
+        return count
+
+    def get_by_stix_id(self, stix_id: str) -> dict | None:
+        conn = self._connect()
+        try:
+            row = conn.execute("SELECT * FROM intel_objects WHERE stix_id = ?", (stix_id,)).fetchone()
+        finally:
+            conn.close()
+        return dict(row) if row else None
+
+    def list_objects(self, obj_type: str | None = None) -> list[dict]:
+        conn = self._connect()
+        try:
+            if obj_type:
+                rows = conn.execute(
+                    "SELECT * FROM intel_objects WHERE type = ? ORDER BY imported_at DESC", (obj_type,)).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM intel_objects ORDER BY imported_at DESC").fetchall()
+        finally:
+            conn.close()
+        return [dict(r) for r in rows]
+
+
+def import_bundle_file(bundle_path: str, source: str, store: "ThreatIntelStore | None" = None) -> dict:
+    path = Path(bundle_path)
+    bundle = json.loads(path.read_text(encoding="utf-8"))  # raises FileNotFoundError/JSONDecodeError unchanged
+    parsed = parse_bundle(bundle)
+    store = store or ThreatIntelStore()
+    imported = store.upsert_objects(parsed, source=source)
+    return {"imported": imported, "source": source}
