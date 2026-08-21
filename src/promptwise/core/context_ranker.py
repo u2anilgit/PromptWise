@@ -221,3 +221,41 @@ def score_context_quality(
             "contradicts": contradicts, "quality_score": quality_score,
         })
     return {"shards": out}
+
+
+LINEAGE_ACTOR = "context_lineage"
+
+
+def record_context_lineage(
+    audit_log, *, retrieval_query: str, shard_ids: list[str], origin_path: str = "", mcp_server: str = "",
+) -> dict:
+    """Append a context-shard-origin annotation to the audit trail as a
+    new record CLASS (actor=LINEAGE_ACTOR) -- never a new table or a
+    parallel log. Mirrors security/threat_intel.py::enrich_audit()
+    exactly ('the enrichment is a new AuditLog.append() call, same as
+    every other append pattern in this codebase'). Surfaces
+    automatically in incident_timeline because that tool's
+    correlation_key match is a substring search over
+    task/rules_applied/compliance_decision -- no incidents.py change
+    needed, as long as this appends to the same audit log
+    incident_timeline reads (the process-wide _get_audit_log()
+    singleton in production; an injected AuditLog in tests)."""
+    origin = origin_path or mcp_server or "unknown"
+    rules = [f"shard:{sid}" for sid in shard_ids]
+    if origin_path:
+        rules.append(f"origin_path:{origin_path}")
+    if mcp_server:
+        rules.append(f"origin_mcp_server:{mcp_server}")
+    rec = audit_log.append(
+        f"context lineage: retrieved {len(shard_ids)} shard(s) from '{origin}' for query {retrieval_query!r}",
+        actor=LINEAGE_ACTOR, agent=mcp_server, rules_applied=rules,
+        compliance_decision="context_lineage",
+        files_touched=[origin_path] if origin_path else [])
+    return {"origin": origin, "shard_ids": list(shard_ids), "record_index": rec.index, "recorded": True}
+
+
+def list_context_lineage(audit_log, *, contains: str = "", limit: int | None = None) -> list[dict]:
+    """Read back lineage records (contains matches the same
+    task/rules_applied/compliance_decision substring search
+    AuditLog.query() already implements -- no new query surface)."""
+    return audit_log.query(actor=LINEAGE_ACTOR, contains=contains or None, limit=limit)
