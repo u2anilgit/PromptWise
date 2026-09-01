@@ -47,8 +47,9 @@ Google Workspace, Auth0, Keycloak, and most modern IdPs all speak OIDC).
    OIDC as your only login method, `config/dashboard_auth.yaml` must
    exist (even with zero entries: `entries: []`) before allowing a
    non-loopback bind; this is a known configuration requirement and not
-   a bug. A "Login with SSO" option is now available -- click through
-   `/auth/login` to start the flow.
+   a bug. Navigate your browser to `http://<your-host>:<port>/auth/login`
+   to start the flow (there is no in-dashboard link yet -- bookmark or
+   type this URL directly).
 
 ## What this does NOT do
 

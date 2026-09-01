@@ -51,9 +51,26 @@ def map_role_from_claims(claims: dict, group_claim: str, group_role_map: dict[st
     """Highest-ranked role granted by any group in claims[group_claim].
     Defaults to "viewer" (least privilege) when the claim is missing or no
     group matches -- mirrors find_identity's existing default-role
-    behavior in dashboard/auth.py."""
-    groups = claims.get(group_claim) or []
-    matched = [group_role_map[g] for g in groups if g in group_role_map]
+    behavior in dashboard/auth.py.
+
+    Defensive against malformed IdP claim shapes: if claims[group_claim]
+    is not a list (e.g. an int, dict, or string) it is treated as no
+    groups matched rather than raised; non-hashable/unmatchable entries
+    within a list are skipped individually rather than crashing the whole
+    lookup. This function must never raise on attacker- or
+    misconfiguration-controlled claim content -- a malformed claim shape
+    is a "viewer" role, never a 500."""
+    groups = claims.get(group_claim) if isinstance(claims, dict) else None
+    if not isinstance(groups, list):
+        groups = []
+    matched = []
+    for g in groups:
+        try:
+            if g in group_role_map:
+                matched.append(group_role_map[g])
+        except TypeError:
+            # unhashable entry (e.g. a dict/list group value) -- skip it
+            continue
     if not matched:
         return "viewer"
     return max(matched, key=lambda role: _ROLE_RANK.get(role, -1))

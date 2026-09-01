@@ -97,11 +97,51 @@ def test_callback_failure_shows_clear_error_not_a_traceback(monkeypatch, tmp_pat
     monkeypatch.setattr(web_mod, "build_oauth_client", lambda app, cfg: _FailingClient())
     app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
                           oidc_config=_OIDC_CFG)
-    r = app.test_client().get("/auth/callback")
+    client = app.test_client()
+    r = client.get("/auth/callback")
     assert r.status_code == 401
-    # no session identity was set as a side effect of the failed attempt
-    r2 = app.test_client().get("/api/models")
+    # no session identity was set as a side effect of the failed attempt --
+    # reuse the SAME client (same cookie jar) so this actually checks
+    # whether the failed callback fabricated a session, rather than just
+    # checking a brand-new client with no cookies at all.
+    r2 = client.get("/api/models")
     assert r2.status_code == 401
+
+
+def test_callback_with_malformed_group_claim_never_500s(monkeypatch, tmp_path):
+    """A malformed `groups` claim (not a list) must never cause an
+    unhandled 500/traceback -- the spec requires a clear failure page,
+    never a fabricated session and never a crash."""
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+    import promptwise.dashboard.web as web_mod
+    monkeypatch.setattr(web_mod, "build_oauth_client",
+                         lambda app, cfg: _fake_client({"sub": "user-1", "groups": 42}))
+    app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
+                          oidc_config=_OIDC_CFG)
+    client = app.test_client()
+    r = client.get("/auth/callback")
+    assert r.status_code != 500
+    # malformed groups claim maps to "viewer" (least privilege), not a crash
+    assert r.status_code in (302, 301)
+    r2 = client.get("/api/admin/settings")
+    assert r2.status_code == 403
+
+
+def test_callback_with_non_dict_userinfo_never_500s(monkeypatch, tmp_path):
+    """A non-dict `userinfo` in the token response (a real IdP/library
+    misbehavior surface) must never cause an unhandled 500."""
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+
+    class _WeirdClient:
+        def authorize_access_token(self):
+            return {"userinfo": "not-a-dict"}
+
+    import promptwise.dashboard.web as web_mod
+    monkeypatch.setattr(web_mod, "build_oauth_client", lambda app, cfg: _WeirdClient())
+    app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
+                          oidc_config=_OIDC_CFG)
+    r = app.test_client().get("/auth/callback")
+    assert r.status_code != 500
 
 
 def test_bad_bearer_does_not_fall_through_to_valid_session(monkeypatch, tmp_path):
@@ -154,6 +194,88 @@ def test_static_bearer_role_not_upgraded_by_concurrent_oidc_session(monkeypatch,
     # not upgraded to admin by the concurrent OIDC session
     r2 = client.get("/api/admin/settings", headers={"Authorization": "Bearer raw-token"})
     assert r2.status_code == 403
+
+
+def test_app_refuses_to_start_when_oidc_enabled_with_missing_fields(monkeypatch, tmp_path):
+    """PROMPTWISE_OIDC_ISSUER alone is not enough -- an empty client_id/
+    client_secret/redirect_uri must refuse to start rather than silently
+    registering /auth/* routes and silently disabling SESSION_COOKIE_SECURE."""
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+    import pytest
+    from promptwise.dashboard.oidc_auth import OIDCConfig
+    incomplete_cfg = OIDCConfig(issuer="https://idp.example.com", client_id="",
+                                 client_secret="", redirect_uri="", group_claim="groups")
+    with pytest.raises(SystemExit):
+        create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
+                        oidc_config=incomplete_cfg)
+
+
+def test_expired_session_is_rejected_and_cleared(monkeypatch, tmp_path):
+    """A session with a past oidc_exp must be treated as unauthenticated
+    (401), even though oidc_sub/oidc_role are present in the cookie --
+    the reviewer replayed a captured admin session cookie against a fresh
+    app instance and it never expired."""
+    import time
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+    roles_path = tmp_path / "oidc_roles.yaml"
+    roles_path.write_text("group_role_map:\n  PromptWise-Admins: admin\n", encoding="utf-8")
+    import promptwise.dashboard.web as web_mod
+    monkeypatch.setattr(web_mod, "build_oauth_client",
+                         lambda app, cfg: _fake_client({"sub": "user-1", "groups": ["PromptWise-Admins"],
+                                                          "exp": time.time() - 10}))
+    app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
+                          oidc_config=_OIDC_CFG, oidc_roles_path=str(roles_path))
+    client = app.test_client()
+    client.get("/auth/callback")
+    r = client.get("/api/models")
+    assert r.status_code == 401
+    # the stale session must have been cleared, not just rejected once
+    with client.session_transaction() as sess:
+        assert "oidc_sub" not in sess
+        assert "oidc_role" not in sess
+        assert "oidc_exp" not in sess
+
+
+def test_future_exp_session_is_accepted(monkeypatch, tmp_path):
+    """A session with a future oidc_exp (as a fresh /auth/callback
+    produces via the 8-hour default) is accepted."""
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+    roles_path = tmp_path / "oidc_roles.yaml"
+    roles_path.write_text("group_role_map:\n  PromptWise-Admins: admin\n", encoding="utf-8")
+    import promptwise.dashboard.web as web_mod
+    monkeypatch.setattr(web_mod, "build_oauth_client",
+                         lambda app, cfg: _fake_client({"sub": "user-1", "groups": ["PromptWise-Admins"]}))
+    app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
+                          oidc_config=_OIDC_CFG, oidc_roles_path=str(roles_path))
+    client = app.test_client()
+    client.get("/auth/callback")
+    r = client.get("/api/models")
+    assert r.status_code == 200
+
+
+def test_session_credential_id_is_namespaced_and_never_empty(monkeypatch, tmp_path):
+    """The session-derived Identity.credential_id must never be the raw
+    IdP `sub` (PII leak risk for email-shaped subs) and must never be
+    empty even when the IdP omits `sub` entirely (an empty credential_id
+    caused a real 400 'reviewer is required' failure on
+    /api/admin/kb/promote despite successful authentication)."""
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+    roles_path = tmp_path / "oidc_roles.yaml"
+    roles_path.write_text("group_role_map:\n  PromptWise-Admins: admin\n", encoding="utf-8")
+    import promptwise.dashboard.web as web_mod
+
+    # sub missing entirely -- credential_id must still be non-empty,
+    # verified indirectly via the KB-promote reviewer field (identity.credential_id
+    # is persisted there as reviewed_by, and a blank reviewer is rejected --
+    # a real 400 the reviewer demonstrated despite successful authentication).
+    monkeypatch.setattr(web_mod, "build_oauth_client",
+                         lambda app, cfg: _fake_client({"groups": ["PromptWise-Admins"]}))
+    app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
+                          oidc_config=_OIDC_CFG, oidc_roles_path=str(roles_path))
+    client = app.test_client()
+    client.get("/auth/callback")
+    r = client.post("/api/admin/kb/promote", json={"ids": [], "action": "trusted"})
+    assert r.status_code != 400 or r.get_json().get("error") != "reviewer is required"
 
 
 def test_session_cookie_secure_flag_follows_redirect_uri_scheme(monkeypatch, tmp_path):
