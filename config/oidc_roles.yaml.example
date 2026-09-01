@@ -1,0 +1,9 @@
+# Copy this file to config/oidc_roles.yaml to map OIDC group/role claims
+# to dashboard roles. Non-secret -- safe to keep in a tracked file (unlike
+# the actual OIDC client secret, which is an environment variable only,
+# see docs/OPS_OIDC_LOGIN.md). Only consulted when PROMPTWISE_OIDC_ISSUER
+# is set -- the default (OIDC disabled) never reads this file.
+
+group_role_map:
+  PromptWise-Admins: admin
+  PromptWise-Viewers: viewer
