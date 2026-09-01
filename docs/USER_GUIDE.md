@@ -130,4 +130,4 @@ task_report
   system prompt.
 - Data lives in `~/.promptwise/promptwise.db` — delete to reset.
 - Changed config? `reload_config` — no restart.
-- Verify locally: `PYTHONPATH=src python -m pytest tests -q` (~1495 tests).
+- Verify locally: `PYTHONPATH=src python -m pytest tests -q` (~1519 tests).
