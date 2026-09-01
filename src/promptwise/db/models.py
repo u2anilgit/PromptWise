@@ -153,9 +153,14 @@ class EvalBaselineModel(Base):
 
 
 async def _ensure_cost_logs_project_id(conn) -> None:
-    """Existing DBs predate the project_id column; Base.metadata.create_all
+    """Existing sqlite DBs predate the project_id column; Base.metadata.create_all
     only creates missing TABLES, not missing columns on an existing table.
-    Add it if absent -- nullable, so no backfill and no data loss."""
+    Add it if absent -- nullable, so no backfill and no data loss. Postgres
+    is skipped: a fresh create_all already includes project_id from
+    CostLogModel's declaration, and PRAGMA is sqlite-only syntax."""
+    if conn.engine.dialect.name != "sqlite":
+        return
+
     def _cols(sync_conn):
         return [row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(cost_logs)").fetchall()]
     cols = await conn.run_sync(_cols)
@@ -169,22 +174,47 @@ def get_db_path() -> Path:
     return db_dir / "promptwise.db"
 
 
+def get_db_url(config=None) -> str:
+    """Resolve the effective DB URL: config.identity.db_url when set
+    (shared team Postgres), else today's local-sqlite path."""
+    if config is not None and getattr(config, "identity", None) and config.identity.db_url:
+        return config.identity.db_url
+    return f"sqlite+aiosqlite:///{get_db_path()}"
+
+
 async def init_db(db_path: Path | str | None = None) -> str:
     if db_path is None:
         db_path = get_db_path()
-    db_path = Path(db_path)
-    db_url = f"sqlite+aiosqlite:///{db_path}"
+    db_url = str(db_path) if "://" in str(db_path) else f"sqlite+aiosqlite:///{db_path}"
     engine = create_async_engine(db_url, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _ensure_cost_logs_project_id(conn)
     await engine.dispose()
-    return str(db_path)
+    return db_url
+
+
+async def db_health(db_url: str) -> dict:
+    """Fail-open reachability probe for the dashboard/admin surface --
+    NEVER raises. backend is derived from the URL scheme; a Postgres
+    connect failure reports reachable=False with a warning instead of
+    blocking the caller (spec: 'surfaced as a warning ... not a hard
+    failure')."""
+    backend = "postgresql" if db_url.startswith("postgresql") else "sqlite"
+    try:
+        engine = create_async_engine(db_url, echo=False)
+        async with engine.connect() as conn:
+            await conn.run_sync(lambda sync_conn: None)
+        await engine.dispose()
+        return {"backend": backend, "reachable": True, "warning": None}
+    except Exception as exc:
+        return {"backend": backend, "reachable": False,
+                "warning": f"{backend} at configured db_url unreachable, falling back to local sqlite: {exc}"}
 
 
 class SessionManager:
     def __init__(self, db_path: Path | str):
-        db_url = f"sqlite+aiosqlite:///{db_path}"
+        db_url = str(db_path) if "://" in str(db_path) else f"sqlite+aiosqlite:///{db_path}"
         self.engine = create_async_engine(db_url, echo=False)
         self.async_session = async_sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
 

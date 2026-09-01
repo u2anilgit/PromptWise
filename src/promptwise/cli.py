@@ -14,10 +14,12 @@ from promptwise.plugins.budget import BudgetGuardian
 async def _memory_manager(db_path: str | None = None) -> MemoryManager:
     """A real, initialized MemoryManager -- default path via init_db() (the
     same schema-creating path server.py's main() uses), or an explicit
-    db_path for tests."""
+    db_path for tests. When db_path is None, honors config.identity.db_url
+    if the operator has configured a shared team Postgres DB."""
     if db_path is None:
-        from promptwise.db.models import init_db
-        db_path = await init_db()
+        from promptwise.db.models import init_db, get_db_url
+        config = load_config()
+        db_path = await init_db(get_db_url(config))
     mm = MemoryManager(db_path)
     await mm.init()
     return mm

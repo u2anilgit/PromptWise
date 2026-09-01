@@ -300,7 +300,9 @@ async def main() -> None:
     config_dir = Path(__file__).resolve().parents[2]
     config = load_config(config_dir)
 
-    db_path = await init_db()
+    from promptwise.db.models import get_db_url
+    db_url = get_db_url(config)
+    db_path = await init_db(db_url)
     mm = MemoryManager(db_path)
     await mm.init()
 
