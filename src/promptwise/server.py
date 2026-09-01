@@ -295,7 +295,9 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
         return json.dumps({"error": str(e), "type": type(e).__name__, "tool": name})
 
 
-async def main() -> None:
+async def _build_context() -> ServerContext:
+    """Everything main() did before constructing the MCP Server object --
+    shared by both the stdio and http entrypoints (see sync_main())."""
     # repo root = src/promptwise/server.py -> parents[2]; config/ and skills/ live there.
     config_dir = Path(__file__).resolve().parents[2]
     config = load_config(config_dir)
@@ -341,7 +343,11 @@ async def main() -> None:
         task_tracker=task_tracker,
         identity=identity,
     )
+    return ctx
 
+
+async def main() -> None:
+    ctx = await _build_context()
     server = Server("promptwise")
 
     @server.list_tools()
@@ -368,8 +374,23 @@ async def main() -> None:
 
 
 def sync_main() -> None:
-    """Synchronous entry point for console_scripts."""
-    asyncio.run(main())
+    """Synchronous entry point for console_scripts. PROMPTWISE_TRANSPORT
+    selects stdio (default, today's behavior) or http (see
+    transports/http_server.py). Never silently falls back between the
+    two on error -- an unrecognized value or a startup failure raises."""
+    import os
+    transport = os.environ.get("PROMPTWISE_TRANSPORT", "stdio").strip().lower()
+    if transport == "stdio":
+        asyncio.run(main())
+    elif transport == "http":
+        ctx = asyncio.run(_build_context())
+        from promptwise.transports.http_server import run_http_server
+        host = os.environ.get("PROMPTWISE_HTTP_HOST", "127.0.0.1")
+        port = int(os.environ.get("PROMPTWISE_HTTP_PORT", "8766"))
+        credentials_path = os.environ.get("PROMPTWISE_MCP_CREDENTIALS_PATH", "config/mcp_auth.yaml")
+        run_http_server(ctx, host=host, port=port, credentials_path=credentials_path)
+    else:
+        raise ValueError(f"unknown PROMPTWISE_TRANSPORT: {transport!r} (expected 'stdio' or 'http')")
 
 
 # -- Backward-compat re-exports (15 existing test files reference
