@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -116,6 +117,13 @@ class DashboardConfig:
 
 
 @dataclass
+class IdentityConfig:
+    ldap_server: str = ""          # e.g. "ldaps://dc.corp.local"; empty = Tier 1 (LDAP) skipped, falls to env-var tier
+    ldap_search_base: str = ""     # e.g. "dc=corp,dc=local"
+    db_url: str = ""               # optional shared-team Postgres URL; empty = local sqlite (today's behavior)
+
+
+@dataclass
 class AnalyticsConfig:
     roi_tracking: bool = True
     per_developer: bool = True
@@ -145,6 +153,7 @@ class AppConfig:
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
     handlers: HandlersConfig = field(default_factory=HandlersConfig)
+    identity: IdentityConfig = field(default_factory=IdentityConfig)
 
     def get_model(self, name: str) -> ModelPricing:
         return self.models.get(name, ModelPricing())
@@ -286,6 +295,18 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
         web_port=int(dash_raw.get("web_port", 8765)),
         web_host=str(dash_raw.get("web_host", "127.0.0.1")),
         auto_start=bool(dash_raw.get("auto_start", True)),
+    )
+
+    identity_raw = raw.get("identity", {}) or {}
+    # PROMPTWISE_DB_URL, when set, overrides the yaml-configured db_url so a
+    # real Postgres connection string (with credentials) never has to be
+    # committed to the tracked config/promptwise.yaml file (see
+    # docs/OPS_SHARED_IDENTITY.md).
+    db_url = os.environ.get("PROMPTWISE_DB_URL") or str(identity_raw.get("db_url", ""))
+    cfg.identity = IdentityConfig(
+        ldap_server=str(identity_raw.get("ldap_server", "")),
+        ldap_search_base=str(identity_raw.get("ldap_search_base", "")),
+        db_url=db_url,
     )
 
     analytics_raw = raw.get("analytics", {}) or {}

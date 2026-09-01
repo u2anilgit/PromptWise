@@ -300,7 +300,9 @@ async def main() -> None:
     config_dir = Path(__file__).resolve().parents[2]
     config = load_config(config_dir)
 
-    db_path = await init_db()
+    from promptwise.db.models import get_db_url
+    db_url = get_db_url(config)
+    db_path = await init_db(db_url)
     mm = MemoryManager(db_path)
     await mm.init()
 
@@ -310,6 +312,9 @@ async def main() -> None:
     skills_dir = config_dir / config.skills.directory
     skill_loader = SkillLoader(skills_dir)
     skill_loader.load_skills()
+
+    from promptwise.core.identity import resolve_identity
+    identity = resolve_identity(config.identity)
 
     ctx = ServerContext(
         config=config,
@@ -334,6 +339,7 @@ async def main() -> None:
         skill_loader=skill_loader,
         workflow_planner=WorkflowPlanner(),
         task_tracker=task_tracker,
+        identity=identity,
     )
 
     server = Server("promptwise")

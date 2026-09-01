@@ -38,4 +38,9 @@ async def _handle_set_feature_flag(ctx: ServerContext, arguments: dict) -> str:
       schema={"type": "object", "properties": {}})
 async def _handle_get_admin_settings(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.admin_config import get_admin_settings
-    return json.dumps(get_admin_settings())
+    from promptwise.db.models import get_db_url, db_health
+    settings = get_admin_settings()
+    db_url = get_db_url(getattr(ctx, "config", None))
+    if db_url.startswith("postgresql"):
+        settings["db_health"] = await db_health(db_url)
+    return json.dumps(settings)

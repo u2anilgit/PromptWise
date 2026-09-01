@@ -1945,6 +1945,10 @@
             "type": "string"
           },
           "default": []
+        },
+        "actor": {
+          "type": "string",
+          "default": ""
         }
       },
       "required": [

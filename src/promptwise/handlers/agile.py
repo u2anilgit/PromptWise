@@ -122,9 +122,10 @@ async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
     if arguments.get("record_to_audit", False):
         try:
             audit = _get_audit_log()
+            from promptwise.core.identity import resolved_actor
             audit.append(
                 f"check_policy: operation={arguments.get('operation') or '-'} allowed={dec.allowed}",
-                actor=arguments.get("actor", ""),
+                actor=resolved_actor(arguments.get("actor", ""), ctx.identity),
                 rules_applied=[f"control:{c}" for c in dec.control_ids],
                 gate_decision="PASS" if dec.allowed else "FAIL",
                 compliance_decision=f"policy:{dec.enforcement}")
@@ -134,14 +135,16 @@ async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
 
 
 @tool(name="record_audit", description="Append a tamper-evident, hash-chained audit record of an AI-assisted change ('the trace'); returns the record and chain verification status",
-         schema={"type": "object", "properties": {"task": {"type": "string"}, "agent": {"type": "string", "default": ""}, "model": {"type": "string", "default": ""}, "cost_usd": {"type": "number", "default": 0.0}, "rules_applied": {"type": "array", "items": {"type": "string"}, "default": []}, "gate_decision": {"type": "string", "default": ""}, "compliance_decision": {"type": "string", "default": ""}, "files_touched": {"type": "array", "items": {"type": "string"}, "default": []}}, "required": ["task"]})
+         schema={"type": "object", "properties": {"task": {"type": "string"}, "agent": {"type": "string", "default": ""}, "model": {"type": "string", "default": ""}, "cost_usd": {"type": "number", "default": 0.0}, "rules_applied": {"type": "array", "items": {"type": "string"}, "default": []}, "gate_decision": {"type": "string", "default": ""}, "compliance_decision": {"type": "string", "default": ""}, "files_touched": {"type": "array", "items": {"type": "string"}, "default": []}, "actor": {"type": "string", "default": ""}}, "required": ["task"]})
 async def _handle_record_audit(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.identity import resolved_actor
     audit = _get_audit_log()
     rec = audit.append(
         arguments.get("task", ""), agent=arguments.get("agent", ""), model=arguments.get("model", ""),
         cost_usd=float(arguments.get("cost_usd", 0.0)), rules_applied=arguments.get("rules_applied", []),
         gate_decision=arguments.get("gate_decision", ""), compliance_decision=arguments.get("compliance_decision", ""),
-        files_touched=arguments.get("files_touched", []))
+        files_touched=arguments.get("files_touched", []),
+        actor=resolved_actor(arguments.get("actor", ""), ctx.identity))
     ok, msg = audit.verify()
     return json.dumps({"record": rec.__dict__, "chain_ok": ok, "chain_msg": msg})
 

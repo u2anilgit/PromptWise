@@ -62,3 +62,43 @@ def test_detection_config_dataclass_defaults():
     assert dc.mad_threshold == 3.0
     assert dc.alert_on_findings is False
     assert dc.siem_mode == "file"
+
+
+def test_identity_config_defaults_are_empty_strings():
+    from promptwise.config import AppConfig, IdentityConfig
+
+    cfg = AppConfig()
+    assert cfg.identity == IdentityConfig(ldap_server="", ldap_search_base="", db_url="")
+
+
+def test_identity_config_loaded_from_yaml(tmp_path):
+    from promptwise.config import load_config
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "promptwise.yaml").write_text(
+        "identity:\n"
+        "  ldap_server: \"ldaps://dc.corp.local\"\n"
+        "  ldap_search_base: \"dc=corp,dc=local\"\n"
+        "  db_url: \"postgresql+asyncpg://user:pass@host/promptwise\"\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.identity.ldap_server == "ldaps://dc.corp.local"
+    assert cfg.identity.ldap_search_base == "dc=corp,dc=local"
+    assert cfg.identity.db_url == "postgresql+asyncpg://user:pass@host/promptwise"
+
+
+def test_identity_db_url_env_var_overrides_yaml(tmp_path, monkeypatch):
+    from promptwise.config import load_config
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "promptwise.yaml").write_text(
+        "identity:\n"
+        "  db_url: \"postgresql+asyncpg://user:pass@host/promptwise\"\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PROMPTWISE_DB_URL", "postgresql+asyncpg://envuser:envpass@envhost/promptwise")
+    cfg = load_config(tmp_path)
+    assert cfg.identity.db_url == "postgresql+asyncpg://envuser:envpass@envhost/promptwise"

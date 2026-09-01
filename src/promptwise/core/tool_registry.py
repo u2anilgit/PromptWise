@@ -9,7 +9,7 @@ definitions. See docs/superpowers/specs/2026-07-22-handlers-package-split-design
 from __future__ import annotations
 
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -20,6 +20,7 @@ from promptwise.core import (
     Batcher, Summarizer, RoleDetector, Orchestrator, QualityGuard,
     SkillLoader, WorkflowPlanner, TaskTracker,
 )
+from promptwise.core.identity import Identity
 from promptwise.security import SecurityScanner, ComplianceEngine
 from promptwise.plugins import BudgetGuardian, CodeValidator, CostMonitor, ROITracker
 from promptwise.db import SessionManager, MemoryManager
@@ -49,6 +50,7 @@ class ServerContext:
     skill_loader: SkillLoader
     workflow_planner: WorkflowPlanner
     task_tracker: TaskTracker
+    identity: Identity = field(default_factory=Identity)
 
 
 @dataclass

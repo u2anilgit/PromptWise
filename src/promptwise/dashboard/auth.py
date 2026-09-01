@@ -71,3 +71,36 @@ def role_satisfies(role: str, minimum: str) -> bool:
     """True when `role` grants at least `minimum` access (admin satisfies
     a viewer requirement; viewer does not satisfy an admin requirement)."""
     return _ROLE_RANK.get(role, -1) >= _ROLE_RANK.get(minimum, 0)
+
+
+# NOTE: currently unwired. Phase 1 final review found process-identity-based
+# remote dashboard auth unsafe -- it would grant a role based on the AD
+# groups of the OS user running the dashboard process, not the actual HTTP
+# requester, with no way to authenticate a specific request. Kept here for a
+# future Phase 2 effort that wires this to per-request SSO (e.g. Kerberos/
+# SPNEGO) instead of the process identity.
+def resolve_role_from_groups(groups: list[str], ad_group_map: dict[str, str]) -> str | None:
+    """Highest-ranked role granted by any of `groups`' AD-group mapping.
+    None when no group matches -- caller falls back to the static
+    credential-file path (this never widens access beyond the static file
+    on its own)."""
+    matched = [ad_group_map[g] for g in groups if g in ad_group_map]
+    if not matched:
+        return None
+    return max(matched, key=lambda role: _ROLE_RANK.get(role, -1))
+
+
+def load_ad_group_map(path) -> dict[str, str]:
+    """Parse config/dashboard_auth.yaml's `ad_groups` mapping. Same
+    fail-closed posture as load_credentials -- missing file, parse error,
+    or an unrecognized role value yields {} / drops that entry."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    try:
+        import yaml
+        data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        raw = data.get("ad_groups", {}) or {}
+        return {str(k): str(v) for k, v in raw.items() if str(v) in _ROLE_RANK}
+    except Exception:
+        return {}

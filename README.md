@@ -162,7 +162,7 @@ cd vscode-extension && npm install && node --test test/*.test.ts
 
 **Early-stage, building in public.** Package version `1.10.0` in `pyproject.toml`
 (the changelog trails a few shipped features — see `docs/ROADMAP.md` for the live,
-accurate ledger); 142 MCP tools, 83 portable skill packs, ~1421 tests, registered
+accurate ledger); 142 MCP tools, 83 portable skill packs, ~1473 tests, registered
 through a decorator-based tool registry (one source of truth per tool, organized into a
 `handlers/` package of 25 category files instead of one monolithic `server.py`).
 Everything runs directly from PromptWise — local-first, no third-party integrations,

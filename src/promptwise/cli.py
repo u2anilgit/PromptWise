@@ -7,17 +7,19 @@ from pathlib import Path
 
 from promptwise import __version__
 from promptwise.config import load_config
-from promptwise.db.models import MemoryManager, get_db_path
+from promptwise.db.models import MemoryManager, get_db_url
 from promptwise.plugins.budget import BudgetGuardian
 
 
 async def _memory_manager(db_path: str | None = None) -> MemoryManager:
     """A real, initialized MemoryManager -- default path via init_db() (the
     same schema-creating path server.py's main() uses), or an explicit
-    db_path for tests."""
+    db_path for tests. When db_path is None, honors config.identity.db_url
+    if the operator has configured a shared team Postgres DB."""
     if db_path is None:
-        from promptwise.db.models import init_db
-        db_path = await init_db()
+        from promptwise.db.models import init_db, get_db_url
+        config = load_config()
+        db_path = await init_db(get_db_url(config))
     mm = MemoryManager(db_path)
     await mm.init()
     return mm
@@ -54,7 +56,7 @@ def _do_stats(config_dir: str | None) -> None:
     snapshot = roi.calculate(session_id="stats", total_cost_usd=budget["current_spend_usd"],
                              tokens_saved=0, calls=0)
 
-    db_path = str(get_db_path())
+    db_path = get_db_url(cfg)
 
     print(f"PromptWise — {__version__}")
     print(f"Config:  {cfg.version}")
