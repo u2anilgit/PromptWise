@@ -150,9 +150,11 @@ def _start_serve(config_dir: str | None, port: int | None, cli_only: bool) -> No
           + (" (RBAC enforced)" if require_auth else ""))
 
     from promptwise.dashboard.web import create_web_app
+    from promptwise.dashboard.oidc_auth import OIDCConfig
     mm = asyncio.run(_memory_manager())
     app = create_web_app(memory_manager=mm, require_auth=require_auth,
-                          credentials_path=credentials_path)
+                          credentials_path=credentials_path,
+                          oidc_config=OIDCConfig.from_env())
     app.run(host=host, port=port, debug=False)
 
 
