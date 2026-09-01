@@ -6,29 +6,43 @@ existing users). Auth is fail-closed: a missing or invalid Bearer token
 never reaches the MCP session manager -- see
 docs/superpowers/specs/2026-09-01-remote-mcp-transport-design.md.
 
-Session identity: each incoming connection gets its own PromptWise
-session_id (see core/session_context.py) derived from the authenticated
-credential_id, set on the contextvars.ContextVar for that connection's
-async context before any tool call executes on it, and reset afterward.
-This makes concurrent connections from different tokens never share a
-session_id, and makes the same token's reconnects stable (useful for
-per-developer cost rollups), unlike a fresh random id per HTTP request.
+Session identity, and what "per-request" actually means here: the
+session_id and remote Identity are set on their own contextvars.ContextVar
+(core/session_context.py) around every call into
+session_manager.handle_request, and reset afterward -- but the MCP SDK's
+StreamableHTTPSessionManager, for an existing (already-`initialize`d)
+session, dispatches the request to that session's own long-lived task
+(spawned once, at session-creation time, inside the `initialize` request's
+handling). asyncio tasks snapshot their contextvars once, at task-creation
+time. So in practice the set/reset in _MCPEndpoint.__call__ only actually
+determines the session_id/remote_identity that session's *tool-call
+handling* task observes on its *first* request (the one that created the
+session); the set/reset on every later request to that same session is a
+correctness-neutral no-op as far as that task's own contextvar snapshot
+goes. Identity is NOT re-validated by the SDK on every individual request
+within an established session -- it is fixed once, at session-creation
+time.
 
-The authenticated `Identity` itself is likewise set on its own
-contextvars.ContextVar (core/session_context.py's
-set_current_remote_identity/get_current_remote_identity), not stored on
-the shared `ctx` -- resolved_actor() reads it mid-dispatch, so a plain
-ctx attribute would let one connection's identity be overwritten by
-another's before its own read completed under concurrent connections.
+That's exactly why session-hijacking has to be enforced separately, at
+the HTTP layer, rather than relying on per-request contextvar
+re-validation: `_session_owners` below (a plain dict in `build_app`,
+{mcp_session_id: credential_id}) records which credential created each
+session (captured off the `mcp-session-id` response header the SDK
+returns when a new session is created) and rejects (404, matching the
+SDK's own "session not found" response shape) any later request that
+presents an existing session id under a *different* credential -- before
+that request ever reaches session_manager.handle_request. See
+tests/test_http_transport.py's
+test_second_token_cannot_reuse_first_tokens_session for the property
+this exists to guarantee.
 """
 from __future__ import annotations
 
-import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
 
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from promptwise.dashboard.auth import find_identity, load_credentials
@@ -49,6 +63,30 @@ def _extract_bearer_token(headers: list[tuple[bytes, bytes]]) -> str | None:
             if text.startswith("Bearer "):
                 return text[len("Bearer "):]
     return None
+
+
+def _extract_header(headers: list[tuple[bytes, bytes]], name: str) -> str | None:
+    """Raw ASGI header list -> the decoded value of one header (case
+    -insensitive), or None if absent."""
+    target = name.lower().encode("latin-1")
+    for header_name, value in headers:
+        if header_name.lower() == target:
+            return value.decode("latin-1")
+    return None
+
+
+async def _session_not_found_response(scope, receive, send) -> None:
+    """The exact response StreamableHTTPSessionManager itself sends for an
+    unknown/invalid mcp-session-id -- reused here (rather than inventing a
+    new shape) for a *known* session id whose recorded owner credential
+    doesn't match the caller's, so a hijack attempt is indistinguishable
+    from the session simply not existing."""
+    from mcp.types import INVALID_REQUEST, ErrorData, JSONRPCError
+    body = JSONRPCError(jsonrpc="2.0", id="server-error",
+                         error=ErrorData(code=INVALID_REQUEST, message="Session not found"))
+    response = Response(body.model_dump_json(by_alias=True, exclude_none=True),
+                         status_code=404, media_type="application/json")
+    await response(scope, receive, send)
 
 
 def build_app(ctx: Any, credentials_path: str = "config/mcp_auth.yaml") -> Starlette:
@@ -75,46 +113,18 @@ def build_app(ctx: Any, credentials_path: str = "config/mcp_auth.yaml") -> Starl
 
     session_manager = StreamableHTTPSessionManager(app=mcp_server)
 
-    # StreamableHTTPSessionManager.handle_request requires its internal
-    # anyio task group to already be running (entered via `async with
-    # session_manager.run():`), and anyio requires a task group be
-    # entered and exited by the *same task* -- it must not outlive the
-    # task that entered it. A real deployment enters it during the ASGI
-    # lifespan's startup phase (see `lifespan` below), in uvicorn's own
-    # long-lived lifespan task, which always runs before the first
-    # request. Some test harnesses (e.g. Starlette's TestClient used
-    # without a `with` block) never trigger ASGI lifespan events at all,
-    # so `_ensure_session_manager_started` also lazily starts it on
-    # first request -- but in its own dedicated background task (not
-    # the request-handling task, which would otherwise return while the
-    # task group it entered is still open, corrupting anyio's cancel
-    # scope nesting for that task). Idempotent either way, guarded by a
-    # lock against concurrent first requests racing.
-    _start_lock = asyncio.Lock()
-    _started = asyncio.Event()
-    _stop = asyncio.Event()
-    _runner_task: asyncio.Task | None = None
-
-    async def _run_session_manager() -> None:
-        async with session_manager.run():
-            _started.set()
-            await _stop.wait()
-
-    async def _ensure_session_manager_started() -> None:
-        nonlocal _runner_task
-        if _started.is_set():
-            return
-        async with _start_lock:
-            if _started.is_set():
-                return
-            _runner_task = asyncio.create_task(_run_session_manager())
-            await _started.wait()
-
-    async def _stop_session_manager() -> None:
-        if _runner_task is None:
-            return
-        _stop.set()
-        await _runner_task
+    # Identity of the credential that created each mcp-session-id, keyed
+    # by that session id. A plain in-memory dict, scoped to this app
+    # instance's lifetime -- no persistence needed (a restart drops all
+    # sessions anyway, on both the MCP SDK's own session tracking and
+    # ours). Captured off the `mcp-session-id` response header the SDK
+    # returns when _MCPEndpoint.__call__ dispatches a request that
+    # creates a new session (see `_capturing_send` below); consulted
+    # before dispatching any request that carries an *existing*
+    # mcp-session-id, to reject a different credential trying to reuse
+    # someone else's session (see module docstring for why this can't be
+    # done via per-request contextvar re-validation alone).
+    _session_owners: dict[str, str] = {}
 
     class _MCPEndpoint:
         """Raw ASGI callable, not a Starlette Request/Response-style
@@ -135,24 +145,57 @@ def build_app(ctx: Any, credentials_path: str = "config/mcp_auth.yaml") -> Starl
                 await response(scope, receive, send)
                 return
 
-            await _ensure_session_manager_started()
+            incoming_session_id = _extract_header(scope.get("headers", []), "mcp-session-id")
+            if incoming_session_id is not None:
+                owner_credential_id = _session_owners.get(incoming_session_id)
+                if owner_credential_id is not None and owner_credential_id != identity.credential_id:
+                    # A different (still-valid) credential is trying to
+                    # reuse a session it didn't create -- reject before
+                    # this ever reaches the MCP session manager. Same
+                    # response shape as an unknown session id: a hijack
+                    # attempt must be indistinguishable from "no such
+                    # session" to the caller.
+                    await _session_not_found_response(scope, receive, send)
+                    return
 
             session_id = f"remote:{identity.credential_id}"
             session_token = set_current_session_id(session_id)
             identity_token = set_current_remote_identity(identity)
+
+            created_session_id: list[str] = []
+
+            async def _capturing_send(message):
+                if message.get("type") == "http.response.start":
+                    header_value = _extract_header(message.get("headers") or [], "mcp-session-id")
+                    if header_value is not None:
+                        created_session_id.append(header_value)
+                await send(message)
+
             try:
-                await session_manager.handle_request(scope, receive, send)
+                await session_manager.handle_request(scope, receive, _capturing_send)
             finally:
                 reset_current_remote_identity(identity_token)
                 reset_current_session_id(session_token)
 
+            # A brand-new session was created by this request (the
+            # response carried a fresh mcp-session-id this request didn't
+            # already have) -- record its owner so a later request under
+            # a different credential gets rejected above instead of
+            # silently reusing it.
+            if incoming_session_id is None and created_session_id:
+                _session_owners[created_session_id[0]] = identity.credential_id
+
     @asynccontextmanager
     async def lifespan(app: Starlette):
-        await _ensure_session_manager_started()
-        try:
+        # The MCP SDK's StreamableHTTPSessionManager requires its internal
+        # anyio task group to already be running (entered via `async with
+        # session_manager.run():`) before handle_request is ever called.
+        # ASGI lifespan is the right place for this -- uvicorn always
+        # drives it before the first request, and Starlette's TestClient
+        # drives it too when used as `with TestClient(app) as client:`
+        # (see tests/test_http_transport.py).
+        async with session_manager.run():
             yield
-        finally:
-            await _stop_session_manager()
 
     return Starlette(routes=[Route("/mcp", _MCPEndpoint(), methods=["GET", "POST", "DELETE"])],
                       lifespan=lifespan)
