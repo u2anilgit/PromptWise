@@ -182,15 +182,30 @@ def get_db_url(config=None) -> str:
     return f"sqlite+aiosqlite:///{get_db_path()}"
 
 
-async def init_db(db_path: Path | str | None = None) -> str:
-    if db_path is None:
-        db_path = get_db_path()
-    db_url = str(db_path) if "://" in str(db_path) else f"sqlite+aiosqlite:///{db_path}"
+async def _create_schema(db_url: str) -> None:
     engine = create_async_engine(db_url, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _ensure_cost_logs_project_id(conn)
     await engine.dispose()
+
+
+async def init_db(db_path: Path | str | None = None) -> str:
+    if db_path is None:
+        db_path = get_db_path()
+    db_url = str(db_path) if "://" in str(db_path) else f"sqlite+aiosqlite:///{db_path}"
+    if db_url.startswith("postgresql"):
+        # Fail-open: an unreachable/misconfigured shared-team Postgres must
+        # never block server startup or a tool call -- fall back to local
+        # sqlite (today's behavior) instead of letting the connection error
+        # propagate. Sqlite itself is not wrapped here: it already works and
+        # doesn't need a fallback-from-itself.
+        try:
+            await _create_schema(db_url)
+            return db_url
+        except Exception:
+            db_url = f"sqlite+aiosqlite:///{get_db_path()}"
+    await _create_schema(db_url)
     return db_url
 
 
@@ -209,7 +224,7 @@ async def db_health(db_url: str) -> dict:
         return {"backend": backend, "reachable": True, "warning": None}
     except Exception as exc:
         return {"backend": backend, "reachable": False,
-                "warning": f"{backend} at configured db_url unreachable, falling back to local sqlite: {exc}"}
+                "warning": f"{backend} at configured db_url unreachable, using local sqlite instead: {exc}"}
 
 
 class SessionManager:

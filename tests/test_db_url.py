@@ -49,3 +49,14 @@ def test_db_health_reports_unreachable_postgres_without_raising():
     assert health["backend"] == "postgresql"
     assert health["reachable"] is False
     assert health["warning"]
+
+
+def test_init_db_falls_back_to_local_sqlite_when_postgres_unreachable(tmp_path, monkeypatch):
+    monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+
+    async def _run():
+        return await init_db("postgresql+asyncpg://user:pass@nonexistent-host-xyz/promptwise")
+
+    returned = asyncio.run(_run())
+    assert returned == f"sqlite+aiosqlite:///{tmp_path / 'promptwise.db'}"
+    assert (tmp_path / "promptwise.db").exists()
