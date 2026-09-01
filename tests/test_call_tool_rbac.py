@@ -1,0 +1,97 @@
+import asyncio
+import json
+
+from promptwise.core.session_context import set_current_remote_identity, reset_current_remote_identity
+from promptwise.dashboard.auth import Identity
+from promptwise.server import call_tool
+
+
+class _FakeCtx:
+    """A minimal stand-in ServerContext -- call_tool only needs `ctx` to
+    hand to whatever handler actually gets dispatched, and these tests
+    target tools trivial enough not to need real services."""
+    pass
+
+
+def test_stdio_no_remote_identity_allows_every_tool_regardless_of_role(tmp_path, monkeypatch):
+    """No remote identity set (the stdio/local case) -- RBAC is skipped
+    entirely, even for an admin-only tool. This is the one test where
+    dispatch genuinely reaches the real handler (RBAC never intervenes),
+    so the tmp_path isolation here is load-bearing, not optional --
+    without it this test writes to the real config/admin.yaml."""
+    import promptwise.core.admin_config as admin_config_mod
+    monkeypatch.setattr(admin_config_mod, "_DEFAULT_PATH", tmp_path / "admin.yaml")
+
+    async def _run():
+        return await call_tool(_FakeCtx(), "set_feature_flag", {"name": "test", "enabled": True})
+    result = json.loads(asyncio.run(_run()))
+    assert result.get("type") != "PermissionDenied"
+
+
+def test_remote_viewer_denied_on_admin_only_tool(tmp_path, monkeypatch):
+    import promptwise.core.admin_config as admin_config_mod
+    monkeypatch.setattr(admin_config_mod, "_DEFAULT_PATH", tmp_path / "admin.yaml")
+
+    identity = Identity(credential_id="abc123def456", role="viewer", projects=None)
+    token = set_current_remote_identity(identity)
+    try:
+        async def _run():
+            return await call_tool(_FakeCtx(), "set_feature_flag", {"name": "test", "enabled": True})
+        result = json.loads(asyncio.run(_run()))
+        assert result["type"] == "PermissionDenied"
+        assert result["tool"] == "set_feature_flag"
+    finally:
+        reset_current_remote_identity(token)
+    assert not (tmp_path / "admin.yaml").exists()  # denied before the handler ever ran
+
+
+def test_remote_viewer_allowed_on_viewer_safe_tool():
+    identity = Identity(credential_id="abc123def456", role="viewer", projects=None)
+    token = set_current_remote_identity(identity)
+    try:
+        async def _run():
+            return await call_tool(_FakeCtx(), "list_tasks", {})
+        result = json.loads(asyncio.run(_run()))
+        assert result.get("type") != "PermissionDenied"
+    finally:
+        reset_current_remote_identity(token)
+
+
+def test_remote_admin_allowed_on_admin_only_tool(tmp_path, monkeypatch):
+    import promptwise.core.admin_config as admin_config_mod
+    monkeypatch.setattr(admin_config_mod, "_DEFAULT_PATH", tmp_path / "admin.yaml")
+
+    identity = Identity(credential_id="abc123def456", role="admin", projects=None)
+    token = set_current_remote_identity(identity)
+    try:
+        async def _run():
+            return await call_tool(_FakeCtx(), "set_feature_flag", {"name": "test", "enabled": True})
+        result = json.loads(asyncio.run(_run()))
+        assert result.get("type") != "PermissionDenied"
+    finally:
+        reset_current_remote_identity(token)
+
+
+def test_denied_call_is_recorded_to_audit_log(tmp_path, monkeypatch):
+    from promptwise.core.audit_log import AuditLog
+    import promptwise.core.tool_registry as tool_registry_mod
+    import promptwise.core.admin_config as admin_config_mod
+
+    audit_path = tmp_path / "audit.jsonl"
+    monkeypatch.setattr(tool_registry_mod, "_get_audit_log", lambda: AuditLog(audit_path))
+    monkeypatch.setattr(admin_config_mod, "_DEFAULT_PATH", tmp_path / "admin.yaml")
+
+    identity = Identity(credential_id="abc123def456", role="viewer", projects=None)
+    token = set_current_remote_identity(identity)
+    try:
+        async def _run():
+            return await call_tool(_FakeCtx(), "set_feature_flag", {"name": "test", "enabled": True})
+        asyncio.run(_run())
+    finally:
+        reset_current_remote_identity(token)
+    assert not (tmp_path / "admin.yaml").exists()  # denied before the handler ever ran
+
+    log = AuditLog(audit_path)
+    assert len(log.records) == 1
+    assert log.records[-1].actor == "abc123def456"
+    assert log.records[-1].gate_decision == "FAIL"

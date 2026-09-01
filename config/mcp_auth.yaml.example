@@ -18,7 +18,7 @@
 
 entries:
   - credential_hash: "<sha256 hex digest -- see instructions above>"
-    role: admin       # unused by the MCP transport today (no per-call RBAC
-                       # yet -- see Phase 2's separate "per-call RBAC" item);
-                       # required by the shared Identity dataclass shape.
+    role: viewer      # "admin" or "viewer" -- gates which MCP tools this
+                       # token can call remotely, see config/mcp_tool_roles.yaml
+                       # and docs/OPS_REMOTE_MCP.md
     projects: null     # unused by the MCP transport today.
