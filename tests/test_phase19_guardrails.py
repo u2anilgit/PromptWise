@@ -31,6 +31,8 @@ EXPECTED_CORE_DEPENDENCIES = {
     "Authlib>=1.2",
     "anthropic>=0.7",
     "cryptography>=42.0",
+    "starlette>=0.46,<1.0",
+    "uvicorn>=0.34,<1.0",
 }
 
 

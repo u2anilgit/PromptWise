@@ -22,6 +22,12 @@ config/policy.yaml
 # admin.example.yaml) -- runtime-written by set_feature_flag, same
 # tracked-example/gitignored-real convention as policy.yaml above
 config/admin.yaml
+# local dashboard credentials (copy from dashboard_auth.yaml.example),
+# same tracked-example/gitignored-real convention as policy.yaml above
+config/dashboard_auth.yaml
+# local remote MCP transport credentials (copy from mcp_auth.yaml.example),
+# same tracked-example/gitignored-real convention as policy.yaml above
+config/mcp_auth.yaml
 
 # ── Source bundle drop (not part of the package) ─────────────────────────
 files/

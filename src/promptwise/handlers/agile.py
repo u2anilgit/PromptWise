@@ -123,9 +123,10 @@ async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
         try:
             audit = _get_audit_log()
             from promptwise.core.identity import resolved_actor
+            from promptwise.core.session_context import get_current_remote_identity
             audit.append(
                 f"check_policy: operation={arguments.get('operation') or '-'} allowed={dec.allowed}",
-                actor=resolved_actor(arguments.get("actor", ""), ctx.identity),
+                actor=resolved_actor(arguments.get("actor", ""), ctx.identity, get_current_remote_identity()),
                 rules_applied=[f"control:{c}" for c in dec.control_ids],
                 gate_decision="PASS" if dec.allowed else "FAIL",
                 compliance_decision=f"policy:{dec.enforcement}")
@@ -138,13 +139,14 @@ async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
          schema={"type": "object", "properties": {"task": {"type": "string"}, "agent": {"type": "string", "default": ""}, "model": {"type": "string", "default": ""}, "cost_usd": {"type": "number", "default": 0.0}, "rules_applied": {"type": "array", "items": {"type": "string"}, "default": []}, "gate_decision": {"type": "string", "default": ""}, "compliance_decision": {"type": "string", "default": ""}, "files_touched": {"type": "array", "items": {"type": "string"}, "default": []}, "actor": {"type": "string", "default": ""}}, "required": ["task"]})
 async def _handle_record_audit(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.identity import resolved_actor
+    from promptwise.core.session_context import get_current_remote_identity
     audit = _get_audit_log()
     rec = audit.append(
         arguments.get("task", ""), agent=arguments.get("agent", ""), model=arguments.get("model", ""),
         cost_usd=float(arguments.get("cost_usd", 0.0)), rules_applied=arguments.get("rules_applied", []),
         gate_decision=arguments.get("gate_decision", ""), compliance_decision=arguments.get("compliance_decision", ""),
         files_touched=arguments.get("files_touched", []),
-        actor=resolved_actor(arguments.get("actor", ""), ctx.identity))
+        actor=resolved_actor(arguments.get("actor", ""), ctx.identity, get_current_remote_identity()))
     ok, msg = audit.verify()
     return json.dumps({"record": rec.__dict__, "chain_ok": ok, "chain_msg": msg})
 

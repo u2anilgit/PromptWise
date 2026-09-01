@@ -130,7 +130,7 @@ from promptwise.handlers.incidents import _handle_update_incident, _handle_close
 # _handle_update_incident/_handle_close_incident read ctx.identity (actor
 # auto-fill, Task 3) -- _ICTX (cast-from-None) can't stand in for those two;
 # a minimal identity-carrying stub does.
-_IDCTX = types.SimpleNamespace(identity=Identity())
+_IDCTX = types.SimpleNamespace(identity=Identity(), remote_identity=None)
 
 
 def test_update_incident_tool_transitions(tmp_path, monkeypatch):

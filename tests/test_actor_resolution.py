@@ -1,5 +1,6 @@
 from promptwise.core.identity import Identity, resolved_actor
 from promptwise.core.tool_registry import ServerContext
+from promptwise.dashboard.auth import Identity as DashboardIdentity
 import dataclasses
 
 
@@ -90,3 +91,34 @@ def test_agile_record_audit_explicit_actor_overrides_identity(tmp_path, monkeypa
     asyncio.run(_run())
     log = AuditLog(audit_path)
     assert log.records[-1].actor == "ci-bot"
+
+
+def test_resolved_actor_falls_back_to_remote_identity_credential_id():
+    remote = DashboardIdentity(credential_id="abc123def456", role="admin", projects=None)
+    assert resolved_actor("", None, remote) == "abc123def456"
+
+
+def test_resolved_actor_prefers_ad_identity_over_remote_identity():
+    ad = Identity(username="jdoe", domain="CORP", groups=[], email="", source="env")
+    remote = DashboardIdentity(credential_id="abc123def456", role="admin", projects=None)
+    assert resolved_actor("", ad, remote) == "jdoe"
+
+
+def test_resolved_actor_explicit_wins_over_both():
+    ad = Identity(username="jdoe", domain="CORP", groups=[], email="", source="env")
+    remote = DashboardIdentity(credential_id="abc123def456", role="admin", projects=None)
+    assert resolved_actor("ci-bot", ad, remote) == "ci-bot"
+
+
+def test_resolved_actor_empty_when_nothing_resolves():
+    assert resolved_actor("", None, None) == ""
+
+
+def test_current_remote_identity_defaults_to_none():
+    """remote_identity moved from a plain ServerContext field (racy under
+    concurrent connections -- see session_context.py's docstring) to a
+    contextvar mirroring session_id's design. No explicit
+    set_current_remote_identity call (the stdio/no-auth path) means
+    None, matching the old field's default."""
+    from promptwise.core.session_context import get_current_remote_identity
+    assert get_current_remote_identity() is None
