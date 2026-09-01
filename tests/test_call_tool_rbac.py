@@ -13,11 +13,17 @@ class _FakeCtx:
     pass
 
 
-def test_stdio_no_remote_identity_allows_every_tool_regardless_of_role():
+def test_stdio_no_remote_identity_allows_every_tool_regardless_of_role(tmp_path, monkeypatch):
     """No remote identity set (the stdio/local case) -- RBAC is skipped
-    entirely, even for an admin-only tool."""
+    entirely, even for an admin-only tool. This is the one test where
+    dispatch genuinely reaches the real handler (RBAC never intervenes),
+    so the tmp_path isolation here is load-bearing, not optional --
+    without it this test writes to the real config/admin.yaml."""
+    import promptwise.core.admin_config as admin_config_mod
+    monkeypatch.setattr(admin_config_mod, "_DEFAULT_PATH", tmp_path / "admin.yaml")
+
     async def _run():
-        return await call_tool(_FakeCtx(), "set_feature_flag", {"flag": "test", "value": True})
+        return await call_tool(_FakeCtx(), "set_feature_flag", {"name": "test", "enabled": True})
     result = json.loads(asyncio.run(_run()))
     assert result.get("type") != "PermissionDenied"
 
