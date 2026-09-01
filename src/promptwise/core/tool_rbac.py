@@ -24,13 +24,23 @@ from pathlib import Path
 
 from promptwise.dashboard.auth import _ROLE_RANK
 
+# src/promptwise/core/tool_rbac.py -> parents[3] is the repo root, matching
+# core/admin_config.py, core/doctor.py, core/hook_bridge.py, core/model_registry.py,
+# core/effort_map.py's established idiom -- resolved from the package location,
+# not the process cwd (a cwd-relative default silently loads {} -- and thus
+# fail-closed admin-only for every tool -- for any deployment not launched
+# from the repo root).
+_DEFAULT_PATH = Path(__file__).resolve().parents[3] / "config" / "mcp_tool_roles.yaml"
 
-def load_tool_roles(path: str = "config/mcp_tool_roles.yaml") -> dict[str, str]:
+
+def load_tool_roles(path: str | None = None) -> dict[str, str]:
     """Parse config/mcp_tool_roles.yaml's `tool_roles` mapping. Missing
     file, parse error, or an unrecognized role value yields {} / drops
     that entry -- fail-closed, since minimum_role_for's default for an
-    absent tool is "admin"."""
-    p = Path(path)
+    absent tool is "admin". `path` defaults to the package-resolved repo
+    root's config/mcp_tool_roles.yaml; pass an explicit path (e.g. a
+    tmp_path-scoped file) to override, such as in tests."""
+    p = Path(path) if path is not None else _DEFAULT_PATH
     if not p.exists():
         return {}
     try:

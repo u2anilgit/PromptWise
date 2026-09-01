@@ -291,18 +291,26 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
         from promptwise.core.tool_rbac import load_tool_roles, minimum_role_for
         tool_roles = load_tool_roles()
         minimum_role = minimum_role_for(name, tool_roles)
-        if not role_satisfies(remote_identity.role, minimum_role):
+        # getattr, not attribute access: a malformed identity object (never
+        # produced by transports/http_server.py today, but not this
+        # function's contract to assume) must still deny cleanly rather
+        # than raise -- missing/invalid role satisfies nothing.
+        identity_role = getattr(remote_identity, "role", None)
+        if identity_role is None or not role_satisfies(identity_role, minimum_role):
             try:
                 from promptwise.core.tool_registry import _get_audit_log
                 _get_audit_log().append(
                     f"rbac_denied: tool={name}",
-                    actor=remote_identity.credential_id,
+                    actor=getattr(remote_identity, "credential_id", ""),
                     rules_applied=[f"minimum_role:{minimum_role}"],
                     gate_decision="FAIL",
-                    compliance_decision=f"rbac:{remote_identity.role}<{minimum_role}")
+                    compliance_decision=f"rbac:{identity_role}<{minimum_role}")
             except Exception:
-                pass  # audit write is fail-open; never block or crash the denial response
-            return json.dumps({"error": f"role '{remote_identity.role}' does not satisfy "
+                import logging
+                logging.getLogger(__name__).debug(
+                    "RBAC denial audit write failed", exc_info=True)
+                # audit write is fail-open; never block or crash the denial response
+            return json.dumps({"error": f"role '{identity_role}' does not satisfy "
                                         f"required role '{minimum_role}' for tool '{name}'",
                                "type": "PermissionDenied", "tool": name})
 

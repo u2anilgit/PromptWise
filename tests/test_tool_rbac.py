@@ -47,3 +47,15 @@ def test_real_config_file_loads_and_classifies_correctly():
     assert tool_roles["get_admin_settings"] == "admin"  # manual override -- see design doc
     assert tool_roles["query_audit"] == "viewer"
     assert tool_roles["run_governor"] == "admin"
+
+
+def test_default_path_resolves_from_package_location_not_cwd(tmp_path, monkeypatch):
+    """load_tool_roles() with no argument must find the real repo-root
+    config/mcp_tool_roles.yaml regardless of the process's cwd -- a
+    cwd-relative default would silently load {} (and thus fail-closed
+    admin-only for every tool) for any deployment not launched from the
+    repo root."""
+    monkeypatch.chdir(tmp_path)
+    assert not (tmp_path / "config").exists()  # confirm cwd has no config/ at all
+    tool_roles = load_tool_roles()
+    assert tool_roles["list_tasks"] == "viewer"

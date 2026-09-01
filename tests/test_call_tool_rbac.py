@@ -22,17 +22,21 @@ def test_stdio_no_remote_identity_allows_every_tool_regardless_of_role():
     assert result.get("type") != "PermissionDenied"
 
 
-def test_remote_viewer_denied_on_admin_only_tool():
+def test_remote_viewer_denied_on_admin_only_tool(tmp_path, monkeypatch):
+    import promptwise.core.admin_config as admin_config_mod
+    monkeypatch.setattr(admin_config_mod, "_DEFAULT_PATH", tmp_path / "admin.yaml")
+
     identity = Identity(credential_id="abc123def456", role="viewer", projects=None)
     token = set_current_remote_identity(identity)
     try:
         async def _run():
-            return await call_tool(_FakeCtx(), "set_feature_flag", {"flag": "test", "value": True})
+            return await call_tool(_FakeCtx(), "set_feature_flag", {"name": "test", "enabled": True})
         result = json.loads(asyncio.run(_run()))
         assert result["type"] == "PermissionDenied"
         assert result["tool"] == "set_feature_flag"
     finally:
         reset_current_remote_identity(token)
+    assert not (tmp_path / "admin.yaml").exists()  # denied before the handler ever ran
 
 
 def test_remote_viewer_allowed_on_viewer_safe_tool():
@@ -47,12 +51,15 @@ def test_remote_viewer_allowed_on_viewer_safe_tool():
         reset_current_remote_identity(token)
 
 
-def test_remote_admin_allowed_on_admin_only_tool():
+def test_remote_admin_allowed_on_admin_only_tool(tmp_path, monkeypatch):
+    import promptwise.core.admin_config as admin_config_mod
+    monkeypatch.setattr(admin_config_mod, "_DEFAULT_PATH", tmp_path / "admin.yaml")
+
     identity = Identity(credential_id="abc123def456", role="admin", projects=None)
     token = set_current_remote_identity(identity)
     try:
         async def _run():
-            return await call_tool(_FakeCtx(), "set_feature_flag", {"flag": "test", "value": True})
+            return await call_tool(_FakeCtx(), "set_feature_flag", {"name": "test", "enabled": True})
         result = json.loads(asyncio.run(_run()))
         assert result.get("type") != "PermissionDenied"
     finally:
@@ -62,18 +69,21 @@ def test_remote_admin_allowed_on_admin_only_tool():
 def test_denied_call_is_recorded_to_audit_log(tmp_path, monkeypatch):
     from promptwise.core.audit_log import AuditLog
     import promptwise.core.tool_registry as tool_registry_mod
+    import promptwise.core.admin_config as admin_config_mod
 
     audit_path = tmp_path / "audit.jsonl"
     monkeypatch.setattr(tool_registry_mod, "_get_audit_log", lambda: AuditLog(audit_path))
+    monkeypatch.setattr(admin_config_mod, "_DEFAULT_PATH", tmp_path / "admin.yaml")
 
     identity = Identity(credential_id="abc123def456", role="viewer", projects=None)
     token = set_current_remote_identity(identity)
     try:
         async def _run():
-            return await call_tool(_FakeCtx(), "set_feature_flag", {"flag": "test", "value": True})
+            return await call_tool(_FakeCtx(), "set_feature_flag", {"name": "test", "enabled": True})
         asyncio.run(_run())
     finally:
         reset_current_remote_identity(token)
+    assert not (tmp_path / "admin.yaml").exists()  # denied before the handler ever ran
 
     log = AuditLog(audit_path)
     assert len(log.records) == 1
