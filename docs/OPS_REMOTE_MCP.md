@@ -41,6 +41,33 @@ larger, deliberately deferred increment.
 5. Point your remote MCP client at `http://<host>:<port>/mcp` with
    `Authorization: Bearer <raw token>`.
 
+## Per-call tool RBAC
+
+Once the remote transport is enabled (above), every remote tool call is
+also gated by role: `viewer` tokens (see `config/mcp_auth.yaml`'s
+`role:` field) can only call the ~37 read-only tools listed as `viewer`
+in `config/mcp_tool_roles.yaml` (reports, lookups, queries, checks);
+everything else requires `admin`. This does NOT apply to local/stdio
+usage -- your own Claude Code session via stdio is completely
+unaffected, same as before.
+
+To grant a specific token viewer-eligible access to a tool not
+currently listed as `viewer`, edit `config/mcp_tool_roles.yaml` and add
+`<tool_name>: viewer` under `tool_roles:` -- takes effect on the very
+next remote call, no restart needed (the file is read fresh per call,
+same as `config/mcp_auth.yaml`'s credential reloading).
+
+A denied call returns a `PermissionDenied` JSON error and is recorded
+to the audit trail (`gate_decision: FAIL`) -- check `query_audit` (as
+an admin token) if you need to see denial history. Note that the MCP SDK
+validates a tool call's arguments against its schema BEFORE PromptWise's
+own RBAC check runs, so a denied caller sending malformed arguments to an
+admin-only tool may see a schema-validation error (revealing the tool's
+expected argument shape) rather than the `PermissionDenied` message -- this
+is a property of the underlying transport layer, not a bypass (the call is
+still fully denied either way), but worth knowing if you're auditing what an
+unauthorized caller can observe.
+
 ## What this does NOT do
 
 - No OAuth / dynamic client registration -- a third-party app that
