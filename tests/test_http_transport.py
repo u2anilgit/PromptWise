@@ -1,3 +1,6 @@
+import dataclasses
+import json
+
 from starlette.testclient import TestClient
 
 from promptwise.core.tool_registry import ServerContext
@@ -113,3 +116,57 @@ def test_second_token_cannot_reuse_first_tokens_session(tmp_path):
                      "Accept": "application/json, text/event-stream",
                      "mcp-session-id": session_id})
         assert legit.status_code == 200
+
+
+def _real_ctx() -> ServerContext:
+    """A real ServerContext instance (unlike _minimal_ctx's bare
+    SimpleNamespace) -- every field but `identity` is None (record_audit's
+    handler never touches them), and `identity` is left at its real
+    default_factory value (an anonymous core.identity.Identity with no
+    username), so resolved_actor() falls through to the remote transport
+    identity captured off the authenticated request."""
+    fields = {f.name: None for f in dataclasses.fields(ServerContext) if f.name != "identity"}
+    return ServerContext(**fields)
+
+
+def test_record_audit_over_http_persists_record_with_resolved_actor(tmp_path, monkeypatch):
+    """End-to-end: a real HTTP tools/call for record_audit, over the
+    authenticated transport, resolves to a real persisted AuditRecord
+    whose actor matches hash_credential(token)[:12] -- the property the
+    final reviewer's own live probe proved but nothing in the suite
+    checked."""
+    from promptwise.core.audit_log import AuditLog
+    import promptwise.handlers.agile as agile_mod
+
+    audit_path = tmp_path / "audit.jsonl"
+    monkeypatch.setattr(agile_mod, "_get_audit_log", lambda: AuditLog(audit_path))
+
+    token = "e2e-record-audit-token"
+    cred_path = tmp_path / "mcp_auth.yaml"
+    cred_path.write_text(
+        "entries:\n  - credential_hash: \"" + hash_credential(token) + "\"\n    role: admin\n",
+        encoding="utf-8")
+
+    app = build_app(_real_ctx(), credentials_path=str(cred_path))
+    with TestClient(app) as client:
+        init = client.post(
+            "/mcp", json=_init_body(1),
+            headers={"Authorization": f"Bearer {token}",
+                     "Accept": "application/json, text/event-stream"})
+        session_id = init.headers.get("mcp-session-id")
+        assert session_id
+
+        call = client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                  "params": {"name": "record_audit", "arguments": {"task": "e2e http audit record"}}},
+            headers={"Authorization": f"Bearer {token}",
+                     "Accept": "application/json, text/event-stream",
+                     "mcp-session-id": session_id})
+        assert call.status_code == 200
+
+    log = AuditLog(audit_path)
+    assert len(log.records) == 1
+    rec = log.records[0]
+    assert rec.task == "e2e http audit record"
+    assert rec.actor == hash_credential(token)[:12]

@@ -162,13 +162,19 @@ def build_app(ctx: Any, credentials_path: str = "config/mcp_auth.yaml") -> Starl
             session_token = set_current_session_id(session_id)
             identity_token = set_current_remote_identity(identity)
 
-            created_session_id: list[str] = []
-
             async def _capturing_send(message):
                 if message.get("type") == "http.response.start":
                     header_value = _extract_header(message.get("headers") or [], "mcp-session-id")
-                    if header_value is not None:
-                        created_session_id.append(header_value)
+                    # A brand-new session was created by this request (the
+                    # response carries a fresh mcp-session-id this request
+                    # didn't already have) -- record its owner *before*
+                    # the response is actually sent to the client, so the
+                    # window between the client observing the session id
+                    # and the server recording its owner is as narrow as
+                    # possible (rather than only after handle_request
+                    # returns).
+                    if header_value is not None and incoming_session_id is None:
+                        _session_owners[header_value] = identity.credential_id
                 await send(message)
 
             try:
@@ -176,14 +182,6 @@ def build_app(ctx: Any, credentials_path: str = "config/mcp_auth.yaml") -> Starl
             finally:
                 reset_current_remote_identity(identity_token)
                 reset_current_session_id(session_token)
-
-            # A brand-new session was created by this request (the
-            # response carried a fresh mcp-session-id this request didn't
-            # already have) -- record its owner so a later request under
-            # a different credential gets rejected above instead of
-            # silently reusing it.
-            if incoming_session_id is None and created_session_id:
-                _session_owners[created_session_id[0]] = identity.credential_id
 
     @asynccontextmanager
     async def lifespan(app: Starlette):
