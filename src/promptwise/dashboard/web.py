@@ -1,6 +1,9 @@
-from flask import Flask, g, jsonify, request, render_template_string
+from flask import Flask, g, jsonify, request, render_template_string, session, redirect
 
-from promptwise.dashboard.auth import load_credentials, find_identity, role_satisfies
+from promptwise.dashboard.auth import load_credentials, find_identity, role_satisfies, hash_credential
+from promptwise.dashboard.oidc_auth import (
+    OIDCConfig, map_role_from_claims, load_group_role_map, build_oauth_client,
+)
 
 _INDEX_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -289,9 +292,40 @@ def _run_async(coro):
 
 def create_web_app(stats_service=None, memory_manager=None, require_auth: bool = False,
                     credentials_path: str = "config/dashboard_auth.yaml",
-                    budget_guardian=None) -> Flask:
+                    budget_guardian=None,
+                    oidc_config: "OIDCConfig | None" = None,
+                    oidc_roles_path: str = "config/oidc_roles.yaml") -> Flask:
     app = Flask(__name__)
     credentials = load_credentials(credentials_path) if require_auth else []
+
+    oidc_client = None
+    group_role_map: dict[str, str] = {}
+    if oidc_config is not None:
+        import os
+        secret_key = os.environ.get("PROMPTWISE_DASHBOARD_SECRET_KEY", "")
+        if not secret_key:
+            raise SystemExit(
+                "Refusing to enable OIDC login without PROMPTWISE_DASHBOARD_SECRET_KEY set "
+                "-- an unsigned/default Flask session key would make login sessions forgeable. "
+                "See docs/OPS_OIDC_LOGIN.md.")
+        missing = [name for name, value in (
+            ("PROMPTWISE_OIDC_CLIENT_ID", oidc_config.client_id),
+            ("PROMPTWISE_OIDC_CLIENT_SECRET", oidc_config.client_secret),
+            ("PROMPTWISE_OIDC_REDIRECT_URI", oidc_config.redirect_uri),
+        ) if not value]
+        if missing:
+            raise SystemExit(
+                "Refusing to enable OIDC login with missing config: "
+                f"{', '.join(missing)} -- a partially-configured OIDC setup can "
+                "silently disable SESSION_COOKIE_SECURE and register /auth/* "
+                "routes that cannot complete a login. See docs/OPS_OIDC_LOGIN.md.")
+        app.secret_key = secret_key
+        app.config.update(
+            SESSION_COOKIE_SAMESITE="Lax",
+            SESSION_COOKIE_SECURE=oidc_config.redirect_uri.startswith("https://"),
+        )
+        oidc_client = build_oauth_client(app, oidc_config)
+        group_role_map = load_group_role_map(oidc_roles_path)
 
     # One shared BudgetGuardian instance for the life of this app -- every
     # route that reads or mutates budget state (api_budget, api_executive,
@@ -312,11 +346,38 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
                     g.identity = None
                     return fn(*args, **kwargs)
                 auth_header = request.headers.get("Authorization", "")
-                if not auth_header.startswith("Bearer "):
-                    return jsonify({"error": "missing credential"}), 401
-                identity = find_identity(auth_header[len("Bearer "):], credentials)
-                if identity is None:
-                    return jsonify({"error": "invalid credential"}), 401
+                if auth_header.startswith("Bearer "):
+                    identity = find_identity(auth_header[len("Bearer "):], credentials)
+                    if identity is None:
+                        return jsonify({"error": "invalid credential"}), 401
+                else:
+                    identity = None
+                    if oidc_config is not None and "oidc_role" in session:
+                        import time
+                        if session.get("oidc_exp", 0) > time.time():
+                            from promptwise.dashboard.auth import Identity
+                            oidc_sub = session.get("oidc_sub", "")
+                            if oidc_sub:
+                                credential_id = f"oidc:{oidc_sub}"
+                            else:
+                                # IdP omitted `sub` -- never let credential_id be
+                                # empty, or an admin passing require_role still
+                                # fails downstream reviewer-required checks
+                                # (e.g. /api/admin/kb/promote) despite having
+                                # authenticated (finding #5).
+                                credential_id = "oidc:" + hash_credential(
+                                    "no-sub:" + session.get("oidc_role", ""))[:12]
+                            identity = Identity(credential_id=credential_id,
+                                                 role=session["oidc_role"], projects=None)
+                        else:
+                            # expired session -- treat as unauthenticated and
+                            # proactively clear the stale cookie so the browser
+                            # doesn't keep resending a dead session indefinitely.
+                            session.pop("oidc_sub", None)
+                            session.pop("oidc_role", None)
+                            session.pop("oidc_exp", None)
+                    if identity is None:
+                        return jsonify({"error": "missing credential"}), 401
                 if not role_satisfies(identity.role, minimum):
                     return jsonify({"error": "insufficient role"}), 403
                 g.identity = identity
@@ -327,6 +388,50 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
     @app.route("/")
     def index():
         return render_template_string(_INDEX_HTML)
+
+    if oidc_config is not None:
+        @app.route("/auth/login")
+        def auth_login():
+            redirect_uri = oidc_config.redirect_uri
+            return oidc_client.authorize_redirect(redirect_uri)
+
+        @app.route("/auth/callback")
+        def auth_callback():
+            import time
+            try:
+                token = oidc_client.authorize_access_token()
+                claims = token.get("userinfo")
+                if not isinstance(claims, dict):
+                    claims = {}
+                role = map_role_from_claims(claims, oidc_config.group_claim, group_role_map)
+                exp = claims.get("exp")
+                if not isinstance(exp, (int, float)):
+                    exp = time.time() + 8 * 3600
+                session["oidc_sub"] = claims.get("sub", "")
+                session["oidc_role"] = role
+                session["oidc_exp"] = exp
+            except Exception as exc:
+                # Network failure, invalid/expired code, ID-token
+                # signature/claims validation failure (Authlib raises for
+                # all of these), or a malformed/unexpected claim shape from
+                # the IdP -- never fabricate a session, show a clear
+                # failure instead of a raw traceback/500. Log the
+                # exception TYPE only (never its message/args, which may
+                # carry token material) so operators still get a signal.
+                # exc_info intentionally omitted -- a traceback renders as
+                # "<ExceptionType>: <message>", which would leak the
+                # exception's message/args (potentially token material)
+                # into logs. Only the exception type name is logged.
+                app.logger.warning("OIDC callback failed: %s", type(exc).__name__)
+                return "SSO login failed. Please try again.", 401
+            return redirect("/")
+
+        @app.route("/auth/logout")
+        def auth_logout():
+            session.pop("oidc_sub", None)
+            session.pop("oidc_role", None)
+            session.pop("oidc_exp", None)
+            return redirect("/")
 
     @app.route("/api/dashboard")
     @require_role("viewer")

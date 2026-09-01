@@ -23,7 +23,13 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class Identity:
-    credential_id: str  # first 12 hex chars of the credential hash -- stable, non-reversible, safe to log as an audit actor
+    # Bearer-token path: first 12 hex chars of the credential hash -- stable,
+    # non-reversible, safe to log as an audit actor. OIDC session path
+    # (dashboard/web.py): an IdP-namespaced identifier ("oidc:<sub>", or a
+    # hash-based placeholder when the IdP omits `sub`) -- still stable and
+    # safe to log as an actor, but not guaranteed non-reversible the way the
+    # Bearer-token hash is.
+    credential_id: str
     role: str  # "viewer" or "admin"
     projects: list[str] | None = None  # None = unrestricted; not enforced anywhere yet
 
