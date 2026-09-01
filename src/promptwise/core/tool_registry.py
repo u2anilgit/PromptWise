@@ -21,6 +21,7 @@ from promptwise.core import (
     SkillLoader, WorkflowPlanner, TaskTracker,
 )
 from promptwise.core.identity import Identity
+from promptwise.dashboard.auth import Identity as DashboardIdentity
 from promptwise.security import SecurityScanner, ComplianceEngine
 from promptwise.plugins import BudgetGuardian, CodeValidator, CostMonitor, ROITracker
 from promptwise.db import SessionManager, MemoryManager
@@ -51,6 +52,7 @@ class ServerContext:
     workflow_planner: WorkflowPlanner
     task_tracker: TaskTracker
     identity: Identity = field(default_factory=Identity)
+    remote_identity: DashboardIdentity | None = None
 
 
 @dataclass

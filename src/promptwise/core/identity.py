@@ -100,10 +100,15 @@ def resolve_identity(config=None) -> Identity:
     return Identity()
 
 
-def resolved_actor(explicit: str, identity: "Identity | None") -> str:
+def resolved_actor(explicit: str, identity: "Identity | None" = None, remote_identity=None) -> str:
     """Caller-supplied `actor` wins (service-account/automation contexts);
-    otherwise fall back to the resolved Identity's username; otherwise ""
-    (today's behavior, unchanged when nothing resolves)."""
+    otherwise the resolved AD Identity's username; otherwise a remote
+    MCP transport's credential_id (see transports/http_server.py --
+    duck-typed here via getattr, not imported by name, to avoid
+    core/ depending on dashboard/); otherwise "" (today's behavior,
+    unchanged when nothing resolves)."""
     if explicit:
         return explicit
-    return identity.username if identity is not None else ""
+    if identity is not None and identity.username:
+        return identity.username
+    return getattr(remote_identity, "credential_id", "") if remote_identity is not None else ""

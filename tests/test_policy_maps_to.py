@@ -38,6 +38,7 @@ def test_merge_tighten_unions_parent_and_child_maps_to(tmp_path):
 
 class _FakeCtx:
     identity = Identity()
+    remote_identity = None
 
 
 @pytest.mark.asyncio
