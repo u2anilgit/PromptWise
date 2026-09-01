@@ -36,7 +36,10 @@ async def _handle_track_roi(ctx: ServerContext, arguments: dict) -> str:
     # stayed empty forever regardless of how many times this tool was called.
     # Persist so cost_report / get_roi_report have something to read.
     try:
-        await ctx.memory.log_roi_stat(developer="Anonymous", role="Dev", tokens_saved=r.tokens_saved,
+        identity = getattr(ctx, "identity", None)
+        developer = (identity.username if identity and identity.username else "") or "Anonymous"
+        role = f"AD:{'/'.join(identity.groups)}" if identity and identity.groups else "Dev"
+        await ctx.memory.log_roi_stat(developer=developer, role=role, tokens_saved=r.tokens_saved,
                                       cost_usd=r.total_cost_usd, hours_saved=round(r.estimated_time_saved_min / 60, 4))
     except Exception:
         pass  # never fail the tool call over a persistence hiccup
