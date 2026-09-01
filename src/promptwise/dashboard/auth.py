@@ -1,6 +1,9 @@
 ﻿"""dashboard.auth -- role-based access control for the dashboard's Flask
-app (the only network-reachable surface in this codebase; the MCP tool
-layer has no inbound listener and is intentionally out of scope).
+app. Its hash_credential/load_credentials/find_identity functions are
+also reused by transports/http_server.py for the optional remote MCP
+transport's token auth (see config/mcp_auth.yaml) -- same mechanism,
+separate credentials file, since dashboard viewer/admin roles are a
+different access shape than MCP tool-call access.
 
 Credentials are never stored in plaintext: an operator generates a raw
 value out-of-band (e.g. via the stdlib `secrets` module), the value is
