@@ -21,7 +21,6 @@ def test_agile_check_policy_uses_identity_when_actor_omitted(tmp_path, monkeypat
 
     class _FakeCtx:
         identity = Identity(username="jdoe", domain="CORP", groups=[], email="", source="env")
-        remote_identity = None
 
     async def _run():
         return await agile_mod._handle_check_policy(
@@ -44,7 +43,6 @@ def test_agile_check_policy_explicit_actor_overrides_identity(tmp_path, monkeypa
 
     class _FakeCtx:
         identity = Identity(username="jdoe", domain="CORP", groups=[], email="", source="env")
-        remote_identity = None
 
     async def _run():
         return await agile_mod._handle_check_policy(
@@ -66,7 +64,6 @@ def test_agile_record_audit_uses_identity_when_actor_omitted(tmp_path, monkeypat
 
     class _FakeCtx:
         identity = Identity(username="jdoe", domain="CORP", groups=[], email="", source="env")
-        remote_identity = None
 
     async def _run():
         return await agile_mod._handle_record_audit(_FakeCtx(), {"task": "did a thing"})
@@ -86,7 +83,6 @@ def test_agile_record_audit_explicit_actor_overrides_identity(tmp_path, monkeypa
 
     class _FakeCtx:
         identity = Identity(username="jdoe", domain="CORP", groups=[], email="", source="env")
-        remote_identity = None
 
     async def _run():
         return await agile_mod._handle_record_audit(
@@ -118,6 +114,11 @@ def test_resolved_actor_empty_when_nothing_resolves():
     assert resolved_actor("", None, None) == ""
 
 
-def test_server_context_has_remote_identity_field_defaulting_to_none():
-    fields = {f.name: f for f in dataclasses.fields(ServerContext)}
-    assert "remote_identity" in fields
+def test_current_remote_identity_defaults_to_none():
+    """remote_identity moved from a plain ServerContext field (racy under
+    concurrent connections -- see session_context.py's docstring) to a
+    contextvar mirroring session_id's design. No explicit
+    set_current_remote_identity call (the stdio/no-auth path) means
+    None, matching the old field's default."""
+    from promptwise.core.session_context import get_current_remote_identity
+    assert get_current_remote_identity() is None

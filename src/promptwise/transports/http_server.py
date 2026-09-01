@@ -13,6 +13,13 @@ async context before any tool call executes on it, and reset afterward.
 This makes concurrent connections from different tokens never share a
 session_id, and makes the same token's reconnects stable (useful for
 per-developer cost rollups), unlike a fresh random id per HTTP request.
+
+The authenticated `Identity` itself is likewise set on its own
+contextvars.ContextVar (core/session_context.py's
+set_current_remote_identity/get_current_remote_identity), not stored on
+the shared `ctx` -- resolved_actor() reads it mid-dispatch, so a plain
+ctx attribute would let one connection's identity be overwritten by
+another's before its own read completed under concurrent connections.
 """
 from __future__ import annotations
 
@@ -25,7 +32,10 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from promptwise.dashboard.auth import find_identity, load_credentials
-from promptwise.core.session_context import set_current_session_id, reset_current_session_id
+from promptwise.core.session_context import (
+    set_current_session_id, reset_current_session_id,
+    set_current_remote_identity, reset_current_remote_identity,
+)
 
 
 def _extract_bearer_token(headers: list[tuple[bytes, bytes]]) -> str | None:
@@ -45,7 +55,8 @@ def build_app(ctx: Any, credentials_path: str = "config/mcp_auth.yaml") -> Starl
     """Build the Starlette app. `ctx` is the ServerContext the existing
     call_tool(ctx, name, arguments) dispatch already uses -- shared
     across all connections (memory/router/etc. are process-wide
-    services; only session_id and remote_identity are per-connection)."""
+    services; session_id and remote_identity are per-connection, carried
+    via contextvars rather than on `ctx` itself -- see module docstring)."""
     from mcp.server import Server
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from mcp.types import Tool, TextContent
@@ -126,14 +137,14 @@ def build_app(ctx: Any, credentials_path: str = "config/mcp_auth.yaml") -> Starl
 
             await _ensure_session_manager_started()
 
-            ctx.remote_identity = identity
             session_id = f"remote:{identity.credential_id}"
-            var_token = set_current_session_id(session_id)
+            session_token = set_current_session_id(session_id)
+            identity_token = set_current_remote_identity(identity)
             try:
                 await session_manager.handle_request(scope, receive, send)
             finally:
-                reset_current_session_id(var_token)
-                ctx.remote_identity = None
+                reset_current_remote_identity(identity_token)
+                reset_current_session_id(session_token)
 
     @asynccontextmanager
     async def lifespan(app: Starlette):
