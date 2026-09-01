@@ -49,6 +49,14 @@ dev = [
 embeddings = [
     "fastembed>=0.4,<1.0",
 ]
+# Phase 1 enterprise identity -- LDAP/AD bind for auto-captured actor
+# identity (Tier 1). Opt-in only: base `pip install promptwise` is
+# unaffected by this group's presence; identity resolution fails open to
+# the env-var tier when it's absent. See
+# docs/superpowers/specs/2026-08-31-promptwise-enterprise-identity-phase1-design.md.
+ldap = [
+    "ldap3>=2.9,<3.0",
+]
 
 [project.scripts]
 promptwise = "promptwise.cli:main"

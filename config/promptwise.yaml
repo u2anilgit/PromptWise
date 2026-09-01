@@ -355,3 +355,13 @@ intelligence:
     enabled: true
     max_iterations: 5
     checkpoint_mode: manual
+
+# ============================================================================
+# Phase 1 Enterprise Identity (2026-09-01)
+# ============================================================================
+# All optional -- empty/absent means today's behavior (anonymous actor, local
+# sqlite). See docs/superpowers/specs/2026-08-31-promptwise-enterprise-identity-phase1-design.md.
+identity:
+  ldap_server: ""          # e.g. "ldaps://dc.corp.local" -- enables Tier 1 LDAP bind
+  ldap_search_base: ""     # e.g. "dc=corp,dc=local"
+  db_url: ""               # e.g. "postgresql+asyncpg://user:pass@host/promptwise" for a shared team DB
