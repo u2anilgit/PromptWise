@@ -162,7 +162,7 @@ cd vscode-extension && npm install && node --test test/*.test.ts
 
 **Early-stage, building in public.** Package version `1.10.0` in `pyproject.toml`
 (the changelog trails a few shipped features — see `docs/ROADMAP.md` for the live,
-accurate ledger); 142 MCP tools, 83 portable skill packs, ~1473 tests, registered
+accurate ledger); 142 MCP tools, 83 portable skill packs, ~1495 tests, registered
 through a decorator-based tool registry (one source of truth per tool, organized into a
 `handlers/` package of 25 category files instead of one monolithic `server.py`).
 Everything runs directly from PromptWise — local-first, no third-party integrations,
@@ -214,12 +214,13 @@ with a budget-guardian overlay, diagram generators, and a task/effort/usage trac
 optional local VS Code panel (`vscode-extension/`) surfaces budget, security, and
 governance at a glance over the same MCP server, zero external services.
 
-**Known gaps, sized but not built:** remote/mobile MCP access (server is stdio-only
-today; ChatGPT-Desktop-style connectors and mobile apps need a hosted HTTP/SSE
-transport, auth, and per-user state — a real architecture shift, not config) and
-cost-conscious routing over deprecated/prior-gen models (the registry already retains
-deprecated model pricing; the router just never reaches for it — a small, well-scoped
-addition once the default-on-vs-opt-in question is settled).
+**Known gaps, sized but not built:** OAuth/third-party-connector support for remote MCP
+(ChatGPT Desktop-style apps and third-party agents need federated auth and multi-tenant
+state — out of scope for token-authenticated team use). Token-authenticated Streamable
+HTTP transport for your-own-devices/team use is now available (`PROMPTWISE_TRANSPORT=http`,
+see `docs/OPS_REMOTE_MCP.md`). Cost-conscious routing over deprecated/prior-gen models is
+also unbuilt (the registry already retains deprecated model pricing; the router just never
+reaches for it — a small, well-scoped addition once the default-on-vs-opt-in question is settled).
 
 ## License
 

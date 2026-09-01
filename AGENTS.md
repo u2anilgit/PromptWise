@@ -37,7 +37,7 @@ chain: PRD → architecture → stories → commit. `plan_workflow` flags regula
 
 1. Cost/model decisions → call `route_request` before sending large/complex prompts.
 2. Structuring a build → call `plan_workflow` to get an ordered chain of PromptWise skill packs to run.
-3. Domain work → `suggest_skill` then `invoke_skill` from the 63 packs.
+3. Domain work → `suggest_skill` then `invoke_skill` from the 83 packs.
 4. Before running code or deploying → `security_check` / `owasp_scan`.
 5. Long sessions → `summarize_thread` and `plan_cache` to control token spend.
 
