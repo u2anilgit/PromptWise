@@ -1,3 +1,4 @@
+from promptwise.dashboard.auth import hash_credential
 from promptwise.dashboard.oidc_auth import OIDCConfig
 from promptwise.dashboard.web import create_web_app
 
@@ -101,3 +102,84 @@ def test_callback_failure_shows_clear_error_not_a_traceback(monkeypatch, tmp_pat
     # no session identity was set as a side effect of the failed attempt
     r2 = app.test_client().get("/api/models")
     assert r2.status_code == 401
+
+
+def test_bad_bearer_does_not_fall_through_to_valid_session(monkeypatch, tmp_path):
+    """A wrong/unknown Bearer token must be rejected outright -- the
+    request must NOT fall back to a valid OIDC session cookie also
+    present on the same request. Pins the require_role restructure that
+    keeps the Bearer-present branch from ever consulting the session."""
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+    roles_path = tmp_path / "oidc_roles.yaml"
+    roles_path.write_text("group_role_map:\n  PromptWise-Admins: admin\n", encoding="utf-8")
+    import promptwise.dashboard.web as web_mod
+    monkeypatch.setattr(web_mod, "build_oauth_client",
+                         lambda app, cfg: _fake_client({"sub": "user-1", "groups": ["PromptWise-Admins"]}))
+    app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
+                          oidc_config=_OIDC_CFG, oidc_roles_path=str(roles_path))
+    client = app.test_client()
+    client.get("/auth/callback")
+    # sanity: the session alone (no header) grants access
+    assert client.get("/api/models").status_code == 200
+    # bad bearer + valid session -> must be rejected, not granted via the session
+    r = client.get("/api/models", headers={"Authorization": "Bearer totally-wrong"})
+    assert r.status_code == 401
+    assert r.get_json()["error"] == "invalid credential"
+
+
+def test_static_bearer_role_not_upgraded_by_concurrent_oidc_session(monkeypatch, tmp_path):
+    """A static Bearer credential's role decision must never be overridden
+    or upgraded by a concurrent OIDC session cookie -- a viewer-role
+    Bearer token still gets 403 on an admin route even when the same
+    request also carries an admin-role OIDC session."""
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+    roles_path = tmp_path / "oidc_roles.yaml"
+    roles_path.write_text("group_role_map:\n  PromptWise-Admins: admin\n", encoding="utf-8")
+    cred_path = tmp_path / "dashboard_auth.yaml"
+    cred_path.write_text(
+        "entries:\n  - credential_hash: \"" + hash_credential("raw-token") + "\"\n    role: viewer\n",
+        encoding="utf-8")
+    import promptwise.dashboard.web as web_mod
+    monkeypatch.setattr(web_mod, "build_oauth_client",
+                         lambda app, cfg: _fake_client({"sub": "user-1", "groups": ["PromptWise-Admins"]}))
+    app = create_web_app(require_auth=True, credentials_path=str(cred_path),
+                          oidc_config=_OIDC_CFG, oidc_roles_path=str(roles_path))
+    client = app.test_client()
+    # static viewer bearer works on its own
+    r = client.get("/api/models", headers={"Authorization": "Bearer raw-token"})
+    assert r.status_code == 200
+    # establish an admin OIDC session on the same client
+    client.get("/auth/callback")
+    # the static viewer bearer must still be rejected on an admin route --
+    # not upgraded to admin by the concurrent OIDC session
+    r2 = client.get("/api/admin/settings", headers={"Authorization": "Bearer raw-token"})
+    assert r2.status_code == 403
+
+
+def test_session_cookie_secure_flag_follows_redirect_uri_scheme(monkeypatch, tmp_path):
+    """The session cookie must be marked Secure whenever the OIDC
+    redirect_uri is https, and SameSite=Lax always -- this cookie now
+    grants dashboard access (including admin), and OIDC's whole purpose
+    is enabling non-loopback binds where it could otherwise travel over
+    plaintext HTTP on a LAN."""
+    monkeypatch.setenv("PROMPTWISE_DASHBOARD_SECRET_KEY", "test-secret-key")
+
+    https_cfg = OIDCConfig(
+        issuer="https://idp.example.com", client_id="client-123",
+        client_secret="secret-abc", redirect_uri="https://dashboard.example.com/auth/callback",
+        group_claim="groups")
+    import promptwise.dashboard.web as web_mod
+    monkeypatch.setattr(web_mod, "build_oauth_client", lambda app, cfg: _fake_client({}))
+
+    https_app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing.yaml"),
+                                oidc_config=https_cfg)
+    assert https_app.config["SESSION_COOKIE_SECURE"] is True
+    assert https_app.config["SESSION_COOKIE_SAMESITE"] == "Lax"
+
+    # _OIDC_CFG's redirect_uri is http://localhost:8765/... (the dev flow
+    # the rest of this test module relies on) -- must stay non-Secure so
+    # that flow keeps working, but still SameSite=Lax.
+    http_app = create_web_app(require_auth=True, credentials_path=str(tmp_path / "missing2.yaml"),
+                               oidc_config=_OIDC_CFG)
+    assert http_app.config["SESSION_COOKIE_SECURE"] is False
+    assert http_app.config["SESSION_COOKIE_SAMESITE"] == "Lax"

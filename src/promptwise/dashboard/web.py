@@ -309,6 +309,10 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
                 "-- an unsigned/default Flask session key would make login sessions forgeable. "
                 "See docs/OPS_OIDC_LOGIN.md.")
         app.secret_key = secret_key
+        app.config.update(
+            SESSION_COOKIE_SAMESITE="Lax",
+            SESSION_COOKIE_SECURE=oidc_config.redirect_uri.startswith("https://"),
+        )
         oidc_client = build_oauth_client(app, oidc_config)
         group_role_map = load_group_role_map(oidc_roles_path)
 
