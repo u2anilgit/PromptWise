@@ -91,8 +91,10 @@ def test_to_dict_shapes(tmp_path):
 # ── MCP tool handlers ────────────────────────────────────────────────────────
 import asyncio
 import json as _json
+import types
 import typing
 
+from promptwise.core.identity import Identity
 from promptwise.core.tool_registry import ServerContext
 
 import promptwise.server  # noqa: F401 -- forces ordered handler-module imports
@@ -125,12 +127,17 @@ def test_list_incidents_tool(tmp_path, monkeypatch):
 
 from promptwise.handlers.incidents import _handle_update_incident, _handle_close_incident
 
+# _handle_update_incident/_handle_close_incident read ctx.identity (actor
+# auto-fill, Task 3) -- _ICTX (cast-from-None) can't stand in for those two;
+# a minimal identity-carrying stub does.
+_IDCTX = types.SimpleNamespace(identity=Identity())
+
 
 def test_update_incident_tool_transitions(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
     monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
-    out = _json.loads(asyncio.run(_handle_update_incident(_ICTX, {
+    out = _json.loads(asyncio.run(_handle_update_incident(_IDCTX, {
         "incident_id": created["id"], "status": "triaged", "actor": "alice"})))
     assert out["status"] == "triaged"
 
@@ -139,7 +146,7 @@ def test_update_incident_tool_illegal_transition_returns_error(tmp_path, monkeyp
     monkeypatch.setattr("promptwise.core.incidents._default_db", lambda: tmp_path / "wp3.db")
     monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
-    out = _json.loads(asyncio.run(_handle_update_incident(_ICTX, {
+    out = _json.loads(asyncio.run(_handle_update_incident(_IDCTX, {
         "incident_id": created["id"], "status": "closed", "actor": "alice"})))
     assert "error" in out
 
@@ -149,7 +156,7 @@ def test_close_incident_requires_resolved_status(tmp_path, monkeypatch):
     monkeypatch.setattr("promptwise.core.learning_store.default_db_path", lambda: tmp_path / "wp3.db")
     monkeypatch.setattr("promptwise.security.threat_intel._default_db", lambda: tmp_path / "intel.db")
     created = _json.loads(asyncio.run(_handle_create_incident(_ICTX, {"title": "T"})))
-    out = _json.loads(asyncio.run(_handle_close_incident(_ICTX, {
+    out = _json.loads(asyncio.run(_handle_close_incident(_IDCTX, {
         "incident_id": created["id"], "mistake": "m", "correction": "c"})))
     assert "error" in out  # can't close an 'open' incident, must reach 'resolved' first
 
@@ -162,7 +169,7 @@ def test_close_incident_captures_learning(tmp_path, monkeypatch):
     inc = store.create("T")
     for status in ("triaged", "contained", "resolved"):
         store.update_status(inc.id, status)
-    out = _json.loads(asyncio.run(_handle_close_incident(_ICTX, {
+    out = _json.loads(asyncio.run(_handle_close_incident(_IDCTX, {
         "incident_id": inc.id, "mistake": "no rate limiting on the tool", "correction": "add throttle"})))
     assert out["status"] == "closed"
     assert out.get("learning_captured") is True

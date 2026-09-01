@@ -311,6 +311,9 @@ async def main() -> None:
     skill_loader = SkillLoader(skills_dir)
     skill_loader.load_skills()
 
+    from promptwise.core.identity import resolve_identity
+    identity = resolve_identity(config.identity)
+
     ctx = ServerContext(
         config=config,
         router=Router(config),
@@ -334,6 +337,7 @@ async def main() -> None:
         skill_loader=skill_loader,
         workflow_planner=WorkflowPlanner(),
         task_tracker=task_tracker,
+        identity=identity,
     )
 
     server = Server("promptwise")

@@ -60,10 +60,11 @@ async def _handle_list_incidents(ctx: ServerContext, arguments: dict) -> str:
          "required": ["incident_id", "status"]})
 async def _handle_update_incident(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.incidents import IncidentStore
+    from promptwise.core.identity import resolved_actor
     try:
         inc = IncidentStore().update_status(
             int(arguments.get("incident_id", -1)), arguments.get("status", ""),
-            actor=arguments.get("actor", ""))
+            actor=resolved_actor(arguments.get("actor", ""), ctx.identity))
     except ValueError as e:
         return json.dumps({"error": str(e), "type": "IllegalTransition"})
     return json.dumps(inc.to_dict())
@@ -78,9 +79,11 @@ async def _handle_update_incident(ctx: ServerContext, arguments: dict) -> str:
 async def _handle_close_incident(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.incidents import IncidentStore
     from promptwise.core.learning_store import LearningStore
+    from promptwise.core.identity import resolved_actor
     try:
         inc = IncidentStore().update_status(
-            int(arguments.get("incident_id", -1)), "closed", actor=arguments.get("actor", ""))
+            int(arguments.get("incident_id", -1)), "closed",
+            actor=resolved_actor(arguments.get("actor", ""), ctx.identity))
     except ValueError as e:
         return json.dumps({"error": str(e), "type": "IllegalTransition"})
     LearningStore().capture(

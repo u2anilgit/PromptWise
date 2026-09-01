@@ -3,6 +3,7 @@ import json
 import pytest
 import yaml
 
+from promptwise.core.identity import Identity
 from promptwise.core.policy import Policy
 
 
@@ -36,7 +37,7 @@ def test_merge_tighten_unions_parent_and_child_maps_to(tmp_path):
 
 
 class _FakeCtx:
-    pass
+    identity = Identity()
 
 
 @pytest.mark.asyncio

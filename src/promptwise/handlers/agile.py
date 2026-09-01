@@ -122,9 +122,10 @@ async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
     if arguments.get("record_to_audit", False):
         try:
             audit = _get_audit_log()
+            from promptwise.core.identity import resolved_actor
             audit.append(
                 f"check_policy: operation={arguments.get('operation') or '-'} allowed={dec.allowed}",
-                actor=arguments.get("actor", ""),
+                actor=resolved_actor(arguments.get("actor", ""), ctx.identity),
                 rules_applied=[f"control:{c}" for c in dec.control_ids],
                 gate_decision="PASS" if dec.allowed else "FAIL",
                 compliance_decision=f"policy:{dec.enforcement}")
