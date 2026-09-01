@@ -58,9 +58,13 @@ async def _handle_run_eval_harness(ctx: ServerContext, arguments: dict) -> str:
 @tool(name="get_sbom", description="Generate SBOM in CycloneDX format",
          schema={"type": "object", "properties": {"format": {"type": "string", "enum": ["cyclonedx", "spdx"], "default": "cyclonedx"}, "paths": {"type": "array", "items": {"type": "string"}}}})
 async def _handle_get_sbom(ctx: ServerContext, arguments: dict) -> str:
+    path = arguments.get("paths", [Path.cwd()])[0] if arguments.get("paths") else Path.cwd()
+    if arguments.get("format") == "spdx":
+        from promptwise.core.aibom_export import export_aibom
+        return json.dumps(export_aibom(path, fmt="spdx"))
     from promptwise.core.sbom import SBOMGenerator
     gen = SBOMGenerator()
-    sbom = gen.generate(arguments.get("paths", [Path.cwd()])[0] if arguments.get("paths") else Path.cwd())
+    sbom = gen.generate(path)
     return json.dumps(sbom)
 
 

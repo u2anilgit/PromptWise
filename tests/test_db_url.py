@@ -49,6 +49,8 @@ def test_db_health_reports_unreachable_postgres_without_raising():
     assert health["backend"] == "postgresql"
     assert health["reachable"] is False
     assert health["warning"]
+    assert "pass" not in health["warning"]
+    assert "nonexistent-host-xyz" not in health["warning"]
 
 
 def test_init_db_falls_back_to_local_sqlite_when_postgres_unreachable(tmp_path, monkeypatch):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -297,10 +298,15 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
     )
 
     identity_raw = raw.get("identity", {}) or {}
+    # PROMPTWISE_DB_URL, when set, overrides the yaml-configured db_url so a
+    # real Postgres connection string (with credentials) never has to be
+    # committed to the tracked config/promptwise.yaml file (see
+    # docs/OPS_SHARED_IDENTITY.md).
+    db_url = os.environ.get("PROMPTWISE_DB_URL") or str(identity_raw.get("db_url", ""))
     cfg.identity = IdentityConfig(
         ldap_server=str(identity_raw.get("ldap_server", "")),
         ldap_search_base=str(identity_raw.get("ldap_search_base", "")),
-        db_url=str(identity_raw.get("db_url", "")),
+        db_url=db_url,
     )
 
     analytics_raw = raw.get("analytics", {}) or {}

@@ -15,6 +15,8 @@ status) -- the rest (hash, data provenance, architecture) are omitted
 entirely rather than fabricated, per this project's own prior
 fabricated-compliance-claim bug class.
 """
+import asyncio
+import json
 from pathlib import Path
 
 from promptwise.core.sbom import SBOMGenerator
@@ -66,3 +68,38 @@ def test_generate_with_empty_registry_yields_no_ml_components(tmp_path, monkeypa
     gen = SBOMGenerator()
     sbom = gen.generate(tmp_path, model_registry=ModelRegistry(path=empty_registry_path))
     assert not [c for c in sbom["components"] if c["type"] == "machine-learning-model"]
+
+
+def test_get_sbom_handler_format_spdx_returns_spdx_shape(tmp_path):
+    from promptwise.handlers.energy_routing import _handle_get_sbom
+
+    class _FakeCtx:
+        identity = None
+
+    result = asyncio.run(_handle_get_sbom(_FakeCtx(), {"format": "spdx", "paths": [str(tmp_path)]}))
+    data = json.loads(result)
+    assert "spdxVersion" in data
+    assert "elements" in data
+
+
+def test_get_sbom_handler_format_cyclonedx_returns_cyclonedx_shape(tmp_path):
+    from promptwise.handlers.energy_routing import _handle_get_sbom
+
+    class _FakeCtx:
+        identity = None
+
+    result = asyncio.run(_handle_get_sbom(_FakeCtx(), {"format": "cyclonedx", "paths": [str(tmp_path)]}))
+    data = json.loads(result)
+    assert data.get("bomFormat") == "CycloneDX"
+    assert "spdxVersion" not in data
+
+
+def test_get_sbom_handler_default_format_returns_cyclonedx_shape(tmp_path):
+    from promptwise.handlers.energy_routing import _handle_get_sbom
+
+    class _FakeCtx:
+        identity = None
+
+    result = asyncio.run(_handle_get_sbom(_FakeCtx(), {"paths": [str(tmp_path)]}))
+    data = json.loads(result)
+    assert data.get("bomFormat") == "CycloneDX"

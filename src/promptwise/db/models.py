@@ -224,7 +224,7 @@ async def db_health(db_url: str) -> dict:
         return {"backend": backend, "reachable": True, "warning": None}
     except Exception as exc:
         return {"backend": backend, "reachable": False,
-                "warning": f"{backend} at configured db_url unreachable, using local sqlite instead: {exc}"}
+                "warning": f"{backend} at configured db_url unreachable ({type(exc).__name__}), using local sqlite instead"}
 
 
 class SessionManager:

@@ -87,3 +87,18 @@ def test_identity_config_loaded_from_yaml(tmp_path):
     assert cfg.identity.ldap_server == "ldaps://dc.corp.local"
     assert cfg.identity.ldap_search_base == "dc=corp,dc=local"
     assert cfg.identity.db_url == "postgresql+asyncpg://user:pass@host/promptwise"
+
+
+def test_identity_db_url_env_var_overrides_yaml(tmp_path, monkeypatch):
+    from promptwise.config import load_config
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "promptwise.yaml").write_text(
+        "identity:\n"
+        "  db_url: \"postgresql+asyncpg://user:pass@host/promptwise\"\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PROMPTWISE_DB_URL", "postgresql+asyncpg://envuser:envpass@envhost/promptwise")
+    cfg = load_config(tmp_path)
+    assert cfg.identity.db_url == "postgresql+asyncpg://envuser:envpass@envhost/promptwise"

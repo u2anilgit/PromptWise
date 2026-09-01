@@ -45,17 +45,26 @@ group data.
 
        pip install asyncpg
 
-4. Set `identity.db_url` in `config/promptwise.yaml` on every team
-   member's machine:
+4. Set the `PROMPTWISE_DB_URL` environment variable on every team
+   member's machine to the full connection string, credentials included:
 
-       identity:
-         db_url: "postgresql+asyncpg://promptwise_team:<password>@<host>:5432/promptwise"
+       export PROMPTWISE_DB_URL="postgresql+asyncpg://promptwise_team:<password>@<host>:5432/promptwise"
 
+   Put this in your shell profile, a `.env` file loaded by your process
+   manager, or your secrets manager -- any mechanism that keeps it out of
+   a tracked file. **`config/promptwise.yaml` IS tracked in git** (only
+   `config/policy.yaml` and `config/admin.yaml` are gitignored in this
+   repo) -- never put a real password in `identity.db_url` there. When
+   set, `PROMPTWISE_DB_URL` always takes precedence over whatever
+   `identity.db_url` the yaml has.
+
+   `identity.db_url` in `config/promptwise.yaml` still exists as a
+   non-secret fallback/default -- use it only for local dev pointed at a
+   local Postgres with no real credentials (e.g.
+   `postgresql+asyncpg://localhost/promptwise_dev`), never for a real
+   team connection string.
 5. Distribute the password out-of-band (same discipline as
-   `config/dashboard_auth.yaml`'s credential hashing doc) -- never commit
-   `config/promptwise.yaml` with a real password in it; keep the real
-   file gitignored per this repo's existing convention
-   (see config/*.yaml vs config/*.example.yaml).
+   `config/dashboard_auth.yaml`'s credential hashing doc).
 6. `get_admin_settings()` surfaces `db_health` (reachable/warning) once
    `identity.db_url` is a `postgresql` URL -- check it if team members
    report stale-looking dashboard data.
@@ -89,11 +98,24 @@ Postgres instance before calling Phase 1 "verified in production":
 - [ ] Temporarily point `identity.db_url` at an unreachable Postgres
       host; confirm the dashboard/tools still function (fallback path)
       and `get_admin_settings().db_health.warning` is populated.
-- [ ] Add an `ad_groups` mapping to `config/dashboard_auth.yaml` on a
-      domain-joined dashboard host; confirm a browser with no
-      `Authorization` header still gets the mapped role when the OS user
-      running the dashboard process belongs to a mapped AD group, and is
-      still rejected when it doesn't.
+- [ ] Set `PROMPTWISE_DB_URL` to the real Postgres connection string;
+      confirm it takes precedence over any `identity.db_url` configured
+      in `config/promptwise.yaml`.
+
+## Dashboard auth is credential-only in Phase 1
+
+The dashboard's `require_role` gate authenticates only a Bearer
+credential from `config/dashboard_auth.yaml` (see that file's
+`.example` companion) -- there is no AD-group-based dashboard auth in
+Phase 1. An earlier draft of this feature resolved a role from the AD
+groups of the OS user running the dashboard *process* rather than the
+actual HTTP requester; the Phase 1 final review found that unsafe on a
+non-loopback bind (it would grant a network requester with no
+credential at all whatever role the server operator's own account
+mapped to) and it was removed. Directory-backed dashboard auth needs
+per-request SSO (e.g. Kerberos/SPNEGO) to be done safely -- deferred to
+Phase 2. `resolve_role_from_groups`/`load_ad_group_map` remain in
+`dashboard/auth.py`, unwired, for that future work.
 
 ## Deferred (per spec's open questions, resolved here)
 

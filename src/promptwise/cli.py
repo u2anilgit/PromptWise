@@ -7,7 +7,7 @@ from pathlib import Path
 
 from promptwise import __version__
 from promptwise.config import load_config
-from promptwise.db.models import MemoryManager, get_db_path
+from promptwise.db.models import MemoryManager, get_db_url
 from promptwise.plugins.budget import BudgetGuardian
 
 
@@ -56,7 +56,7 @@ def _do_stats(config_dir: str | None) -> None:
     snapshot = roi.calculate(session_id="stats", total_cost_usd=budget["current_spend_usd"],
                              tokens_saved=0, calls=0)
 
-    db_path = str(get_db_path())
+    db_path = get_db_url(cfg)
 
     print(f"PromptWise — {__version__}")
     print(f"Config:  {cfg.version}")

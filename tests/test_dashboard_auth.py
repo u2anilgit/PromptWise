@@ -77,6 +77,7 @@ def test_require_auth_true_rejects_missing_header(tmp_path):
     app = create_web_app(require_auth=True, credentials_path=cred_path)
     r = app.test_client().get("/api/models")
     assert r.status_code == 401
+    assert r.get_json()["error"] == "missing credential"
 
 
 def test_require_auth_true_rejects_unknown_credential(tmp_path):
@@ -87,6 +88,7 @@ def test_require_auth_true_rejects_unknown_credential(tmp_path):
     app = create_web_app(require_auth=True, credentials_path=cred_path)
     r = app.test_client().get("/api/models", headers={"Authorization": "Bearer wrong-value"})
     assert r.status_code == 401
+    assert r.get_json()["error"] == "invalid credential"
 
 
 def test_require_auth_true_accepts_valid_viewer_credential(tmp_path):
@@ -162,27 +164,3 @@ def test_load_ad_group_map_drops_entries_with_invalid_role(tmp_path):
     p = tmp_path / "dashboard_auth.yaml"
     p.write_text("ad_groups:\n  Good-Group: admin\n  Bad-Group: superuser\n", encoding="utf-8")
     assert load_ad_group_map(p) == {"Good-Group": "admin"}
-
-
-def test_ad_group_identity_grants_access_without_static_credential(tmp_path, monkeypatch):
-    cred_path = tmp_path / "dashboard_auth.yaml"
-    cred_path.write_text("entries: []\nad_groups:\n  PromptWise-Admins: admin\n", encoding="utf-8")
-    import promptwise.dashboard.web as web_mod
-    from promptwise.core.identity import Identity
-    monkeypatch.setattr(web_mod, "resolve_identity",
-                         lambda *a, **kw: Identity(username="jdoe", domain="CORP", groups=["PromptWise-Admins"], email="", source="env"))
-    app = create_web_app(require_auth=True, credentials_path=cred_path)
-    r = app.test_client().get("/api/models")
-    assert r.status_code == 200
-
-
-def test_ad_group_identity_denied_when_no_group_matches(tmp_path, monkeypatch):
-    cred_path = tmp_path / "dashboard_auth.yaml"
-    cred_path.write_text("entries: []\nad_groups:\n  PromptWise-Admins: admin\n", encoding="utf-8")
-    import promptwise.dashboard.web as web_mod
-    from promptwise.core.identity import Identity
-    monkeypatch.setattr(web_mod, "resolve_identity",
-                         lambda *a, **kw: Identity(username="jdoe", domain="CORP", groups=["Unrelated-Group"], email="", source="env"))
-    app = create_web_app(require_auth=True, credentials_path=cred_path)
-    r = app.test_client().get("/api/models")
-    assert r.status_code == 401

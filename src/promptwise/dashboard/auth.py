@@ -73,6 +73,12 @@ def role_satisfies(role: str, minimum: str) -> bool:
     return _ROLE_RANK.get(role, -1) >= _ROLE_RANK.get(minimum, 0)
 
 
+# NOTE: currently unwired. Phase 1 final review found process-identity-based
+# remote dashboard auth unsafe -- it would grant a role based on the AD
+# groups of the OS user running the dashboard process, not the actual HTTP
+# requester, with no way to authenticate a specific request. Kept here for a
+# future Phase 2 effort that wires this to per-request SSO (e.g. Kerberos/
+# SPNEGO) instead of the process identity.
 def resolve_role_from_groups(groups: list[str], ad_group_map: dict[str, str]) -> str | None:
     """Highest-ranked role granted by any of `groups`' AD-group mapping.
     None when no group matches -- caller falls back to the static
