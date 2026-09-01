@@ -1,6 +1,10 @@
 from flask import Flask, g, jsonify, request, render_template_string
 
-from promptwise.dashboard.auth import load_credentials, find_identity, role_satisfies
+from promptwise.dashboard.auth import (
+    load_credentials, find_identity, role_satisfies, Identity,
+    resolve_role_from_groups, load_ad_group_map,
+)
+from promptwise.core.identity import resolve_identity
 
 _INDEX_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -292,6 +296,8 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
                     budget_guardian=None) -> Flask:
     app = Flask(__name__)
     credentials = load_credentials(credentials_path) if require_auth else []
+    ad_group_map = load_ad_group_map(credentials_path) if require_auth else {}
+    process_identity = resolve_identity() if require_auth and ad_group_map else None
 
     # One shared BudgetGuardian instance for the life of this app -- every
     # route that reads or mutates budget state (api_budget, api_executive,
@@ -311,12 +317,16 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
                 if not require_auth:
                     g.identity = None
                     return fn(*args, **kwargs)
+                identity = None
                 auth_header = request.headers.get("Authorization", "")
-                if not auth_header.startswith("Bearer "):
-                    return jsonify({"error": "missing credential"}), 401
-                identity = find_identity(auth_header[len("Bearer "):], credentials)
+                if auth_header.startswith("Bearer "):
+                    identity = find_identity(auth_header[len("Bearer "):], credentials)
+                if identity is None and process_identity is not None:
+                    role = resolve_role_from_groups(process_identity.groups, ad_group_map)
+                    if role:
+                        identity = Identity(credential_id=process_identity.username, role=role, projects=None)
                 if identity is None:
-                    return jsonify({"error": "invalid credential"}), 401
+                    return jsonify({"error": "missing credential"}), 401
                 if not role_satisfies(identity.role, minimum):
                     return jsonify({"error": "insufficient role"}), 403
                 g.identity = identity

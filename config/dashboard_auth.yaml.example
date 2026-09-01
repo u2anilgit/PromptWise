@@ -16,3 +16,12 @@ entries:
   - credential_hash: "<sha256 hex digest -- see instructions above>"
     role: admin       # "admin" or "viewer"
     projects: null    # reserved for future per-project scoping; not enforced yet
+
+# Optional: map AD/LDAP group names (as returned by core/identity.py's
+# LDAP tier) to a dashboard role. Supplements -- never replaces -- the
+# credential entries above. A viewer running the dashboard on a
+# domain-joined machine whose AD groups match here gets that role without
+# needing a Bearer credential at all.
+ad_groups:
+  PromptWise-Admins: admin
+  PromptWise-Viewers: viewer

@@ -129,3 +129,60 @@ def test_non_loopback_host_with_credentials_file_requires_auth(tmp_path):
     cred_path = tmp_path / "dashboard_auth.yaml"
     cred_path.write_text("entries: []\n", encoding="utf-8")
     assert _resolve_require_auth("0.0.0.0", cred_path) is True
+
+
+from promptwise.dashboard.auth import resolve_role_from_groups, load_ad_group_map
+
+
+def test_resolve_role_from_groups_matches_admin_group():
+    assert resolve_role_from_groups(["PromptWise-Admins"], {"PromptWise-Admins": "admin", "PromptWise-Viewers": "viewer"}) == "admin"
+
+
+def test_resolve_role_from_groups_picks_highest_rank_when_multiple_match():
+    assert resolve_role_from_groups(
+        ["PromptWise-Viewers", "PromptWise-Admins"],
+        {"PromptWise-Admins": "admin", "PromptWise-Viewers": "viewer"}) == "admin"
+
+
+def test_resolve_role_from_groups_returns_none_when_no_group_matches():
+    assert resolve_role_from_groups(["Some-Other-Group"], {"PromptWise-Admins": "admin"}) is None
+
+
+def test_load_ad_group_map_missing_file_returns_empty_dict(tmp_path):
+    assert load_ad_group_map(tmp_path / "does_not_exist.yaml") == {}
+
+
+def test_load_ad_group_map_reads_mapping(tmp_path):
+    p = tmp_path / "dashboard_auth.yaml"
+    p.write_text("entries: []\nad_groups:\n  PromptWise-Admins: admin\n  PromptWise-Viewers: viewer\n", encoding="utf-8")
+    assert load_ad_group_map(p) == {"PromptWise-Admins": "admin", "PromptWise-Viewers": "viewer"}
+
+
+def test_load_ad_group_map_drops_entries_with_invalid_role(tmp_path):
+    p = tmp_path / "dashboard_auth.yaml"
+    p.write_text("ad_groups:\n  Good-Group: admin\n  Bad-Group: superuser\n", encoding="utf-8")
+    assert load_ad_group_map(p) == {"Good-Group": "admin"}
+
+
+def test_ad_group_identity_grants_access_without_static_credential(tmp_path, monkeypatch):
+    cred_path = tmp_path / "dashboard_auth.yaml"
+    cred_path.write_text("entries: []\nad_groups:\n  PromptWise-Admins: admin\n", encoding="utf-8")
+    import promptwise.dashboard.web as web_mod
+    from promptwise.core.identity import Identity
+    monkeypatch.setattr(web_mod, "resolve_identity",
+                         lambda *a, **kw: Identity(username="jdoe", domain="CORP", groups=["PromptWise-Admins"], email="", source="env"))
+    app = create_web_app(require_auth=True, credentials_path=cred_path)
+    r = app.test_client().get("/api/models")
+    assert r.status_code == 200
+
+
+def test_ad_group_identity_denied_when_no_group_matches(tmp_path, monkeypatch):
+    cred_path = tmp_path / "dashboard_auth.yaml"
+    cred_path.write_text("entries: []\nad_groups:\n  PromptWise-Admins: admin\n", encoding="utf-8")
+    import promptwise.dashboard.web as web_mod
+    from promptwise.core.identity import Identity
+    monkeypatch.setattr(web_mod, "resolve_identity",
+                         lambda *a, **kw: Identity(username="jdoe", domain="CORP", groups=["Unrelated-Group"], email="", source="env"))
+    app = create_web_app(require_auth=True, credentials_path=cred_path)
+    r = app.test_client().get("/api/models")
+    assert r.status_code == 401
