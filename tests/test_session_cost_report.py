@@ -3,15 +3,15 @@ docs/superpowers/specs/2026-07-24-three-quick-wins-design.md.
 """
 import pytest
 
-from promptwise.core.session_context import CURRENT_SESSION_ID
+from promptwise.core.session_context import get_current_session_id
 from promptwise.db.models import MemoryManager
 
 
 def test_current_session_id_is_stable_nonempty_string():
-    assert isinstance(CURRENT_SESSION_ID, str)
-    assert len(CURRENT_SESSION_ID) > 0
+    assert isinstance(get_current_session_id(), str)
+    assert len(get_current_session_id()) > 0
     from promptwise.core import session_context
-    assert session_context.CURRENT_SESSION_ID == CURRENT_SESSION_ID
+    assert session_context.get_current_session_id() == get_current_session_id()
 
 
 @pytest.mark.asyncio
