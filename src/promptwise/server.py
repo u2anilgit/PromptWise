@@ -377,9 +377,11 @@ def sync_main() -> None:
     """Synchronous entry point for console_scripts. PROMPTWISE_TRANSPORT
     selects stdio (default, today's behavior) or http (see
     transports/http_server.py). Never silently falls back between the
-    two on error -- an unrecognized value or a startup failure raises."""
+    two on error -- an unrecognized value or a startup failure raises.
+    An unset OR explicitly empty PROMPTWISE_TRANSPORT (a common accident
+    in .env/compose files) both fall back to stdio."""
     import os
-    transport = os.environ.get("PROMPTWISE_TRANSPORT", "stdio").strip().lower()
+    transport = (os.environ.get("PROMPTWISE_TRANSPORT") or "stdio").strip().lower() or "stdio"
     if transport == "stdio":
         asyncio.run(main())
     elif transport == "http":
@@ -387,8 +389,23 @@ def sync_main() -> None:
         from promptwise.transports.http_server import run_http_server
         host = os.environ.get("PROMPTWISE_HTTP_HOST", "127.0.0.1")
         port = int(os.environ.get("PROMPTWISE_HTTP_PORT", "8766"))
-        credentials_path = os.environ.get("PROMPTWISE_MCP_CREDENTIALS_PATH", "config/mcp_auth.yaml")
-        run_http_server(ctx, host=host, port=port, credentials_path=credentials_path)
+        credentials_path_raw = os.environ.get("PROMPTWISE_MCP_CREDENTIALS_PATH", "config/mcp_auth.yaml")
+        # Resolve a relative path against the same repo-root base
+        # _build_context() uses -- credentials_path defaults to a
+        # CWD-relative literal, so a bare relative path here would
+        # silently resolve differently (and typically to nothing) when
+        # this process is launched from anywhere but the repo root,
+        # leaving load_credentials() to return [] and every request to
+        # get a bare 401 with no diagnostic anywhere.
+        credentials_path = Path(credentials_path_raw)
+        if not credentials_path.is_absolute():
+            repo_root = Path(__file__).resolve().parents[2]
+            credentials_path = repo_root / credentials_path
+        from promptwise.dashboard.auth import load_credentials
+        loaded_count = len(load_credentials(credentials_path))
+        print(f"[promptwise] http transport: credentials_path={credentials_path} "
+              f"loaded_entries={loaded_count}")
+        run_http_server(ctx, host=host, port=port, credentials_path=str(credentials_path))
     else:
         raise ValueError(f"unknown PROMPTWISE_TRANSPORT: {transport!r} (expected 'stdio' or 'http')")
 
