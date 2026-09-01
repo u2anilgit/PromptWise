@@ -513,9 +513,9 @@ class MemoryManager:
         """Per-session cost rollup: group raw_cost_logs() by session_id.
 
         Each process gets a real, distinct session_id (core/session_context.py's
-        CURRENT_SESSION_ID) as of the fix accompanying this method -- older rows
-        stamped session_id="default" simply collapse into one "default" bucket,
-        never backfilled."""
+        get_current_session_id()) as of the fix accompanying this method -- older
+        rows stamped session_id="default" simply collapse into one "default"
+        bucket, never backfilled."""
         logs = await self.raw_cost_logs(since=since)
         by_session: dict[str, dict] = {}
         for seq, l in enumerate(logs):

@@ -1,8 +1,8 @@
 """core.identity -- three-tier, fail-open identity resolution.
 
-Session-scoped (see core/session_context.py's CURRENT_SESSION_ID docstring
-for the same one-process-per-session convention): resolve_identity() is
-called once per MCP server process and the result cached on ServerContext.
+Session-scoped (see core/session_context.py's get_current_session_id()
+docstring for the same one-process-per-session convention): resolve_identity()
+is called once per MCP server process and the result cached on ServerContext.
 
 Tiers, each falling open to the next on any failure -- this NEVER raises
 and NEVER blocks a tool call:
