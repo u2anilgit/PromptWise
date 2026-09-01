@@ -45,7 +45,7 @@ larger, deliberately deferred increment.
 
 Once the remote transport is enabled (above), every remote tool call is
 also gated by role: `viewer` tokens (see `config/mcp_auth.yaml`'s
-`role:` field) can only call the ~37 read-only tools listed as `viewer`
+`role:` field) can only call the ~36 read-only tools listed as `viewer`
 in `config/mcp_tool_roles.yaml` (reports, lookups, queries, checks);
 everything else requires `admin`. This does NOT apply to local/stdio
 usage -- your own Claude Code session via stdio is completely
@@ -84,6 +84,12 @@ unauthorized caller can observe.
   `127.0.0.1` or a fully trusted LAN.
 - No rate limiting / connection quotas -- an ops concern for whoever
   deploys this, not built into PromptWise itself.
+- `tools/list` itself is NOT role-filtered -- a remote `viewer` token
+  still sees the full list of all tool names, descriptions, and JSON
+  schemas, it just can't invoke most of them. This doesn't leak
+  anything new (the schemas are already fully public via `tools/list`
+  to any authenticated caller, viewer or admin) but is worth stating
+  explicitly.
 
 ## Manual verification checklist (not run in CI -- no real remote-network environment there)
 
@@ -98,3 +104,6 @@ unauthorized caller can observe.
       distinct `session_id`s, not merged into one.
 - [ ] Kill the process while a connection is open; confirm it exits
       cleanly (no hung port).
+- [ ] Call an admin-only tool (e.g. `set_feature_flag`) with a `viewer`
+      token; confirm it is denied.
+- [ ] Call the same tool with an `admin` token; confirm it is allowed.

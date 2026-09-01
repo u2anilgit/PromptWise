@@ -63,7 +63,7 @@ tool_roles:
   export_compliance_bundle: admin
   export_incident_bundle: admin
   export_indicators: admin
-  export_org_report: viewer
+  export_org_report: admin
   export_stats: viewer
   export_web_bundle: admin
   fleet_report: viewer

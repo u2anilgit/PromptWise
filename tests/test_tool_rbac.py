@@ -49,6 +49,15 @@ def test_real_config_file_loads_and_classifies_correctly():
     assert tool_roles["run_governor"] == "admin"
 
 
+def test_export_org_report_is_admin_only():
+    """export_org_report writes to an operator-supplied out_path with no
+    path validation (core/report_export.py's write_report()) -- it must
+    never regress back to viewer, which would let a remote viewer token
+    overwrite arbitrary files the server process can write to."""
+    tool_roles = load_tool_roles("config/mcp_tool_roles.yaml")
+    assert minimum_role_for("export_org_report", tool_roles) == "admin"
+
+
 def test_default_path_resolves_from_package_location_not_cwd(tmp_path, monkeypatch):
     """load_tool_roles() with no argument must find the real repo-root
     config/mcp_tool_roles.yaml regardless of the process's cwd -- a
