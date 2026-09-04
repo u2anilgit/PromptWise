@@ -1,0 +1,24 @@
+# config/mcp_auth.yaml.example
+# Copy this file to config/mcp_auth.yaml to enable the remote (HTTP)
+# MCP transport's token auth. Only consulted when PROMPTWISE_TRANSPORT=http
+# -- the default stdio transport never reads this file.
+#
+# Generate a raw token yourself (never commit a raw value -- only its
+# hash goes in this file), e.g. from a Python shell:
+#   import secrets; print(secrets.token_hex(32))
+# Then hash it:
+#   from promptwise.dashboard.auth import hash_credential
+#   print(hash_credential("<the raw value you generated above>"))
+# Distribute the RAW value to whoever needs remote access out-of-band;
+# put only the HASH below. This file intentionally reuses the exact same
+# credential format as config/dashboard_auth.yaml (dashboard/auth.py's
+# hash_credential/load_credentials/find_identity) -- separate file
+# because dashboard viewer/admin roles are a different access shape than
+# MCP tool-call access, not because the underlying mechanism differs.
+
+entries:
+  - credential_hash: "<sha256 hex digest -- see instructions above>"
+    role: viewer      # "admin" or "viewer" -- gates which MCP tools this
+                       # token can call remotely, see config/mcp_tool_roles.yaml
+                       # and docs/OPS_REMOTE_MCP.md
+    projects: null     # unused by the MCP transport today.

@@ -1,0 +1,22 @@
+# Example local-embeddings config (consumed by promptwise.embeddings.provider).
+# Copy to config/embeddings.yaml to change defaults. The embeddings feature
+# itself is off by default in a different sense than alerts.yaml: it requires
+# the optional `embeddings` extras group to even be installed
+# (`pip install "promptwise[embeddings]"`) -- this file only tunes behavior
+# for installs that already opted in at the packaging level.
+#
+# allow_network gates the ONE-TIME model download on first use. False (the
+# default) means: if the model isn't already cached locally, embedding calls
+# fail open (return None) rather than reaching out to HuggingFace Hub. Flip
+# to true for the one run where you want the download to happen, then it's
+# cached and every subsequent run is fully local regardless of this setting.
+allow_network: false
+
+# A small, well-established sentence-embedding model. Changing this discards
+# any previously-cached model (a different model needs its own download).
+model_name: "BAAI/bge-small-en-v1.5"
+
+# Fully egress-locked / air-gapped environments: point this at a local
+# directory containing a pre-supplied model instead of relying on any
+# download, ever. When set, allow_network above is never consulted.
+model_path: null

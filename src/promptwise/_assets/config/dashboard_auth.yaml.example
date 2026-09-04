@@ -1,0 +1,18 @@
+﻿# Copy this file to config/dashboard_auth.yaml to enable dashboard RBAC.
+# Required only when dashboard.web_host in config/promptwise.yaml is set
+# to anything other than 127.0.0.1/localhost/::1 -- a loopback-bound
+# dashboard (the solo-developer default) never reads this file.
+#
+# Generate a raw credential value yourself (never commit a raw value --
+# only its hash goes in this file), e.g. from a Python shell:
+#   import secrets; print(secrets.token_hex(32))
+# Then hash it:
+#   from promptwise.dashboard.auth import hash_credential
+#   print(hash_credential("<the raw value you generated above>"))
+# Distribute the RAW value to the teammate out-of-band; put only the HASH
+# below.
+
+entries:
+  - credential_hash: "<sha256 hex digest -- see instructions above>"
+    role: admin       # "admin" or "viewer"
+    projects: null    # reserved for future per-project scoping; not enforced yet

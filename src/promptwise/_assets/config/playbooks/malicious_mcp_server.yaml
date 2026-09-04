@@ -1,0 +1,22 @@
+name: malicious_mcp_server
+description: >
+  Response to a detected malicious or compromised MCP server in the
+  project's configuration. Contain -> collect -> notify -> remediate.
+steps:
+  - name: contain
+    action: audit_mcp_servers
+    params:
+      note: "Re-audit all configured MCP servers to confirm scope of the compromise"
+  - name: collect
+    action: incident_timeline
+    params:
+      note: "Pull the audit timeline for every tool call routed through the compromised server"
+  - name: notify
+    action: notify_security
+    params:
+      note: "Alert security with the server name and affected tool-call count"
+  - name: remediate
+    action: export_incident_bundle
+    params:
+      note: "Export a signed bundle; removing the server from .mcp.json is a human-action checklist item outside this tool's scope"
+    on_failure: continue

@@ -4,6 +4,11 @@ All config is YAML in `config/`, loaded from the repo root at startup. Hot-reloa
 runtime with the `reload_config` tool. A fuller field reference lives in
 `docs/integration/CONFIGURATION_REFERENCE.md`.
 
+For restricted plugin hosts or managed workstations, set
+`PROMPTWISE_LEARNING_DB_PATH` to a writable SQLite path. This controls the durable
+correction store used by `capture_learning`, `replay_learnings`, and
+`learning_insights`; it takes precedence over `identity.learning_db_path`.
+
 ## Files
 
 | File | Purpose |

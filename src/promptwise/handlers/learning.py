@@ -20,7 +20,9 @@ from promptwise.core.tool_registry import ServerContext, tool
          "required": ["category", "mistake", "correction"]})
 async def _handle_capture_learning(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.learning_store import LearningStore
-    learning = LearningStore().capture(
+    configured_path = getattr(getattr(ctx, "config", None), "identity", None)
+    configured_path = getattr(configured_path, "learning_db_path", "")
+    learning = LearningStore(configured_path or None).capture(
         category=arguments.get("category", ""), mistake=arguments.get("mistake", ""),
         correction=arguments.get("correction", ""), project=arguments.get("project", ""),
         tags=arguments.get("tags", []), supersedes=arguments.get("supersedes"))
@@ -34,15 +36,19 @@ async def _handle_capture_learning(ctx: ServerContext, arguments: dict) -> str:
          "required": ["task"]})
 async def _handle_replay_learnings(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.learning_replay import replay
+    configured_path = getattr(getattr(ctx, "config", None), "identity", None)
+    configured_path = getattr(configured_path, "learning_db_path", "")
     return json.dumps(replay(arguments.get("task", ""), k=arguments.get("k", 5),
-                             project=arguments.get("project")))
+                             project=arguments.get("project"), db_path=configured_path or None))
 
 
 @tool(name="learning_insights", description="Correction trends from the local learning store: counts by category, project, month, and the most-repeated mistakes.",
          schema={"type": "object", "properties": {}})
 async def _handle_learning_insights(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.insights import compute_insights
-    return json.dumps(compute_insights())
+    configured_path = getattr(getattr(ctx, "config", None), "identity", None)
+    configured_path = getattr(configured_path, "learning_db_path", "")
+    return json.dumps(compute_insights(configured_path or None))
 
 
 @tool(name="insights_report", description="Ranked, actionable recommendations over local telemetry: routing downgrades/escalations, top cost drivers & spend anomalies, quality/eval regressions, and budget projections. Deterministic, offline, min-sample gated.",

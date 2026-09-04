@@ -7,6 +7,8 @@ from typing import Any
 
 import yaml
 
+from promptwise.asset_paths import resolve_config_dir
+
 _CONFIG_DIR_HINTS = [
     Path("config"),
     Path("."),
@@ -121,6 +123,7 @@ class IdentityConfig:
     ldap_server: str = ""          # e.g. "ldaps://dc.corp.local"; empty = Tier 1 (LDAP) skipped, falls to env-var tier
     ldap_search_base: str = ""     # e.g. "dc=corp,dc=local"
     db_url: str = ""               # optional shared-team Postgres URL; empty = local sqlite (today's behavior)
+    learning_db_path: str = ""     # optional local SQLite path; env var overrides it
 
 
 @dataclass
@@ -183,9 +186,9 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
     cfg = AppConfig()
 
     if config_dir is None:
-        config_dir = Path(__file__).resolve().parents[1]
-    config_dir = Path(config_dir)
-    config_dir = _find_config_dir(config_dir)
+        config_dir = resolve_config_dir()
+    else:
+        config_dir = _find_config_dir(Path(config_dir))
 
     raw = _load_yaml(config_dir / "promptwise.yaml")
     if not raw:
@@ -303,10 +306,12 @@ def load_config(config_dir: Path | str | None = None) -> AppConfig:
     # committed to the tracked config/promptwise.yaml file (see
     # docs/OPS_SHARED_IDENTITY.md).
     db_url = os.environ.get("PROMPTWISE_DB_URL") or str(identity_raw.get("db_url", ""))
+    learning_db_path = os.environ.get("PROMPTWISE_LEARNING_DB_PATH") or str(identity_raw.get("learning_db_path", ""))
     cfg.identity = IdentityConfig(
         ldap_server=str(identity_raw.get("ldap_server", "")),
         ldap_search_base=str(identity_raw.get("ldap_search_base", "")),
         db_url=db_url,
+        learning_db_path=learning_db_path,
     )
 
     analytics_raw = raw.get("analytics", {}) or {}

@@ -1,11 +1,12 @@
 import logging
 import os
 import re
-import yaml
-
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
+from promptwise.asset_paths import resolve_skill_dir
 from promptwise.core.text_match import contains_keyword
 from promptwise.types import Skill
 
@@ -32,8 +33,8 @@ class SkillMatch:
 
 
 class SkillLoader:
-    def __init__(self, skills_dir: Path):
-        self.skills_dir = Path(skills_dir)
+    def __init__(self, skills_dir: Path | str | None = None):
+        self.skills_dir = resolve_skill_dir(skills_dir)
         self.skills: dict[str, Skill] = {}
         self._collision_triggers: set[str] | None = None
 
