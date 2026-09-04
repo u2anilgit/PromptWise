@@ -30,7 +30,7 @@ def test_unsupported_language_is_fail_open():
 
 
 def test_missing_binary_is_fail_open(monkeypatch):
-    monkeypatch.setattr("promptwise.core.static_analysis.shutil.which", lambda tool: None)
+    monkeypatch.setattr("promptwise.core.static_analysis._tool_command", lambda tool: None)
     result = run_static_analysis("x = 1\n", language="python")
     assert result.tool_available is False
     assert result.tool == "ruff"

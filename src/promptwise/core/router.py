@@ -74,10 +74,13 @@ class Router:
             return self.config.providers[key].daily_cap_usd
         return None
 
-    def _current_models(self) -> list[str]:
+    def _current_models(self, provider: str = "") -> list[str]:
         """Selectable current models (for alternatives / fallbacks)."""
         if self.registry.loaded:
             cur = self.registry.all_current()
+            if provider:
+                key = self._provider_key(provider) or provider
+                cur = [a for a in cur if self.registry.provider_of(a).lower() == key.lower()]
             if cur:
                 return cur
         seen: list[str] = []
@@ -87,7 +90,7 @@ class Router:
                 seen.append(m)
         return seen or [self.config.default_model]
 
-    def _cheapest_current(self, tier: str, provider: str = "claude") -> str | None:
+    def _cheapest_current(self, tier: str, provider: str = "") -> str | None:
         """The lowest input_per_mtok alias among `tier`'s *current* models.
         None when the registry isn't loaded or has nothing current for that
         tier. Not filtered by `provider` beyond what `all_current(tier)`
@@ -97,6 +100,9 @@ class Router:
         if not self.registry.loaded:
             return None
         candidates = self.registry.all_current(tier)
+        if provider:
+            key = self._provider_key(provider) or provider
+            candidates = [a for a in candidates if self.registry.provider_of(a).lower() == key.lower()]
         if not candidates:
             return None
         priced = [(a, self.registry.price(a)) for a in candidates]
@@ -191,7 +197,7 @@ class Router:
         input_tokens = max(1, len(text) // 4)
         in_rate, ctx_window = self._input_rate(recommended)
         cost = input_tokens * in_rate / 1_000_000
-        alt = [m for m in self._current_models() if m != recommended]
+        alt = [m for m in self._current_models(provider) if m != recommended]
 
         reason = f"Routed to {recommended} based on intent={intent}, stakes={stakes}"
         if adaptive_note:

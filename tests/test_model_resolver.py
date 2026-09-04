@@ -95,6 +95,26 @@ def test_router_fast_tier_resolves_current():
     assert res.recommended_model == "claude-haiku-4-5-20251001"
 
 
+def test_router_resolves_codex_models_by_complexity():
+    r = Router()
+    simple = r.route("summarize this code", provider="codex")
+    complex_code = r.route("Implement a production code review fix", provider="codex")
+    architecture = r.route("Design a distributed system architecture", provider="codex")
+    assert simple.recommended_model == "codex-5.5-base"
+    assert complex_code.recommended_model == "codex-5.5-max"
+    assert architecture.recommended_model == "codex-5.5-max"
+    assert all(m.startswith("codex-") for m in complex_code.alternatives)
+
+
+def test_codex_budget_pressure_stays_within_codex_provider():
+    r = Router()
+    result = r.route("Implement a production code review fix", provider="codex",
+                     monthly_budget_usd=100.0, days_elapsed_in_month=30,
+                     provider_spend_usd=90.0)
+    assert result.recommended_model == "codex-5.5-max"
+    assert result.recommended_model.startswith("codex-")
+
+
 def test_router_alternatives_exclude_deprecated(tmp_path):
     reg = _registry(tmp_path)
     r = Router(registry=reg)

@@ -100,9 +100,9 @@ providers:
     display_name: "Codex (OpenAI)"
     aliases: [openai, codex]
     tiers:
-      fast: claude-haiku-4-5-20251001
-      balanced: gpt-4o
-      powerful: claude-opus-4-7
+      fast: codex-5.5-base
+      balanced: codex-5.5-pro
+      powerful: codex-5.5-max
   gemini:
     display_name: "Gemini (Google)"
     aliases: [google]
@@ -365,3 +365,6 @@ identity:
   ldap_server: ""          # e.g. "ldaps://dc.corp.local" -- enables Tier 1 LDAP bind
   ldap_search_base: ""     # e.g. "dc=corp,dc=local"
   db_url: ""               # e.g. "postgresql+asyncpg://user:pass@host/promptwise" for a shared team DB
+  # Optional separate SQLite path for durable learning corrections. If empty,
+  # defaults to ~/.promptwise/learning.db; PROMPTWISE_LEARNING_DB_PATH wins.
+  learning_db_path: ""

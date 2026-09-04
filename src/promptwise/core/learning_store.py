@@ -20,6 +20,7 @@ including what got corrected away — is the point.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from dataclasses import dataclass, field
@@ -27,6 +28,9 @@ from pathlib import Path
 
 
 def default_db_path() -> Path:
+    configured = os.environ.get("PROMPTWISE_LEARNING_DB_PATH", "").strip()
+    if configured:
+        return Path(configured).expanduser()
     d = Path.home() / ".promptwise"
     d.mkdir(parents=True, exist_ok=True)
     return d / "learning.db"

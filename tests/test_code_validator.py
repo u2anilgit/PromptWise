@@ -21,7 +21,7 @@ def test_static_analysis_opt_in_surfaces_a_real_ruff_finding():
 
 
 def test_static_analysis_opt_in_is_fail_open_when_tool_missing(monkeypatch):
-    monkeypatch.setattr("promptwise.core.static_analysis.shutil.which", lambda tool: None)
+    monkeypatch.setattr("promptwise.core.static_analysis._tool_command", lambda tool: None)
     validator = CodeValidator()
     result = validator.validate("x = 1\n", use_static_analysis=True)
     assert "static_analysis" not in result.checks_run

@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,9 +27,37 @@ class StaticAnalysisResult:
     issues: list[dict] = field(default_factory=list)
 
 
+def _tool_command(tool: str) -> list[str] | None:
+    """Return an executable command for an optional linter.
+
+    ``python -m pytest`` does not guarantee that the virtualenv's Scripts
+    directory is on PATH (notably on Windows and in embedded/plugin hosts),
+    even when the package is installed in that environment. Prefer PATH for
+    normal installs, then use the active interpreter for Ruff. ESLint remains
+    PATH-only because it is a Node executable.
+    """
+    executable = shutil.which(tool)
+    if executable:
+        return [executable]
+    if tool == "ruff":
+        try:
+            probe = subprocess.run(
+                [sys.executable, "-m", "ruff", "--version"],
+                capture_output=True, text=True, timeout=5.0,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if probe.returncode == 0:
+            return [sys.executable, "-m", "ruff"]
+    return None
+
+
 def _run_ruff(path: Path, timeout: float) -> list[dict]:
+    command = _tool_command("ruff")
+    if command is None:
+        raise FileNotFoundError("ruff is not installed")
     proc = subprocess.run(
-        ["ruff", "check", "--output-format=json", str(path)],
+        [*command, "check", "--output-format=json", str(path)],
         capture_output=True, text=True, timeout=timeout,
     )
     if not proc.stdout.strip():
@@ -47,8 +76,11 @@ def _run_ruff(path: Path, timeout: float) -> list[dict]:
 
 
 def _run_eslint(path: Path, timeout: float) -> list[dict]:
+    command = _tool_command("eslint")
+    if command is None:
+        raise FileNotFoundError("eslint is not installed")
     proc = subprocess.run(
-        ["eslint", "--format", "json", str(path)],
+        [*command, "--format", "json", str(path)],
         capture_output=True, text=True, timeout=timeout,
     )
     if not proc.stdout.strip():
@@ -73,7 +105,7 @@ def run_static_analysis(code: str, language: str = "python", timeout: float = 10
         return StaticAnalysisResult(tool_available=False)
 
     tool = "ruff" if language == "python" else "eslint"
-    if shutil.which(tool) is None:
+    if _tool_command(tool) is None:
         return StaticAnalysisResult(tool_available=False, tool=tool)
 
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=ext, delete=False, encoding="utf-8")

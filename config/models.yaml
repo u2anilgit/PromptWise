@@ -26,6 +26,15 @@ families:
   claude-haiku:
     provider: claude
     tier: fast
+  codex-max:
+    provider: codex
+    tier: powerful
+  codex-pro:
+    provider: codex
+    tier: balanced
+  codex-base:
+    provider: codex
+    tier: fast
 
 # One row per concrete model. `price` is the point-in-time unit price; usage
 # records snapshot the price of the model they used, so a later price change
@@ -56,3 +65,18 @@ models:
     status: current
     release_date: "2025-10-01"
     price: { input_per_mtok: 1.0, output_per_mtok: 5.0, cache_write_per_mtok: 1.25, cache_hit_per_mtok: 0.10 }
+  - alias: codex-5.5-max
+    family: codex-max
+    status: current
+    release_date: "2026-06-07"
+    price: { input_per_mtok: 15.0, output_per_mtok: 75.0, cache_write_per_mtok: 0.0, cache_hit_per_mtok: 0.0 }
+  - alias: codex-5.5-pro
+    family: codex-pro
+    status: current
+    release_date: "2026-06-07"
+    price: { input_per_mtok: 3.0, output_per_mtok: 15.0, cache_write_per_mtok: 0.0, cache_hit_per_mtok: 0.0 }
+  - alias: codex-5.5-base
+    family: codex-base
+    status: current
+    release_date: "2026-06-07"
+    price: { input_per_mtok: 1.0, output_per_mtok: 5.0, cache_write_per_mtok: 0.0, cache_hit_per_mtok: 0.0 }
