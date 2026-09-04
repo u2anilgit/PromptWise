@@ -1,0 +1,9 @@
+name: Healthcare Compliance
+frameworks: [HIPAA_SafeHarbor, FHIR_R4]
+rules:
+  - name: HIPAA PHI Redaction
+    pattern: "(ssn|social_security|patient_id|medical_record)"
+    action: redact
+  - name: PHI Warning
+    pattern: "(diagnosis|medical_history)"
+    action: warn

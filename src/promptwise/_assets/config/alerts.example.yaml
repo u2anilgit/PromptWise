@@ -1,0 +1,32 @@
+# Example alerting config (consumed by core/alerts.py).
+# Copy to config/alerts.yaml to opt in. Ships disabled — alerting NEVER phones
+# home unless a human explicitly flips `enabled: true` and configures a
+# channel. Secrets (webhook URLs, SMTP password) belong in environment
+# variables, not this file:
+#   PROMPTWISE_ALERT_WEBHOOK_URL, PROMPTWISE_ALERT_SLACK_WEBHOOK_URL,
+#   PROMPTWISE_ALERT_SMTP_PASSWORD
+enabled: false
+
+# Fire when a budget check's alert_level is at least this severe.
+# One of: warn, critical, hard_stop.
+budget_min_level: critical
+
+# Fire when a security check is blocked, or risk_score is at least this value.
+security_min_risk: 0.7
+
+channels:
+  webhook:
+    enabled: false
+    url: ""            # or set PROMPTWISE_ALERT_WEBHOOK_URL
+  slack:
+    enabled: false
+    webhook_url: ""     # or set PROMPTWISE_ALERT_SLACK_WEBHOOK_URL
+  email:
+    enabled: false
+    smtp_host: ""
+    smtp_port: 587
+    use_tls: true
+    username: ""
+    password: ""        # or set PROMPTWISE_ALERT_SMTP_PASSWORD
+    from_addr: ""
+    to_addrs: []

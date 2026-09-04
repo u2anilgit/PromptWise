@@ -1,0 +1,23 @@
+name: prompt_injection_confirmed
+description: >
+  Response to a confirmed prompt-injection attack against an agent session.
+  Contain -> collect -> notify -> remediate, seeded from public incident
+  post-mortem patterns (indirect-injection-via-tool-output class of attack).
+steps:
+  - name: contain
+    action: revoke_jit_permissions
+    params:
+      note: "Revoke any active JIT grants for the affected actor/session"
+  - name: collect
+    action: incident_timeline
+    params:
+      note: "Pull the full audit timeline for the affected session before evidence ages out"
+  - name: notify
+    action: notify_security
+    params:
+      note: "Alert the configured security channel with the incident id and severity"
+  - name: remediate
+    action: promote_corpus_candidates
+    params:
+      note: "If the injection text is novel, stage it as a corpus candidate for review (human-action checklist item -- not auto-approved)"
+    on_failure: continue

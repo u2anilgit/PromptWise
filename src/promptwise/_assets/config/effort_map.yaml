@@ -1,0 +1,14 @@
+# Per-provider mapping from PromptWise's internal effort label
+# (low/medium/high) to the concrete parameter that provider's API expects.
+# Config is the source of truth -- edit this file to add a provider or
+# retune a value; no code change required.
+providers:
+  claude:
+    low: { thinking_budget_tokens: 1024 }
+    medium: { thinking_budget_tokens: 4096 }
+    high: { thinking_budget_tokens: 16000 }
+  openai:
+    low: { reasoning_effort: "low" }
+    medium: { reasoning_effort: "medium" }
+    high: { reasoning_effort: "high" }
+default_provider: claude

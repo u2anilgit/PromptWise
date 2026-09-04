@@ -1,0 +1,9 @@
+name: Banking Compliance
+frameworks: [FINRA_3110, PCI_DSS, BASEL_III]
+rules:
+  - name: No credit card storage
+    pattern: "(card_number|cc_num|credit_card)"
+    action: redact
+  - name: Algorithmic accountability
+    pattern: "(financial_model|credit_score_calc)"
+    action: warn

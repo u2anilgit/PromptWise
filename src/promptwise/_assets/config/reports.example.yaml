@@ -1,0 +1,16 @@
+# Example scheduled-report config (consumed by core/scheduler.py).
+# Copy to config/reports.yaml to opt in. Ships disabled — no report is
+# generated, no background process is started, until a human flips
+# `enabled: true`.
+enabled: false
+
+# How often a report is (re)generated, in hours. A hook (or a manual
+# `promptwise report-scheduler --once`) calls run_if_due(), which compares
+# this interval against a local marker file and no-ops if not due yet.
+interval_hours: 24
+
+# markdown or html — no PDF dependency.
+format: markdown
+
+# Written relative to the project root.
+output_dir: .promptwise/reports

@@ -1,0 +1,84 @@
+{
+  "type": "bundle",
+  "id": "bundle--promptwise-threat-intel-seed-2026-08",
+  "objects": [
+    {
+      "type": "intrusion-set", "id": "intrusion-set--gtg-1002",
+      "name": "GTG-1002 (MITRE ATLAS C0062)",
+      "description": "AI-orchestrated multi-stage intrusion campaign using an LLM agent to autonomously execute recon, exploitation, and exfiltration steps."
+    },
+    {
+      "type": "attack-pattern", "id": "attack-pattern--llm-orchestrated-recon",
+      "name": "LLM-Orchestrated Reconnaissance and Exploitation",
+      "external_references": [{"source_name": "mitre-atlas", "external_id": "AML.T0016"}]
+    },
+    {
+      "type": "relationship", "id": "relationship--gtg-1002-uses-recon",
+      "relationship_type": "uses", "source_ref": "intrusion-set--gtg-1002",
+      "target_ref": "attack-pattern--llm-orchestrated-recon"
+    },
+    {
+      "type": "intrusion-set", "id": "intrusion-set--s1ngularity-nx",
+      "name": "s1ngularity / Nx build-tool supply-chain compromise",
+      "description": "Compromised Nx npm package versions harvested developer credentials and used an AI CLI tool's prompt to enumerate secrets on infected machines."
+    },
+    {
+      "type": "attack-pattern", "id": "attack-pattern--ai-cli-credential-harvest",
+      "name": "AI-Assisted Local Credential Harvesting",
+      "external_references": [{"source_name": "mitre-atlas", "external_id": "AML.T0024"}]
+    },
+    {
+      "type": "relationship", "id": "relationship--nx-uses-harvest",
+      "relationship_type": "uses", "source_ref": "intrusion-set--s1ngularity-nx",
+      "target_ref": "attack-pattern--ai-cli-credential-harvest"
+    },
+    {
+      "type": "indicator", "id": "indicator--shai-hulud-worm-package",
+      "name": "Shai-Hulud npm worm package name pattern",
+      "pattern": "shai-hulud",
+      "description": "Self-propagating npm worm that injects malicious postinstall scripts into downstream packages."
+    },
+    {
+      "type": "attack-pattern", "id": "attack-pattern--supply-chain-worm-propagation",
+      "name": "Self-Propagating Supply-Chain Worm",
+      "external_references": [{"source_name": "mitre-atlas", "external_id": "AML.T0010"}]
+    },
+    {
+      "type": "relationship", "id": "relationship--shai-hulud-uses-propagation",
+      "relationship_type": "indicates", "source_ref": "indicator--shai-hulud-worm-package",
+      "target_ref": "attack-pattern--supply-chain-worm-propagation"
+    },
+    {
+      "type": "indicator", "id": "indicator--postmark-mcp-malicious-server",
+      "name": "postmark-mcp malicious MCP server package",
+      "pattern": "postmark-mcp",
+      "description": "Malicious MCP server package that exfiltrated email content via a covert BCC to an attacker-controlled address."
+    },
+    {
+      "type": "attack-pattern", "id": "attack-pattern--malicious-mcp-server",
+      "name": "Malicious MCP Server / Tool Poisoning",
+      "external_references": [{"source_name": "mitre-atlas", "external_id": "AML.T0011"}]
+    },
+    {
+      "type": "relationship", "id": "relationship--postmark-uses-mcp-poisoning",
+      "relationship_type": "indicates", "source_ref": "indicator--postmark-mcp-malicious-server",
+      "target_ref": "attack-pattern--malicious-mcp-server"
+    },
+    {
+      "type": "indicator", "id": "indicator--cve-2025-53773-copilot-rce",
+      "name": "CVE-2025-53773 GitHub Copilot RCE via workspace config injection",
+      "pattern": "CVE-2025-53773",
+      "description": "Remote code execution in GitHub Copilot triggered by a crafted workspace/task configuration file, achieving arbitrary command execution via the coding agent."
+    },
+    {
+      "type": "attack-pattern", "id": "attack-pattern--coding-agent-config-injection",
+      "name": "Coding-Agent Configuration Injection to RCE",
+      "external_references": [{"source_name": "mitre-atlas", "external_id": "AML.T0051"}]
+    },
+    {
+      "type": "relationship", "id": "relationship--cve-2025-53773-uses-config-injection",
+      "relationship_type": "indicates", "source_ref": "indicator--cve-2025-53773-copilot-rce",
+      "target_ref": "attack-pattern--coding-agent-config-injection"
+    }
+  ]
+}

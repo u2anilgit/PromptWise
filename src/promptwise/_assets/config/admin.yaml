@@ -1,0 +1,7 @@
+budget: {}
+features:
+  test: false
+knowledgebase:
+  enabled: false
+  store_path: null
+project_features: {}
