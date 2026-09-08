@@ -165,3 +165,106 @@ class PinnedCatalogSource:
 
     def fetch(self) -> list[ModelRecord]:
         return load_catalog(self._resolve())[1]
+
+
+def _default_runner(cmd: list[str], timeout: float) -> str:
+    import subprocess
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+    return proc.stdout or ""
+
+
+def _longest_prefix_meta(alias: str, family_map: dict) -> dict:
+    """Longest matching family_map key wins, so 'gizmo-pro' overrides 'gizmo'."""
+    best: dict = {}
+    best_len = -1
+    for prefix, meta in (family_map or {}).items():
+        if alias.startswith(prefix) and len(prefix) > best_len and isinstance(meta, dict):
+            best, best_len = meta, len(prefix)
+    return best
+
+
+class CliModelSource:
+    """Ask an installed agent CLI which models it can reach.
+
+    Many hosts (aider, gemini-cli, codex, ollama) can list their own models
+    locally, with no API key and no network egress of our own. That makes a CLI
+    probe a better default than an API call for a subscription user, who holds
+    no credential and would otherwise sit on a stale catalog forever. Command,
+    regex and family mapping all come from config/model_sources.yaml, so adding
+    a CLI is a config edit.
+    """
+
+    def __init__(self, key, command, pattern, family_map, priority=20,
+                 timeout=8.0, runner=None):
+        self.key = key
+        self.priority = int(priority)
+        self._command = list(command or [])
+        self._pattern = pattern
+        self._family_map = family_map or {}
+        self._timeout = float(timeout)
+        self._runner = runner or _default_runner
+
+    def available(self) -> bool:
+        if not self._command:
+            return False
+        if self._runner is not _default_runner:
+            return True  # injected runner: availability is the caller's business
+        import shutil
+        return shutil.which(self._command[0]) is not None
+
+    def fetch(self) -> list[ModelRecord]:
+        import re
+        try:
+            stdout = self._runner(self._command, self._timeout)
+            rx = re.compile(self._pattern, re.MULTILINE)
+        except Exception:
+            return []
+        out: list[ModelRecord] = []
+        seen: set[str] = set()
+        try:
+            for m in rx.finditer(stdout or ""):
+                g = m.groupdict()
+                alias = (g.get("alias") or "").strip()
+                if not alias or alias in seen:
+                    continue
+                seen.add(alias)
+                d = _longest_prefix_meta(alias, self._family_map)
+                out.append(ModelRecord(
+                    alias=alias,
+                    family=str(g.get("family") or d.get("family") or alias),
+                    provider=str(d.get("provider") or ""),
+                    tier=str(g.get("tier") or d.get("tier") or ""),
+                    release_date=str(g.get("release_date") or ""),
+                    context_window=int(d["context_window"]) if d.get("context_window") else None,
+                    source=self.key,
+                ))
+        except Exception:
+            return out
+        return out
+
+
+class LocalOverrideSource:
+    """The user's own catalog file. Highest priority -- the user always wins.
+
+    Same schema as config/model_catalog.yaml. This is the escape hatch for a
+    model PromptWise has never heard of: drop a row in, no code change, no
+    network, no waiting for a release.
+    """
+
+    key = "local"
+
+    def __init__(self, path=None, priority=40):
+        self.priority = int(priority)
+        self._path = Path(path) if path is not None else (
+            Path.home() / ".promptwise" / "model_catalog.local.yaml")
+
+    def available(self) -> bool:
+        try:
+            return self._path.is_file()
+        except Exception:
+            return False
+
+    def fetch(self) -> list[ModelRecord]:
+        if not self.available():
+            return []
+        return [replace(r, source=self.key) for r in load_catalog(self._path)[1]]
