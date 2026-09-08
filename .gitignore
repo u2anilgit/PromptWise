@@ -92,3 +92,4 @@ Thumbs.db
 *.docx
 
 # Note: .claude-plugin/ IS tracked — it ships the plugin manifest + hub skill.
+.promptwise-safe-backup/
