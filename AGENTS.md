@@ -17,7 +17,7 @@ planning. It is a conductor, not a replacement for your agent.
 
 ```
 PromptWise core  (router · roles · compliance · context engine · workflow_planner)
-        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan, …  (143)
+        ├─▶ MCP tools      → route_request, plan_workflow, owasp_scan, …  (144)
         ├─▶ SKILL.md packs → 83 portable role/technique packs in skill_packs/
         └─▶ AGENTS.md      → this file: project context + active constitution
 ```

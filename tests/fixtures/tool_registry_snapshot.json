@@ -3073,6 +3073,20 @@
     }
   },
   {
+    "name": "expand_tool_surface",
+    "description": "Expose PromptWise's full tool surface for this session. Default profiles advertise only the commonly-used tools to keep the per-session context cost down; hidden tools stay callable, but call this first if you want them listed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": "string",
+          "default": "full",
+          "description": "profile to activate: core, standard, or full"
+        }
+      }
+    }
+  },
+  {
     "name": "create_incident",
     "description": "Open a new incident (status starts 'open'). Optional metadata dict can link back to a triggering source, e.g. a WP2 anomaly finding.",
     "inputSchema": {

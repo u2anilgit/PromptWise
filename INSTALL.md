@@ -91,7 +91,7 @@ PYTHONPATH=src python -c "import promptwise.server as s; print(len(s._TOOL_DEFS)
 PYTHONPATH=src python -c "from pathlib import Path; from promptwise.core import SkillLoader; sl=SkillLoader(Path('skill_packs')); sl.load_skills(); print(len(sl.skills),'packs')"
 ```
 
-Expected: `143 tools` and `83 packs`.
+Expected: `144 tools` and `83 packs`.
 
 ## Data location
 

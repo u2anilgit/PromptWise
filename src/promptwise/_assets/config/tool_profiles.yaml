@@ -1,0 +1,93 @@
+# PromptWise -- Tool Surface Profiles
+#
+# Every host injects every tool definition and JSON schema into context at
+# session start, before the user has typed anything. This file decides how much
+# of that a session pays for by default.
+#
+# `PROMPTWISE_TOOL_PROFILE` selects a profile (default: standard). The
+# `expand_tool_surface` tool switches to `full` mid-session, so nothing here is
+# ever permanently unreachable -- and every hidden tool remains *callable*; only
+# the advertised listing shrinks.
+#
+# `full` is implicit and always available; it is not listed here. An unknown
+# profile name resolves to the full surface rather than an empty one, so a typo
+# never looks like a broken server.
+schema_version: 1
+
+profiles:
+  # The everyday path: decide what to run, on what, how hard, at what cost, and
+  # whether it is safe to ship. Anything a session reaches for on most turns.
+  core:
+    description: Routing, effort, context, cost and the safety gate.
+    tools:
+      - route_request
+      - detect_host
+      - optimize_context
+      - compress_prompt
+      - rewrite_prompt
+      - rank_context
+      - plan_cache
+      - summarize_thread
+      - security_check
+      - run_quality_gate
+      - check_policy
+      - get_budget_status
+      - cost_report
+      - suggest_skill
+      - invoke_skill
+      - expand_tool_surface
+
+  # core plus the tools a session reaches for on a real piece of work: planning,
+  # skills, validation, memory, and the audit trail.
+  standard:
+    description: core plus planning, skills, validation, memory and audit.
+    extends: core
+    tools:
+      - plan_workflow
+      - agile_plan
+      - draft_story
+      - orchestrate_tasks
+      - add_task
+      - update_task
+      - list_tasks
+      - task_report
+      - list_skills
+      - skill_chain
+      - shard_doc
+      - batch_prompts
+      - predict_cost
+      - monitor_budget
+      - budget_report
+      - session_cost_report
+      - project_cost_report
+      - track_roi
+      - validate_output
+      - owasp_scan
+      - prompt_injection
+      - scan_response
+      - run_security_suite
+      - detect_role
+      - detect_agents
+      - build_context_model
+      - get_memory_context
+      - query_memory
+      - capture_learning
+      - replay_learnings
+      - insights_report
+      - record_decision
+      - query_decisions
+      - export_audit
+      - query_audit
+      - search_trace
+      - cache_lookup
+      - cache_store
+      - cache_stats
+      - save_prompt
+      - search_prompts
+      - suggest_technique
+      - check_portability
+      - sync_agent_config
+      - compare_providers
+      - run_eval
+      - ping_session
+      - get_session_stats

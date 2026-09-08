@@ -25,7 +25,10 @@ from promptwise.core.tool_registry import ServerContext, ToolRegistry, _registry
 
 
 async def list_tools() -> list[Tool]:
-    return _TOOL_DEFS
+    # Only the *advertised* surface shrinks -- call_tool still dispatches
+    # every registered tool, so a hidden tool is never unreachable.
+    from promptwise.core.tool_profiles import filter_tools
+    return filter_tools(_TOOL_DEFS)
 
 
 def capture_client_info(info) -> None:
