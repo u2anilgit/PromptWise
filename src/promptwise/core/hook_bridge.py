@@ -244,8 +244,18 @@ def userpromptsubmit_policy(payload: dict) -> HookDecision:
             pass
 
         if blocked:
+            # A block is the one path that must say everything it knows -- the
+            # user cannot act on a reason they were not given.
             return HookDecision(action="block", event="UserPromptSubmit",
                                 reason="PromptWise policy: " + "; ".join(notes), extra={"notes": notes})
+        # Advisories fire on every prompt, so they are deduped within the session
+        # and trimmed to a byte budget; security notes are exempt from both.
+        try:
+            from promptwise.core.advisory_budget import budget_notes
+            from promptwise.core.session_context import get_current_session_id
+            notes = budget_notes(notes, session_id=get_current_session_id())
+        except Exception:
+            pass
         if notes:
             return HookDecision(action="warn", event="UserPromptSubmit",
                                 reason="PromptWise advisory: " + "; ".join(notes), extra={"notes": notes})
