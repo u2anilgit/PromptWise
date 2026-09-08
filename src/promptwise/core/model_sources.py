@@ -13,7 +13,13 @@ change: the concrete source classes are generic and configuration-driven.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Protocol, runtime_checkable
+
+try:
+    import yaml
+except Exception:  # pragma: no cover - PyYAML is a declared dependency
+    yaml = None  # type: ignore
 
 
 @dataclass(frozen=True)
@@ -89,3 +95,73 @@ class SourceRegistry:
                 if prev is None or prio >= prev[0]:
                     merged[rec.alias] = (prio, stamped)
         return [rec for _, rec in merged.values()]
+
+
+def load_catalog(path) -> tuple[dict, list[ModelRecord]]:
+    """Parse a catalog file into (families, records). Never raises."""
+    try:
+        p = Path(path)
+        if yaml is None or not p.is_file():
+            return {}, []
+        data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict):
+            return {}, []
+        families = data.get("families") or {}
+        if not isinstance(families, dict):
+            return {}, []
+        rows = data.get("models") or []
+        if not isinstance(rows, list):
+            return families, []
+        records: list[ModelRecord] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            alias = str(row.get("alias") or "").strip()
+            family = str(row.get("family") or "").strip()
+            if not alias or not family:
+                continue
+            fam = families.get(family) or {}
+            fam = fam if isinstance(fam, dict) else {}
+            cw = row.get("context_window", fam.get("context_window"))
+            records.append(ModelRecord(
+                alias=alias,
+                family=family,
+                provider=str(row.get("provider") or fam.get("provider") or ""),
+                tier=str(row.get("tier") or fam.get("tier") or ""),
+                status=str(row.get("status") or "current"),
+                release_date=str(row.get("release_date") or ""),
+                price=row.get("price") if isinstance(row.get("price"), dict) else None,
+                context_window=int(cw) if cw else None,
+                source="pinned",
+            ))
+        return families, records
+    except Exception:
+        return {}, []
+
+
+class PinnedCatalogSource:
+    """The offline guarantee: a catalog shipped with the package.
+
+    Always available, lowest priority -- every other source overrides it. This
+    is what makes "no network, no CLIs, no API keys" still produce a complete,
+    resolvable catalog, honoring config/models.yaml's local-first contract.
+    """
+
+    key = "pinned"
+    priority = 10
+
+    def __init__(self, path=None):
+        self._path = path
+
+    def _resolve(self) -> Path:
+        if self._path is not None:
+            return Path(self._path)
+        from promptwise.asset_paths import resolve_asset
+        local = Path("config") / "model_catalog.yaml"
+        return local if local.is_file() else resolve_asset("config/model_catalog.yaml")
+
+    def available(self) -> bool:
+        return True
+
+    def fetch(self) -> list[ModelRecord]:
+        return load_catalog(self._resolve())[1]
