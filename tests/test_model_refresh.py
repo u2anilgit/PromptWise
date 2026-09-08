@@ -34,7 +34,14 @@ def test_enabled_flag_parsing(monkeypatch):
 
 
 # ── merge behavior ───────────────────────────────────────────────────────────
-def test_force_refresh_adds_new_and_deprecates_missing(tmp_path):
+def test_force_refresh_adds_new_and_keeps_the_previous_generation(tmp_path):
+    """A fetch listing only the newest model must not retire the older one.
+
+    merge() deprecates everything absent from the fetch; retention
+    (core/model_retention.py) then restores the newest N per family, so 2-3
+    previous generations stay resolvable across a refresh. Before retention
+    existed, this same fetch retired `a-1` outright.
+    """
     reg = _write_reg(tmp_path)
     fetched = [
         {"alias": "a-2", "family": "fam-a", "status": "current", "release_date": "2026-06-01",
@@ -43,8 +50,23 @@ def test_force_refresh_adds_new_and_deprecates_missing(tmp_path):
     out = MR.refresh(registry_path=reg, state_dir=tmp_path, force=True, fetch_fn=lambda: fetched)
     assert out["refreshed"] is True
     r = ModelRegistry(reg)
-    # new current model is now selected; the old one is deprecated but retained
+    # newest model is selected, and the previous generation is still routable
     assert r.resolve("powerful", "testco") == "a-2"
+    assert not r.is_deprecated("a-1")
+    assert "a-1" in r.all_aliases()  # never deleted
+
+
+def test_generations_beyond_the_keep_count_are_deprecated_not_deleted(tmp_path):
+    reg = _write_reg(tmp_path)
+    fetched = [
+        {"alias": "a-%d" % i, "family": "fam-a", "status": "current",
+         "release_date": "2026-0%d-01" % i} for i in range(2, 7)
+    ]
+    MR.refresh(registry_path=reg, state_dir=tmp_path, force=True,
+               fetch_fn=lambda: fetched, keep_per_family=3)
+    r = ModelRegistry(reg)
+    assert r.resolve("powerful", "testco") == "a-6"
+    assert [r.is_deprecated(a) for a in ("a-6", "a-5", "a-4")] == [False, False, False]
     assert r.is_deprecated("a-1")
     assert "a-1" in r.all_aliases()  # never deleted
 
