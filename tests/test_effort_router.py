@@ -20,5 +20,8 @@ def test_everything_else_defaults_to_medium():
     assert static_effort("analysis", "low") == "medium"
 
 
-def test_effort_order_is_low_to_high():
-    assert EFFORT_ORDER == ("low", "medium", "high")
+def test_effort_order_runs_cheapest_to_most_careful():
+    """Widened from (low, medium, high): the two ends are the rungs that matter.
+    `none` is the difference between paying for reasoning tokens on a docs lookup
+    and not; `xhigh` is what a production bugfix deserves."""
+    assert EFFORT_ORDER == ("none", "low", "medium", "high", "xhigh")
