@@ -14,10 +14,12 @@ from pathlib import Path
 
 import yaml
 
+from promptwise.asset_paths import resolve_asset
+
 # src/promptwise/core/admin_config.py -> parents[3] is the repo root, matching
 # core/doctor.py, core/hook_bridge.py, core/model_registry.py, core/effort_map.py's
 # established idiom -- resolved from the package location, not the process cwd.
-_DEFAULT_PATH = Path(__file__).resolve().parents[3] / "config" / "admin.yaml"
+_DEFAULT_PATH = resolve_asset("config/admin.yaml")
 
 _DEFAULTS = {
     "features": {},

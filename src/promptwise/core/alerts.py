@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from email.message import EmailMessage
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 try:  # PyYAML is already a PromptWise dependency (policy/model registry/governor use it)
     import yaml
 except Exception:  # pragma: no cover - yaml always present in practice
@@ -37,7 +39,7 @@ _ENV_SLACK_WEBHOOK_URL = "PROMPTWISE_ALERT_SLACK_WEBHOOK_URL"
 _ENV_SMTP_PASS = "PROMPTWISE_ALERT_SMTP_PASS"
 
 _LEVEL_RANK = {"ok": 0, "warn": 1, "critical": 2, "hard_stop": 3}
-_DEFAULT_CONFIG_PATH = Path("config") / "alerts.yaml"
+_DEFAULT_CONFIG_PATH = resolve_asset("config/alerts.yaml")
 
 
 @dataclass

@@ -24,6 +24,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 _PY_IMPORT_RE = re.compile(r'(?m)^\s*(?:import|from)\s+([a-zA-Z_][a-zA-Z0-9_]*)')
 _JS_IMPORT_RE = re.compile(
     r'''require\(\s*['"]([^'"./][^'"]*)['"]\s*\)'''
@@ -43,7 +45,7 @@ _STDLIB_SKIP = {
     "operator", "queue", "signal", "sqlite3", "statistics", "zipfile",
 }
 
-_POPULAR_PACKAGES_PATH = Path(__file__).resolve().parents[3] / "corpus" / "popular_packages.json"
+_POPULAR_PACKAGES_PATH = resolve_asset("corpus/popular_packages.json")
 
 
 @dataclass(frozen=True)

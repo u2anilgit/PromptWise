@@ -12,11 +12,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 
 def _catalog_paths() -> list[Path]:
     return [
         Path("config") / "external_models.yaml",
-        Path(__file__).resolve().parents[3] / "config" / "external_models.yaml",
+        resolve_asset("config/external_models.yaml"),
     ]
 
 

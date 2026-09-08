@@ -18,12 +18,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 try:  # PyYAML is already a PromptWise dependency
     import yaml
 except Exception:  # pragma: no cover - yaml always present in practice
     yaml = None  # type: ignore
 
-_DEFAULT_CONFIG_PATH = Path("config") / "reports.yaml"
+_DEFAULT_CONFIG_PATH = resolve_asset("config/reports.yaml")
 _MARKER_FILE = "last_report.json"
 _EXT = {"markdown": "md", "html": "html"}
 

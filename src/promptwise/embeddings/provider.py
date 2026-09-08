@@ -27,6 +27,8 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 try:  # PyYAML is already a PromptWise dependency (policy/model registry/governor use it)
     import yaml
 except Exception:  # pragma: no cover - yaml always present in practice
@@ -39,7 +41,7 @@ except Exception:
     TextEmbedding = None  # type: ignore
     FASTEMBED_AVAILABLE = False
 
-_DEFAULT_CONFIG_PATH = Path("config") / "embeddings.yaml"
+_DEFAULT_CONFIG_PATH = resolve_asset("config/embeddings.yaml")
 DEFAULT_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 
 

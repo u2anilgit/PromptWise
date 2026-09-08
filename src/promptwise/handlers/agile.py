@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
 from promptwise.core.tool_registry import (
     ServerContext, tool, _record_route_verdict, _record_effort_verdict,
     _record_technique_verdict, _get_audit_log,
@@ -52,9 +52,8 @@ def _derive_tags(text: str, cap: int = 6) -> list[str]:
          schema={"type": "object", "properties": {"task": {"type": "string"}, "regulated": {"type": "boolean"}, "brownfield": {"type": "boolean"}}, "required": ["task"]})
 async def _handle_agile_plan(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.agile_planner import AgilePlanner
-    cfg_path = Path(__file__).resolve().parents[3] / "config" / "agile.yaml"
     task = arguments.get("task", "")
-    plan = AgilePlanner(config_path=cfg_path).plan(
+    plan = AgilePlanner().plan(
         task, arguments.get("regulated"), arguments.get("brownfield"))
     out = plan.to_dict()
     from promptwise.core.knowledgebase import kb_precheck
@@ -110,7 +109,7 @@ async def _handle_run_quality_gate(ctx: ServerContext, arguments: dict) -> str:
          schema={"type": "object", "properties": {"model_tier": {"type": "string"}, "estimated_cost": {"type": "number"}, "spent_so_far": {"type": "number"}, "operation": {"type": "string"}, "gates_passed": {"type": "array", "items": {"type": "string"}, "default": []}, "policy_path": {"type": "string", "default": "config/policy.yaml"}, "actor": {"type": "string", "default": ""}, "record_to_audit": {"type": "boolean", "default": False}}})
 async def _handle_check_policy(ctx: ServerContext, arguments: dict) -> str:
     from promptwise.core.policy import Policy
-    policy_path = arguments.get("policy_path", "config/policy.yaml")
+    policy_path = arguments.get("policy_path") or resolve_asset("config/policy.yaml")
     try:
         pol = Policy.from_yaml(policy_path)
     except FileNotFoundError:

@@ -19,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 try:  # reuse the existing classifier when available
     from promptwise.core.workflow_planner import WorkflowPlanner
 except Exception:  # pragma: no cover - degrade gracefully
@@ -105,8 +107,8 @@ def _load_config(config_path: str | Path | None) -> dict:
 class AgilePlanner:
     """Produce the two-phase persona plan, reusing WorkflowPlanner classification."""
 
-    def __init__(self, config_path: str | Path | None = "config/agile.yaml"):
-        self.cfg = _load_config(config_path)
+    def __init__(self, config_path: str | Path | None = None):
+        self.cfg = _load_config(config_path or resolve_asset("config/agile.yaml"))
         self._wp = WorkflowPlanner() if WorkflowPlanner is not None else None
 
     def _classify(self, text: str, regulated: bool | None, brownfield: bool | None):
