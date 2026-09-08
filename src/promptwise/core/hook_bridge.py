@@ -32,8 +32,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from promptwise.asset_paths import runtime_root
+
 # ── repo root (src/promptwise/core/hook_bridge.py -> parents[3]) ──────────────
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = runtime_root()
 
 # Per-session tool-call ceiling (runaway-loop guard). Override via env.
 _DEFAULT_TOOL_CALL_CEILING = 250
@@ -217,7 +219,7 @@ def userpromptsubmit_policy(payload: dict) -> HookDecision:
         # guarantees (each step independently guarded, same as before).
         try:
             from promptwise.core.preflight import run_preflight
-            pf = run_preflight(prompt, host="claude-code")
+            pf = run_preflight(prompt)
             notes.extend(pf.notes)
         except Exception:
             pass
@@ -230,7 +232,7 @@ def userpromptsubmit_policy(payload: dict) -> HookDecision:
             from promptwise.config import load_config
             from promptwise.core.skill_loader import SkillLoader
             config = load_config(_REPO_ROOT)
-            loader = SkillLoader(_REPO_ROOT / config.skills.directory)
+            loader = SkillLoader()
             loader.load_skills()
             match = loader.match_skill(prompt)
             if match:

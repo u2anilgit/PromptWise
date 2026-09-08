@@ -46,6 +46,7 @@ class ModelRegistry:
         self._families: dict[str, dict] = {}
         self._models: list[dict] = []
         self._by_alias: dict[str, dict] = {}
+        self._loaded_path: Path | None = None
         self.loaded = False
         self._load(path)
 
@@ -67,12 +68,53 @@ class ModelRegistry:
             self._families = fams
             self._models = [m for m in models if isinstance(m, dict) and m.get("alias")]
             self._by_alias = {m["alias"]: m for m in self._models}
+            self._loaded_path = p
             self.loaded = True
             break
-        # Overlay machine-local models (auto-discovered on-device) on top of the
-        # base registry — only when loading the default registry, not an explicit path.
+        # Layering, lowest first: the shipped catalog underlays the tracked
+        # registry, then machine-local models overlay both. Only applied when
+        # loading the default registry, not an explicit path.
         if path is None:
+            self._apply_catalog_underlay()
             self._apply_overlay()
+
+    def _apply_catalog_underlay(self) -> None:
+        """Add shipped-catalog models the tracked registry does not carry.
+
+        config/models.yaml is the *refreshed* registry; config/model_catalog.yaml
+        is the *shipped* one. Without this, a provider only present in the
+        catalog stays unroutable until a refresh has actually run -- and refresh
+        is off by default, so routing a Gemini or Codex host would fall back to a
+        Claude alias it cannot call.
+
+        Existing rows always win: a refresh that has run reflects reality more
+        closely than the catalog frozen at release, so the underlay only fills
+        gaps and never overwrites.
+        """
+        try:
+            from promptwise.core.model_sources import PinnedCatalogSource, load_catalog
+            # The catalog is the sibling of whichever models.yaml actually
+            # loaded, so a scoped config directory (a test fixture, a per-project
+            # install) gets its own catalog or none -- never silently absorbs the
+            # packaged one on top of its own registry.
+            if self._loaded_path is not None:
+                catalog_path = self._loaded_path.parent / "model_catalog.yaml"
+            else:
+                catalog_path = PinnedCatalogSource()._resolve()
+            families, records = load_catalog(catalog_path)
+        except Exception:
+            return
+        for fam, meta in (families or {}).items():
+            if isinstance(meta, dict):
+                self._families.setdefault(fam, meta)
+        for rec in records:
+            if rec.alias in self._by_alias:
+                continue
+            row = rec.to_registry_row()
+            self._models.append(row)
+            self._by_alias[rec.alias] = row
+        if self._models:
+            self.loaded = True
 
     def _apply_overlay(self) -> None:
         for p in _overlay_paths():

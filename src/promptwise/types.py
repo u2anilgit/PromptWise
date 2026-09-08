@@ -19,6 +19,11 @@ class RouteResult:
     batch_recommendation_note: str | None = None
     provider_capped: bool = False
     monthly_budget_capped: bool = False
+    # Which agent host the route was resolved for, and the provider that host
+    # calls. Empty host_detected means the caller named a provider explicitly
+    # rather than asking for provider="auto".
+    host_detected: str = ""
+    provider_used: str = ""
 
 
 @dataclass(frozen=True)
