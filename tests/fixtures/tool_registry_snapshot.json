@@ -35,7 +35,8 @@
         },
         "provider": {
           "type": "string",
-          "default": "claude"
+          "default": "auto",
+          "description": "'auto' resolves the provider from the detected agent host (see detect_host); name one explicitly to override"
         },
         "monthly_budget_usd": {
           "type": "number"
@@ -3055,6 +3056,20 @@
       "required": [
         "record"
       ]
+    }
+  },
+  {
+    "name": "detect_host",
+    "description": "Identify which AI coding agent is running this session, the provider it calls, and which models it can actually route to. Use before route_request when the caller does not already know its own host.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "repo_root": {
+          "type": "string",
+          "default": ".",
+          "description": "repo to fall back to scanning when no live host signal is present"
+        }
+      }
     }
   },
   {

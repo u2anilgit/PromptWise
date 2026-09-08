@@ -34,6 +34,6 @@ def test_every_registered_tool_dispatches_safely(tmp_path, monkeypatch):
         return results
 
     results = asyncio.run(run())
-    assert len(results) == 142
+    assert len(results) == 143
     assert all(not (isinstance(payload, dict) and payload.get("type") == "UnknownTool")
                for _, payload in results)

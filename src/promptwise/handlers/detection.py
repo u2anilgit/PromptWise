@@ -89,3 +89,25 @@ async def _handle_emit_siem(ctx: ServerContext, arguments: dict) -> str:
         mode=arguments.get("mode", "file"), drop_dir=arguments.get("drop_dir", ".promptwise/siem/"),
         webhook_url=arguments.get("webhook_url"))
     return json.dumps(emitter.emit(arguments.get("record", {})))
+
+
+@tool(name="detect_host",
+      description="Identify which AI coding agent is running this session, the provider it calls, and which models it can actually route to. Use before route_request when the caller does not already know its own host.",
+      schema={"type": "object", "properties": {
+          "repo_root": {"type": "string", "default": ".",
+                        "description": "repo to fall back to scanning when no live host signal is present"}}},
+      domain="routing")
+async def _handle_detect_host(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.host_detector import detect_host
+    info = detect_host(repo_root=arguments.get("repo_root", "."))
+    models: list[str] = []
+    try:
+        from promptwise.core.model_registry import ModelRegistry
+        reg = ModelRegistry()
+        for tier in ("powerful", "balanced", "fast"):
+            models.extend(reg.top_n_current(tier, n=3, provider=info.provider))
+    except Exception:
+        models = []
+    return json.dumps({"host": info.key, "provider": info.provider,
+                       "confidence": info.confidence, "evidence": info.evidence,
+                       "models_available": models})
