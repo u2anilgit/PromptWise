@@ -80,6 +80,8 @@ class PreflightResult:
     model_shortlist: list[str] = field(default_factory=list)
     cross_provider_suggested: bool = False
     cross_provider_note: str = ""
+    recommended_effort: str = ""
+    effort_param: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -156,6 +158,25 @@ def run_preflight(prompt: str, *, host: str = "auto",
     except Exception:
         pass
 
+    # 4b) reasoning-effort advisory. Effort and tier are independent axes (see
+    # effort_router's module docstring), so this is computed from the same
+    # signals rather than derived from the routed tier. Only non-default rungs
+    # are surfaced: announcing "medium" on every prompt is a token cost paid
+    # every turn for no decision changed.
+    recommended_effort = ""
+    effort_param: dict = {}
+    if r is not None:
+        try:
+            from promptwise.core.effort_router import static_effort
+            from promptwise.core.effort_map import resolve_effort_param
+            recommended_effort = static_effort(r.intent_detected, r.stakes_detected, task_type)
+            effort_param = resolve_effort_param(recommended_effort, r.provider_used or "claude")
+            if recommended_effort != "medium":
+                rendered = ", ".join("%s=%s" % (k, v) for k, v in effort_param.items())
+                notes.append("reasoning effort: %s (%s)" % (recommended_effort, rendered))
+        except Exception:
+            pass
+
     # 5) model shortlist -- last N current models for the routed tier.
     # Adaptive by default: only surfaces at "powerful" tier (same trigger the
     # tier advisory above already uses), so it rides existing quiet/noisy
@@ -210,5 +231,7 @@ def run_preflight(prompt: str, *, host: str = "auto",
         model_shortlist=model_shortlist,
         cross_provider_suggested=cross_provider_suggested,
         cross_provider_note=cross_provider_note,
+        recommended_effort=recommended_effort,
+        effort_param=effort_param,
         notes=notes,
     )
