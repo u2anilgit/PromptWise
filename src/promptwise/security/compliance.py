@@ -2,6 +2,8 @@ import re
 import yaml
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 
 class ComplianceEngine:
     def __init__(self, config_dir: Path | None = None):
@@ -13,7 +15,7 @@ class ComplianceEngine:
             path,
             self.config_dir / f"{name}.yaml" if self.config_dir else None,
             Path("config") / "compliance" / f"{name}.yaml",
-            Path(f"config/{name}.yaml"),
+            resolve_asset(f"config/compliance/{name}.yaml"),
         ]
         for p in paths_to_try:
             if p and p.exists():

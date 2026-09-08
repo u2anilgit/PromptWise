@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 # ── tunable lexicon (config override, safe in-code fallback) ─────────────────
 _DEFAULT_GROUP_TERMS = [
     "women", "men", "girls", "boys", "immigrants", "foreigners", "muslims",
@@ -61,7 +63,7 @@ def _load_lexicon() -> dict:
     try:
         import yaml
         for p in (Path("config") / "responsible_ai.yaml",
-                  Path(__file__).resolve().parents[3] / "config" / "responsible_ai.yaml"):
+                  resolve_asset("config/responsible_ai.yaml")):
             if p.exists():
                 data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
                 for key, val in data.items():

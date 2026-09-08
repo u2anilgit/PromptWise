@@ -213,7 +213,8 @@ def _get_audit_log():
     if _AUDIT_LOG is None:
         from promptwise.core.audit_log import AuditLog
         from promptwise.core.audit_sinks import load_sinks_from_config
-        repo_root = Path(__file__).resolve().parents[3]
+        from promptwise.asset_paths import runtime_root
+        repo_root = runtime_root()
         sinks = load_sinks_from_config(repo_root / "config" / "audit_sinks.yaml")
         _AUDIT_LOG = AuditLog(repo_root / "promptwise_audit.jsonl", sinks=sinks)
     return _AUDIT_LOG

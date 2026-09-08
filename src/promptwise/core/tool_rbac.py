@@ -23,6 +23,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from promptwise.dashboard.auth import _ROLE_RANK
+from promptwise.asset_paths import resolve_asset
 
 # src/promptwise/core/tool_rbac.py -> parents[3] is the repo root, matching
 # core/admin_config.py, core/doctor.py, core/hook_bridge.py, core/model_registry.py,
@@ -30,7 +31,7 @@ from promptwise.dashboard.auth import _ROLE_RANK
 # not the process cwd (a cwd-relative default silently loads {} -- and thus
 # fail-closed admin-only for every tool -- for any deployment not launched
 # from the repo root).
-_DEFAULT_PATH = Path(__file__).resolve().parents[3] / "config" / "mcp_tool_roles.yaml"
+_DEFAULT_PATH = resolve_asset("config/mcp_tool_roles.yaml")
 
 
 def load_tool_roles(path: str | None = None) -> dict[str, str]:

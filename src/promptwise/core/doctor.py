@@ -13,6 +13,8 @@ import json
 from datetime import date, datetime
 from pathlib import Path
 
+from promptwise.asset_paths import runtime_root
+
 # Newest release_date in config/models.yaml older than this is flagged
 # (advisory only -- never fails doctor) so the curated "last N models"
 # shortlist (core/preflight.py, adaptive by default -- powerful tier only --
@@ -20,7 +22,7 @@ from pathlib import Path
 # doesn't silently rot.
 _MODEL_CATALOG_STALE_DAYS = 120
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = runtime_root()
 
 # Core engines whose import failure would break enforcement/routing silently.
 _CORE_MODULES = [
