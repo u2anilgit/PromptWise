@@ -89,3 +89,40 @@ async def _handle_emit_siem(ctx: ServerContext, arguments: dict) -> str:
         mode=arguments.get("mode", "file"), drop_dir=arguments.get("drop_dir", ".promptwise/siem/"),
         webhook_url=arguments.get("webhook_url"))
     return json.dumps(emitter.emit(arguments.get("record", {})))
+
+
+@tool(name="detect_host",
+      description="Identify which AI coding agent is running this session, the provider it calls, and which models it can actually route to. Use before route_request when the caller does not already know its own host.",
+      schema={"type": "object", "properties": {
+          "repo_root": {"type": "string", "default": ".",
+                        "description": "repo to fall back to scanning when no live host signal is present"}}},
+      domain="routing")
+async def _handle_detect_host(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.host_detector import detect_host
+    info = detect_host(repo_root=arguments.get("repo_root", "."))
+    models: list[str] = []
+    try:
+        from promptwise.core.model_registry import ModelRegistry
+        reg = ModelRegistry()
+        for tier in ("powerful", "balanced", "fast"):
+            models.extend(reg.top_n_current(tier, n=3, provider=info.provider))
+    except Exception:
+        models = []
+    return json.dumps({"host": info.key, "provider": info.provider,
+                       "confidence": info.confidence, "evidence": info.evidence,
+                       "models_available": models})
+
+
+@tool(name="expand_tool_surface",
+      description="Expose PromptWise's full tool surface for this session. Default profiles advertise only the commonly-used tools to keep the per-session context cost down; hidden tools stay callable, but call this first if you want them listed.",
+      schema={"type": "object", "properties": {
+          "profile": {"type": "string", "default": "full",
+                      "description": "profile to activate: core, standard, or full"}}},
+      domain="routing")
+async def _handle_expand_tool_surface(ctx: ServerContext, arguments: dict) -> str:
+    from promptwise.core.tool_profiles import active_profile, profile_names, set_active_profile
+    before = active_profile()
+    after = set_active_profile(arguments.get("profile", "full"))
+    return json.dumps({"previous_profile": before, "active_profile": after,
+                       "available_profiles": profile_names(),
+                       "note": "re-run tools/list to see the expanded surface"})

@@ -14,13 +14,13 @@ from promptwise.core.tool_registry import ServerContext, tool, _resolve_effort
          schema={"type": "object", "properties": {
              "text": {"type": "string"}, "intent": {"type": "string", "enum": ["auto", "extract", "classify", "summarize", "question", "code", "analysis", "agent_loop", "research"], "default": "auto"},
              "stakes": {"type": "string", "enum": ["auto", "low", "medium", "high"], "default": "auto"},
-             "provider": {"type": "string", "default": "claude"}, "monthly_budget_usd": {"type": "number"}, "days_elapsed_in_month": {"type": "integer"},
+             "provider": {"type": "string", "default": "auto", "description": "'auto' resolves the provider from the detected agent host (see detect_host); name one explicitly to override"}, "monthly_budget_usd": {"type": "number"}, "days_elapsed_in_month": {"type": "integer"},
              "provider_spend_usd": {"type": "number", "description": "Spend already incurred for this provider (e.g. today) -- enables a hard budget-cap reroute before the call, if the provider has a configured daily_cap_usd"}},
          "required": ["text"]})
 async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
     r = ctx.router.route(
         text=arguments.get("text", ""), intent=arguments.get("intent", "auto"),
-        stakes=arguments.get("stakes", "auto"), provider=arguments.get("provider", "claude"),
+        stakes=arguments.get("stakes", "auto"), provider=arguments.get("provider", "auto"),
         monthly_budget_usd=arguments.get("monthly_budget_usd"), days_elapsed_in_month=arguments.get("days_elapsed_in_month"),
         provider_spend_usd=arguments.get("provider_spend_usd"))
     await ctx.memory.record_cost(tool="route_request", session_id=get_current_session_id(), model=r.recommended_model, cost_usd=r.estimated_input_cost_usd)
@@ -51,7 +51,7 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
     # reasoning_effort, ...) -- resolve_effort_param never raises.
     try:
         from promptwise.core.effort_map import resolve_effort_param
-        effort_param = resolve_effort_param(effort, arguments.get("provider", "claude"))
+        effort_param = resolve_effort_param(effort, r.provider_used or "claude")
     except Exception:
         effort_param = {}
     return json.dumps({"recommended_model": r.recommended_model, "reason": r.reason, "intent_detected": r.intent_detected,
@@ -59,6 +59,7 @@ async def _handle_route_request(ctx: ServerContext, arguments: dict) -> str:
                        "context_window_pct": r.context_window_pct, "alternatives": r.alternatives,
                        "batch_recommended": r.batch_recommended, "batch_recommendation_note": r.batch_recommendation_note,
                        "provider_capped": r.provider_capped, "monthly_budget_capped": r.monthly_budget_capped,
+                       "host_detected": r.host_detected, "provider_used": r.provider_used,
                        "effort": effort, "effort_param": effort_param, "route_id": route_id, "effort_id": effort_id})
 
 

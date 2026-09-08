@@ -80,6 +80,8 @@ class PreflightResult:
     model_shortlist: list[str] = field(default_factory=list)
     cross_provider_suggested: bool = False
     cross_provider_note: str = ""
+    recommended_effort: str = ""
+    effort_param: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -87,7 +89,7 @@ class PreflightResult:
         return "; ".join(self.notes)
 
 
-def run_preflight(prompt: str, *, host: str = "claude-code",
+def run_preflight(prompt: str, *, host: str = "auto",
                    config: AppConfig | None = None) -> PreflightResult:
     """Run the combined preflight pass. Never raises -- every step is
     independently guarded; a failing step just contributes no notes."""
@@ -145,7 +147,8 @@ def run_preflight(prompt: str, *, host: str = "claude-code",
     r = None
     try:
         router = Router(config=config)
-        r = router.route(text=prompt, intent="auto", stakes="auto", provider="claude")
+        r = router.route(text=prompt, intent="auto", stakes="auto",
+                         provider="auto" if host == "auto" else "claude")
         recommended_model = r.recommended_model or ""
         if recommended_model and router.registry.tier_of(recommended_model) == "powerful":
             notes.append(
@@ -154,6 +157,25 @@ def run_preflight(prompt: str, *, host: str = "claude-code",
                 f"-- route_request/optimize_context not called this turn; a cheaper tier may suffice")
     except Exception:
         pass
+
+    # 4b) reasoning-effort advisory. Effort and tier are independent axes (see
+    # effort_router's module docstring), so this is computed from the same
+    # signals rather than derived from the routed tier. Only non-default rungs
+    # are surfaced: announcing "medium" on every prompt is a token cost paid
+    # every turn for no decision changed.
+    recommended_effort = ""
+    effort_param: dict = {}
+    if r is not None:
+        try:
+            from promptwise.core.effort_router import static_effort
+            from promptwise.core.effort_map import resolve_effort_param
+            recommended_effort = static_effort(r.intent_detected, r.stakes_detected, task_type)
+            effort_param = resolve_effort_param(recommended_effort, r.provider_used or "claude")
+            if recommended_effort != "medium":
+                rendered = ", ".join("%s=%s" % (k, v) for k, v in effort_param.items())
+                notes.append("reasoning effort: %s (%s)" % (recommended_effort, rendered))
+        except Exception:
+            pass
 
     # 5) model shortlist -- last N current models for the routed tier.
     # Adaptive by default: only surfaces at "powerful" tier (same trigger the
@@ -165,7 +187,9 @@ def run_preflight(prompt: str, *, host: str = "claude-code",
         show = mode == "on" or (mode == "adaptive" and tier == "powerful")
         if show:
             try:
-                model_shortlist = router.registry.top_n_current(tier, n=_SHORTLIST_SIZE) if tier else []
+                model_shortlist = router.registry.top_n_current(
+                    tier, n=_SHORTLIST_SIZE,
+                    provider=r.provider_used or None) if tier else []
                 if model_shortlist:
                     notes.append(f"current {tier}-tier models (newest first): {', '.join(model_shortlist)}")
             except Exception:
@@ -177,7 +201,7 @@ def run_preflight(prompt: str, *, host: str = "claude-code",
     if router is not None and recommended_model:
         try:
             model_provider = router.registry.provider_of(recommended_model)
-            host_provider = "claude" if "claude" in host.lower() or host.lower() in ("claude-code",) else host.lower()
+            host_provider = r.provider_used or "claude"
             if model_provider and host_provider and model_provider != host_provider:
                 cross_provider_suggested = True
                 cross_provider_note = (
@@ -207,5 +231,7 @@ def run_preflight(prompt: str, *, host: str = "claude-code",
         model_shortlist=model_shortlist,
         cross_provider_suggested=cross_provider_suggested,
         cross_provider_note=cross_provider_note,
+        recommended_effort=recommended_effort,
+        effort_param=effort_param,
         notes=notes,
     )

@@ -25,7 +25,45 @@ from promptwise.core.tool_registry import ServerContext, ToolRegistry, _registry
 
 
 async def list_tools() -> list[Tool]:
-    return _TOOL_DEFS
+    # Only the *advertised* surface shrinks -- call_tool still dispatches
+    # every registered tool, so a hidden tool is never unreachable.
+    from promptwise.core.tool_profiles import filter_tools
+    return filter_tools(_TOOL_DEFS)
+
+
+def capture_client_info(info) -> None:
+    """Record the MCP handshake's clientInfo as the authoritative host identity.
+
+    A host naming itself in the initialize handshake beats every heuristic
+    host_detector has. Fail-open: an unusable value simply leaves detection to
+    the env-var and repo-scan fallbacks.
+    """
+    try:
+        from promptwise.core.host_detector import set_client_info
+        set_client_info(info if isinstance(info, dict) else None)
+    except Exception:
+        pass
+
+
+def _client_info_from_session(session) -> dict | None:
+    """Best-effort read of clientInfo off an MCP session.
+
+    The attribute path differs across SDK versions, and this runs on the hot
+    path of the first tools/list call, so every step is guarded rather than
+    version-sniffed -- a miss costs a fallback heuristic, not an error.
+    """
+    try:
+        params = getattr(session, "client_params", None)
+        client = getattr(params, "clientInfo", None)
+        if client is None:
+            return None
+        dump = getattr(client, "model_dump", None)
+        if callable(dump):
+            dumped = dump()
+            return dumped if isinstance(dumped, dict) else None
+        return {"name": getattr(client, "name", ""), "version": getattr(client, "version", "")}
+    except Exception:
+        return None
 
 
 # ── Handler package loading (Tasks 1/2 of handlers/ package split) ──────────
@@ -328,9 +366,11 @@ async def call_tool(ctx: ServerContext, name: str, arguments: dict) -> str:
 async def _build_context() -> ServerContext:
     """Everything main() did before constructing the MCP Server object --
     shared by both the stdio and http entrypoints (see sync_main())."""
-    # repo root = src/promptwise/server.py -> parents[2]; config/ and skills/ live there.
-    config_dir = Path(__file__).resolve().parents[2]
+    from promptwise.asset_paths import resolve_config_dir, resolve_skill_dir, runtime_root
+
+    config_dir = resolve_config_dir()
     config = load_config(config_dir)
+    asset_root = runtime_root()
 
     from promptwise.db.models import get_db_url
     db_url = get_db_url(config)
@@ -341,7 +381,7 @@ async def _build_context() -> ServerContext:
     task_tracker = TaskTracker(db_path)
     await task_tracker.init()
 
-    skills_dir = config_dir / config.skills.directory
+    skills_dir = resolve_skill_dir(config.skills.directory)
     skill_loader = SkillLoader(skills_dir)
     skill_loader.load_skills()
 
@@ -361,7 +401,11 @@ async def _build_context() -> ServerContext:
         orchestrator=Orchestrator(),
         quality=QualityGuard(),
         security=SecurityScanner(config.security),
-        compliance=ComplianceEngine(config_dir / "config" / "compliance" if (config_dir / "config").exists() else None),
+        compliance=ComplianceEngine(
+            asset_root / "config" / "compliance"
+            if (asset_root / "config" / "compliance").exists()
+            else None
+        ),
         code_validator=CodeValidator(),
         budget=BudgetGuardian(limit_usd=config.policies.budget_hard_stop_usd, team_budget_usd=config.policies.team_budget_usd, config=config),
         cost_monitor=CostMonitor(),
@@ -382,6 +426,13 @@ async def main() -> None:
 
     @server.list_tools()
     async def _list_tools() -> list[Tool]:
+        # tools/list is the first call every host makes after initialize, so it
+        # is the earliest SDK-version-independent point at which the peer's
+        # declared identity is readable. Guarded: never fails the listing.
+        try:
+            capture_client_info(_client_info_from_session(server.request_context.session))
+        except Exception:
+            pass
         return await list_tools()
 
     @server.call_tool()
@@ -429,7 +480,8 @@ def sync_main() -> None:
         # get a bare 401 with no diagnostic anywhere.
         credentials_path = Path(credentials_path_raw)
         if not credentials_path.is_absolute():
-            repo_root = Path(__file__).resolve().parents[2]
+            from promptwise.asset_paths import runtime_root
+            repo_root = runtime_root()
             credentials_path = repo_root / credentials_path
         from promptwise.dashboard.auth import load_credentials
         loaded_count = len(load_credentials(credentials_path))

@@ -22,20 +22,61 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 _ENV_FLAG = "PROMPTWISE_MODEL_REFRESH"
+_ENV_DAYS = "PROMPTWISE_MODEL_REFRESH_DAYS"
+_ENV_JITTER = "PROMPTWISE_MODEL_REFRESH_JITTER"
 _STAMP = "models_refreshed.json"
+
+DEFAULT_INTERVAL_DAYS = 5.0
+DEFAULT_JITTER_DAYS = 2.0
+MIN_INTERVAL_DAYS = 3.0
+MAX_INTERVAL_DAYS = 7.0
 
 
 def enabled() -> bool:
     return os.environ.get(_ENV_FLAG, "").strip().lower() in ("1", "on", "true", "yes")
 
 
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    try:
+        return float(raw) if raw else default
+    except ValueError:
+        return default
+
+
+def refresh_interval_hours(install_key: str | None = None) -> float:
+    """The 3-7 day refresh window, jittered per install.
+
+    A fixed TTL makes every install in a fleet refresh on the same day, which
+    turns a routine catalog check into a synchronized burst against each
+    provider. The offset is derived from a stable hash of the install path, so
+    each install sits at a different but reproducible point in the window --
+    no coordination, and no random state to persist between runs.
+
+    The result is always clamped into [3, 7] days, so a hostile or mistaken env
+    value cannot push an install outside the contract.
+    """
+    import hashlib
+
+    base = _env_float(_ENV_DAYS, DEFAULT_INTERVAL_DAYS)
+    jitter = max(0.0, _env_float(_ENV_JITTER, DEFAULT_JITTER_DAYS))
+    if jitter > 0:
+        key = install_key if install_key is not None else str(Path.cwd())
+        digest = hashlib.sha256(key.encode("utf-8", errors="replace")).digest()
+        frac = int.from_bytes(digest[:4], "big") / 0xFFFFFFFF  # 0..1
+        base = base + (frac * 2.0 - 1.0) * jitter
+    days = min(MAX_INTERVAL_DAYS, max(MIN_INTERVAL_DAYS, base))
+    return days * 24.0
+
+
 def _default_registry_path() -> Path:
-    for p in (Path("config") / "models.yaml",
-              Path(__file__).resolve().parents[3] / "config" / "models.yaml"):
+    for p in (Path("config") / "models.yaml", resolve_asset("config/models.yaml")):
         if p.exists():
             return p
-    return Path("config") / "models.yaml"
+    return resolve_asset("config/models.yaml")
 
 
 def _stamp_path(state_dir) -> Path:
@@ -92,15 +133,69 @@ def merge(registry_data: dict, fetched: list[dict]) -> dict:
 
 
 def _default_fetch() -> list[dict]:
-    return []  # no host call enumerates a build's models; provider fetch is injected
+    """Every available model source, merged, as registry rows.
+
+    Offline this is just the pinned catalog -- which is the point: the default
+    fetch is never empty, so a refresh always has something authoritative to
+    reconcile against instead of silently doing nothing.
+    """
+    try:
+        from promptwise.core.model_sources import build_default_registry
+        records = build_default_registry().fetch_all()
+    except Exception:
+        return []
+    rows: list[dict] = []
+    for rec in records:
+        try:
+            row = rec.to_registry_row()
+            # provider/tier are family-level facts; sync_families lifts them off
+            # the row so a source can describe a family it just discovered
+            # without a second round-trip.
+            if rec.provider:
+                row["provider"] = rec.provider
+            if rec.tier:
+                row["tier"] = rec.tier
+            rows.append(row)
+        except Exception:
+            continue
+    return rows
 
 
-def refresh(*, registry_path=None, state_dir: str | Path = ".promptwise", ttl_hours: float = 24.0,
-            fetch_fn=None, force: bool = False) -> dict:
+def sync_families(registry_data: dict, rows: list[dict]) -> None:
+    """Ensure every family named by a row exists in `families`.
+
+    provider/tier ride in on the row and are lifted onto the family entry, then
+    stripped -- matching models.yaml's shape, where those facts live on the
+    family and never on the model.
+    """
+    families = registry_data.setdefault("families", {})
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        fam = str(row.get("family") or "")
+        provider = row.pop("provider", None)
+        tier = row.pop("tier", None)
+        if not fam:
+            continue
+        entry = families.get(fam)
+        if not isinstance(entry, dict):
+            entry = {}
+            families[fam] = entry
+        if provider and not entry.get("provider"):
+            entry["provider"] = provider
+        if tier and not entry.get("tier"):
+            entry["tier"] = tier
+
+
+def refresh(*, registry_path=None, state_dir: str | Path = ".promptwise",
+            ttl_hours: float | None = None, fetch_fn=None, force: bool = False,
+            keep_per_family: int | None = None) -> dict:
     """Refresh the registry if enabled and stale. Returns a small status dict;
     never raises."""
     if not enabled() and not force:
         return {"refreshed": False, "reason": "disabled"}
+    if ttl_hours is None:
+        ttl_hours = refresh_interval_hours()
     try:
         if not force and _is_fresh(state_dir, ttl_hours):
             return {"refreshed": False, "reason": "fresh"}
@@ -114,7 +209,13 @@ def refresh(*, registry_path=None, state_dir: str | Path = ".promptwise", ttl_ho
         data = data or {}
         data.setdefault("families", {})
         data.setdefault("models", [])
+        # Order matters: sync_families strips provider/tier off the rows before
+        # merge writes them, and retention runs last so a partial fetch cannot
+        # retire the previous generations merge() just deprecated.
+        sync_families(data, fetched)
         merge(data, fetched)
+        from promptwise.core.model_retention import apply_retention
+        apply_retention(data["models"], keep_per_family=keep_per_family)
         path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
         _write_stamp(state_dir)
         return {"refreshed": True, "count": len(fetched), "path": str(path)}

@@ -1,0 +1,157 @@
+# PromptWise -- Pinned Model Catalog (offline-authoritative)
+#
+# The lowest-priority model source (see core/model_sources.py). Every other
+# source -- a CLI probe, a provider API, a user's local override -- overrides
+# these rows. This file exists so that a user with no network, no API keys and
+# no agent CLIs still gets a complete, resolvable catalog for every provider
+# their coding agent can actually call.
+#
+# Every row here MUST be verified against the provider's own current docs
+# before being committed. An omitted model degrades gracefully; a fabricated
+# price silently corrupts every downstream cost estimate.
+#
+# `release_date` is deliberately absent for most rows. It is used only to order
+# a family newest-first, and ModelRegistry breaks a date tie on alias
+# descending -- which orders versioned aliases correctly on its own
+# (grok-4.6 > grok-4.5, gpt-5.6-terra > gpt-5.4). Writing a date we have not
+# verified would buy nothing and risk being wrong, so the tiebreak carries it.
+#
+# Prices are input/output USD per million tokens, standard (non-batch,
+# non-cached) tier. Where a provider prices by context length or by peak hour,
+# the higher rate is recorded -- an under-estimate of cost is the more
+# dangerous direction for a budget guard.
+schema_version: 1
+
+families:
+  # --- Anthropic --------------------------------------------------------
+  # verified 2026-09-08 against platform.claude.com/docs/en/about-claude/pricing
+  # Claude 4.6 and later carry the full 1M context window at standard pricing.
+  claude-opus:    {provider: claude, tier: powerful, context_window: 1000000}
+  claude-sonnet:  {provider: claude, tier: balanced, context_window: 1000000}
+  claude-haiku:   {provider: claude, tier: fast,     context_window: 200000}
+
+  # --- OpenAI -----------------------------------------------------------
+  # verified 2026-09-08 against developers.openai.com/api/docs/pricing
+  # and developers.openai.com/api/docs/models
+  openai-flagship: {provider: openai, tier: powerful}
+  openai-balanced: {provider: openai, tier: balanced}
+  openai-fast:     {provider: openai, tier: fast}
+  openai-codex:    {provider: openai, tier: balanced}
+
+  # --- Google Gemini ----------------------------------------------------
+  # verified 2026-09-08 against ai.google.dev/gemini-api/docs/pricing
+  gemini-pro:        {provider: gemini, tier: powerful}
+  gemini-flash:      {provider: gemini, tier: balanced}
+  gemini-flash-lite: {provider: gemini, tier: fast}
+
+  # --- xAI --------------------------------------------------------------
+  # verified 2026-09-08 against docs.x.ai/docs/models
+  # Prices are the <200k-context tier; the >=200k tier is 2x on both sides.
+  grok-flagship: {provider: xai, tier: powerful, context_window: 500000}
+  grok-fast:     {provider: xai, tier: balanced, context_window: 1000000}
+  grok-build:    {provider: xai, tier: fast,     context_window: 256000}
+
+  # --- DeepSeek ---------------------------------------------------------
+  # verified 2026-09-08 against api-docs.deepseek.com/quick_start/pricing
+  # Prices are the peak-hour rate; off-peak is half.
+  deepseek-pro:   {provider: deepseek, tier: balanced, context_window: 1000000}
+  deepseek-flash: {provider: deepseek, tier: fast,     context_window: 1000000}
+
+models:
+  # --- Anthropic --------------------------------------------------------
+  - alias: claude-opus-5
+    family: claude-opus
+    price: {input_per_mtok: 5.0, output_per_mtok: 25.0, cache_write_per_mtok: 6.25, cache_hit_per_mtok: 0.50}
+  - alias: claude-opus-4-8
+    family: claude-opus
+    price: {input_per_mtok: 5.0, output_per_mtok: 25.0, cache_write_per_mtok: 6.25, cache_hit_per_mtok: 0.50}
+  - alias: claude-opus-4-7
+    family: claude-opus
+    price: {input_per_mtok: 5.0, output_per_mtok: 25.0, cache_write_per_mtok: 6.25, cache_hit_per_mtok: 0.50}
+  - alias: claude-sonnet-5
+    family: claude-sonnet
+    price: {input_per_mtok: 2.0, output_per_mtok: 10.0, cache_write_per_mtok: 2.50, cache_hit_per_mtok: 0.20}
+  - alias: claude-sonnet-4-6
+    family: claude-sonnet
+    price: {input_per_mtok: 3.0, output_per_mtok: 15.0, cache_write_per_mtok: 3.75, cache_hit_per_mtok: 0.30}
+  - alias: claude-haiku-4-5-20251001
+    family: claude-haiku
+    price: {input_per_mtok: 1.0, output_per_mtok: 5.0, cache_write_per_mtok: 1.25, cache_hit_per_mtok: 0.10}
+
+  # --- OpenAI -----------------------------------------------------------
+  - alias: gpt-6-astra
+    family: openai-flagship
+    price: {input_per_mtok: 10.0, output_per_mtok: 50.0}
+  - alias: gpt-5.6-sol
+    family: openai-flagship
+    price: {input_per_mtok: 4.0, output_per_mtok: 20.0}
+  - alias: gpt-5.6-terra
+    family: openai-balanced
+    price: {input_per_mtok: 2.0, output_per_mtok: 12.0}
+  - alias: gpt-5.4
+    family: openai-balanced
+    price: {input_per_mtok: 2.50, output_per_mtok: 15.0}
+  - alias: gpt-5.6-luna
+    family: openai-fast
+    price: {input_per_mtok: 0.20, output_per_mtok: 1.20}
+  - alias: gpt-5.4-nano
+    family: openai-fast
+    price: {input_per_mtok: 0.20, output_per_mtok: 1.25}
+  - alias: gpt-5.3-codex
+    family: openai-codex
+    price: {input_per_mtok: 1.75, output_per_mtok: 14.0}
+
+  # --- Google Gemini ----------------------------------------------------
+  - alias: gemini-3.1-pro-preview
+    family: gemini-pro
+    price: {input_per_mtok: 2.0, output_per_mtok: 12.0}
+  - alias: gemini-2.5-pro
+    family: gemini-pro
+    price: {input_per_mtok: 1.25, output_per_mtok: 10.0}
+  - alias: gemini-3.8-flash
+    family: gemini-flash
+    price: {input_per_mtok: 0.75, output_per_mtok: 3.75}
+  - alias: gemini-3.7-flash
+    family: gemini-flash
+    price: {input_per_mtok: 0.75, output_per_mtok: 3.75}
+  - alias: gemini-3.5-flash
+    family: gemini-flash
+    price: {input_per_mtok: 1.50, output_per_mtok: 9.0}
+  - alias: gemini-2.5-flash
+    family: gemini-flash
+    context_window: 1000000
+    price: {input_per_mtok: 0.30, output_per_mtok: 2.50}
+  - alias: gemini-3.5-flash-lite
+    family: gemini-flash-lite
+    price: {input_per_mtok: 0.30, output_per_mtok: 2.50}
+  - alias: gemini-3.1-flash-lite
+    family: gemini-flash-lite
+    price: {input_per_mtok: 0.25, output_per_mtok: 1.50}
+  - alias: gemini-2.5-flash-lite
+    family: gemini-flash-lite
+    price: {input_per_mtok: 0.10, output_per_mtok: 0.40}
+
+  # --- xAI --------------------------------------------------------------
+  - alias: grok-4.6
+    family: grok-flagship
+    price: {input_per_mtok: 2.0, output_per_mtok: 6.0}
+  - alias: grok-4.5
+    family: grok-flagship
+    price: {input_per_mtok: 2.0, output_per_mtok: 6.0}
+  - alias: grok-4.3
+    family: grok-fast
+    price: {input_per_mtok: 1.25, output_per_mtok: 2.50}
+  - alias: grok-4.20-0309-reasoning
+    family: grok-fast
+    price: {input_per_mtok: 1.25, output_per_mtok: 2.50}
+  - alias: grok-build-0.1
+    family: grok-build
+    price: {input_per_mtok: 1.0, output_per_mtok: 2.0}
+
+  # --- DeepSeek ---------------------------------------------------------
+  - alias: deepseek-v4-pro
+    family: deepseek-pro
+    price: {input_per_mtok: 1.32, output_per_mtok: 3.96}
+  - alias: deepseek-v4-flash
+    family: deepseek-flash
+    price: {input_per_mtok: 0.44, output_per_mtok: 1.32}

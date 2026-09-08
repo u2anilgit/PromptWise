@@ -23,11 +23,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from promptwise.asset_paths import resolve_asset
+
 
 def _registry_paths() -> list[Path]:
     return [
         Path("config") / "models.yaml",
-        Path(__file__).resolve().parents[3] / "config" / "models.yaml",
+        resolve_asset("config/models.yaml"),
     ]
 
 
@@ -44,6 +46,7 @@ class ModelRegistry:
         self._families: dict[str, dict] = {}
         self._models: list[dict] = []
         self._by_alias: dict[str, dict] = {}
+        self._loaded_path: Path | None = None
         self.loaded = False
         self._load(path)
 
@@ -65,12 +68,53 @@ class ModelRegistry:
             self._families = fams
             self._models = [m for m in models if isinstance(m, dict) and m.get("alias")]
             self._by_alias = {m["alias"]: m for m in self._models}
+            self._loaded_path = p
             self.loaded = True
             break
-        # Overlay machine-local models (auto-discovered on-device) on top of the
-        # base registry — only when loading the default registry, not an explicit path.
+        # Layering, lowest first: the shipped catalog underlays the tracked
+        # registry, then machine-local models overlay both. Only applied when
+        # loading the default registry, not an explicit path.
         if path is None:
+            self._apply_catalog_underlay()
             self._apply_overlay()
+
+    def _apply_catalog_underlay(self) -> None:
+        """Add shipped-catalog models the tracked registry does not carry.
+
+        config/models.yaml is the *refreshed* registry; config/model_catalog.yaml
+        is the *shipped* one. Without this, a provider only present in the
+        catalog stays unroutable until a refresh has actually run -- and refresh
+        is off by default, so routing a Gemini or Codex host would fall back to a
+        Claude alias it cannot call.
+
+        Existing rows always win: a refresh that has run reflects reality more
+        closely than the catalog frozen at release, so the underlay only fills
+        gaps and never overwrites.
+        """
+        try:
+            from promptwise.core.model_sources import PinnedCatalogSource, load_catalog
+            # The catalog is the sibling of whichever models.yaml actually
+            # loaded, so a scoped config directory (a test fixture, a per-project
+            # install) gets its own catalog or none -- never silently absorbs the
+            # packaged one on top of its own registry.
+            if self._loaded_path is not None:
+                catalog_path = self._loaded_path.parent / "model_catalog.yaml"
+            else:
+                catalog_path = PinnedCatalogSource()._resolve()
+            families, records = load_catalog(catalog_path)
+        except Exception:
+            return
+        for fam, meta in (families or {}).items():
+            if isinstance(meta, dict):
+                self._families.setdefault(fam, meta)
+        for rec in records:
+            if rec.alias in self._by_alias:
+                continue
+            row = rec.to_registry_row()
+            self._models.append(row)
+            self._by_alias[rec.alias] = row
+        if self._models:
+            self.loaded = True
 
     def _apply_overlay(self) -> None:
         for p in _overlay_paths():
@@ -171,6 +215,20 @@ class ModelRegistry:
         p = m.get("price") if m else None
         return dict(p) if isinstance(p, dict) else None
 
+    def context_window_of(self, alias: str) -> int | None:
+        """Registry-declared context window for a model, or None.
+
+        None means "the registry does not know" -- the caller falls back to
+        config/promptwise.yaml. Returning a default here would make a guessed
+        200000 indistinguishable from a verified one.
+        """
+        m = self._by_alias.get(alias)
+        cw = m.get("context_window") if m else None
+        try:
+            return int(cw) if cw else None
+        except (TypeError, ValueError):
+            return None
+
     def all_aliases(self) -> list[str]:
         return [m["alias"] for m in self._models]
 
@@ -184,15 +242,22 @@ class ModelRegistry:
             out.append(m["alias"])
         return out
 
-    def top_n_current(self, tier: str | None = None, n: int = 3) -> list[str]:
-        """Newest N current aliases for a tier (all providers), newest first.
+    def top_n_current(self, tier: str | None = None, n: int = 3, *,
+                      provider: str | None = None) -> list[str]:
+        """Newest N current aliases, newest first -- the "last N best models".
+
         Same "current + release_date desc" ordering as resolve()/current_alias(),
-        just not truncated to one -- the "last N best models" shortlist."""
+        just not truncated to one. `provider` is keyword-only so the existing
+        positional (tier, n) calls keep working unchanged; scoping by provider is
+        what lets a host be offered only models it can actually call.
+        """
         tier_l = (tier or "").lower()
+        prov_l = (provider or "").lower()
         candidates = [
             m for m in self._models
             if str(m.get("status", "current")).lower() == "current"
             and (not tier_l or self._tier_of(m).lower() == tier_l)
+            and (not prov_l or self._provider_of(m).lower() == prov_l)
         ]
         candidates.sort(key=lambda m: (str(m.get("release_date", "")), str(m.get("alias", ""))), reverse=True)
         return [m["alias"] for m in candidates[:n]]

@@ -1,14 +1,63 @@
 # Per-provider mapping from PromptWise's internal effort label
-# (low/medium/high) to the concrete parameter that provider's API expects.
-# Config is the source of truth -- edit this file to add a provider or
-# retune a value; no code change required.
+# (none/low/medium/high/xhigh) to the concrete parameter that provider's API
+# expects.
+#
+# `supported` lists the rungs the provider actually offers. A request for a rung
+# outside it is clamped to the nearest supported one
+# (core/effort_map.nearest_supported) rather than dropped, because sending no
+# effort parameter at all is a different -- and usually more expensive -- request
+# than sending the cheapest one.
+#
+# Config is the source of truth -- add a provider or retune a value here, no code
+# change required. Verify against the provider's current API reference before
+# editing: a wrong parameter name is accepted silently and does nothing, so the
+# failure is invisible.
+#
+# Parameter names verified 2026-09-08 against each provider's own docs. Note the
+# providers differ in kind, not just in naming: Anthropic takes a token budget,
+# OpenAI and xAI take an effort enum, and Gemini takes a level enum with no
+# token-budget form. Neither xAI nor Gemini can disable reasoning at all, which
+# is why neither declares a `none` rung.
 providers:
+  # Anthropic extended thinking. The flat `thinking_budget_tokens` key is
+  # PromptWise's own advisory shape; the wire format nests it under `thinking`.
   claude:
-    low: { thinking_budget_tokens: 1024 }
+    supported: [none, low, medium, high, xhigh]
+    none:   { thinking_budget_tokens: 0 }
+    low:    { thinking_budget_tokens: 1024 }
     medium: { thinking_budget_tokens: 4096 }
-    high: { thinking_budget_tokens: 16000 }
+    high:   { thinking_budget_tokens: 16000 }
+    xhigh:  { thinking_budget_tokens: 32000 }
+
+  # OpenAI reasoning_effort. "minimal" is the cheapest rung, not an off switch.
   openai:
-    low: { reasoning_effort: "low" }
+    supported: [none, low, medium, high]
+    none:   { reasoning_effort: "minimal" }
+    low:    { reasoning_effort: "low" }
     medium: { reasoning_effort: "medium" }
-    high: { reasoning_effort: "high" }
+    high:   { reasoning_effort: "high" }
+
+  # Gemini thinking_level. Verified 2026-09-08 against
+  # ai.google.dev/gemini-api/docs/thinking -- this is a level enum, NOT a token
+  # budget, and thinking cannot be set to zero.
+  gemini:
+    supported: [none, low, medium, high]
+    none:   { thinking_level: "minimal" }
+    low:    { thinking_level: "low" }
+    medium: { thinking_level: "medium" }
+    high:   { thinking_level: "high" }
+
+  # xAI reasoning_effort. Verified 2026-09-08 against docs.x.ai/docs/guides/
+  # reasoning -- reasoning cannot be disabled, so there is no `none` rung and a
+  # request for one clamps up to "low".
+  xai:
+    supported: [low, medium, high, xhigh]
+    low:    { reasoning_effort: "low" }
+    medium: { reasoning_effort: "medium" }
+    high:   { reasoning_effort: "high" }
+    xhigh:  { reasoning_effort: "xhigh" }
+
+# deepseek is deliberately absent: its reasoning control was not verified, and an
+# unverified provider block would emit a parameter name that is silently ignored.
+# Absent means it falls back to default_provider, which is visible and correctable.
 default_provider: claude

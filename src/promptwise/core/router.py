@@ -139,14 +139,31 @@ class Router:
         # config pricing in that case exactly as we would if the key were absent.
         pr_rate = pr.get("input_per_mtok") if pr else None
         rate = pr_rate if pr_rate is not None else cfg.rates.input_per_mtok
-        return float(rate), int(cfg.context_window)
+        # The registry is the live source for models discovered by a source; app
+        # config only knows the handful of models it ships with, so a discovered
+        # model would otherwise silently inherit config.py's 200000 default and
+        # report a wrong context_window_pct.
+        window = self.registry.context_window_of(model_alias)
+        return float(rate), int(window if window else cfg.context_window)
 
     def route(self, text: str, intent: str = "auto", stakes: str = "auto", provider: str = "claude",
               monthly_budget_usd: float | None = None, days_elapsed_in_month: int | None = None,
               provider_spend_usd: float | None = None) -> RouteResult:
         intent = intent.lower() if intent != "auto" else self._detect_intent(text)
         stakes = stakes.lower() if stakes != "auto" else self._detect_stakes(text)
-        provider = provider.lower()
+        # provider="auto" resolves from the running agent host, so a Gemini CLI
+        # or Codex session is not handed a Claude alias it cannot call. An
+        # explicit provider still wins, and an omitted one still means "claude",
+        # so every existing call site behaves exactly as before.
+        provider = (provider or "claude").lower()
+        host_detected = ""
+        if provider == "auto":
+            try:
+                from promptwise.core.host_detector import detect_host
+                info = detect_host()
+                host_detected, provider = info.key, info.provider
+            except Exception:
+                provider = "claude"
 
         static_tier = self._static_tier(intent, stakes)
         tier, adaptive_note = self._maybe_adapt(intent, stakes, static_tier)
@@ -224,6 +241,8 @@ class Router:
             batch_recommended=intent in ("extract", "classify", "summarize"),
             provider_capped=provider_capped,
             monthly_budget_capped=monthly_capped,
+            host_detected=host_detected,
+            provider_used=provider,
         )
 
     def compare_providers(self, text: str, model: str | None = None, include_external: bool = True) -> list[dict]:

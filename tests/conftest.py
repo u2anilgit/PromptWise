@@ -14,3 +14,25 @@ def _isolate_promptwise_db(tmp_path, monkeypatch):
     same target (they share pytest's function-scoped monkeypatch fixture)
     simply layers on top and wins for that test's duration."""
     monkeypatch.setattr("promptwise.db.models.get_db_path", lambda: tmp_path / "promptwise.db")
+
+
+@pytest.fixture(autouse=True)
+def _reset_advisory_dedupe():
+    """Clear the per-session advisory dedupe store between tests.
+
+    core/advisory_budget.py keeps a process-global "already said this" set so a
+    hook does not repeat the same note every turn of a session. That is correct
+    in production and leaks between tests, where every test shares the default
+    session id -- one test's advisory silently suppresses the next test's.
+    Same class of process-global state as the db-path isolation above.
+    """
+    try:
+        from promptwise.core.advisory_budget import reset_all
+        reset_all()
+    except Exception:
+        return
+    yield
+    try:
+        reset_all()
+    except Exception:
+        pass
