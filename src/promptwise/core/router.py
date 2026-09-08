@@ -139,7 +139,12 @@ class Router:
         # config pricing in that case exactly as we would if the key were absent.
         pr_rate = pr.get("input_per_mtok") if pr else None
         rate = pr_rate if pr_rate is not None else cfg.rates.input_per_mtok
-        return float(rate), int(cfg.context_window)
+        # The registry is the live source for models discovered by a source; app
+        # config only knows the handful of models it ships with, so a discovered
+        # model would otherwise silently inherit config.py's 200000 default and
+        # report a wrong context_window_pct.
+        window = self.registry.context_window_of(model_alias)
+        return float(rate), int(window if window else cfg.context_window)
 
     def route(self, text: str, intent: str = "auto", stakes: str = "auto", provider: str = "claude",
               monthly_budget_usd: float | None = None, days_elapsed_in_month: int | None = None,
