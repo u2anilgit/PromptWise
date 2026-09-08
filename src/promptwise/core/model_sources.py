@@ -268,3 +268,149 @@ class LocalOverrideSource:
         if not self.available():
             return []
         return [replace(r, source=self.key) for r in load_catalog(self._path)[1]]
+
+
+def _default_opener(url: str, headers: dict, timeout: float) -> str:
+    from urllib.request import Request, urlopen
+    req = Request(url, headers=headers or {})
+    with urlopen(req, timeout=timeout) as resp:  # noqa: S310 - url comes from local config
+        return resp.read().decode("utf-8", errors="replace")
+
+
+def _dig(obj, dotted: str):
+    """Walk a dotted path through nested dicts. Returns None on any miss."""
+    cur = obj
+    for part in str(dotted).split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
+
+
+class ApiModelSource:
+    """A provider's own model-listing endpoint, behind two explicit gates.
+
+    Gate 1 is PROMPTWISE_MODEL_REFRESH (the existing global network opt-in --
+    see model_refresh.enabled()). Gate 2 is this source's own credential env
+    var. Both must be set: enabling network access globally must never cause a
+    call to a provider the user has not credentialed.
+    """
+
+    def __init__(self, key, url, auth_env, headers=None, list_path="data",
+                 field_map=None, family_map=None, priority=30, timeout=10.0, opener=None):
+        self.key = key
+        self.priority = int(priority)
+        self._url = url
+        self._auth_env = auth_env
+        self._headers = dict(headers or {})
+        self._list_path = list_path or "data"
+        self._field_map = dict(field_map or {"alias": "id"})
+        self._family_map = dict(family_map or {})
+        self._timeout = float(timeout)
+        self._opener = opener or _default_opener
+
+    def available(self) -> bool:
+        import os
+        from promptwise.core.model_refresh import enabled as _refresh_enabled
+        if not _refresh_enabled():
+            return False
+        return bool(self._auth_env and os.environ.get(self._auth_env, "").strip())
+
+    def _headers_with_auth(self) -> dict:
+        import os
+        token = os.environ.get(self._auth_env, "")
+        out = {}
+        for k, v in self._headers.items():
+            out[k] = v.replace("${TOKEN}", token) if isinstance(v, str) else v
+        return out
+
+    def fetch(self) -> list[ModelRecord]:
+        import json as _json
+        try:
+            body = self._opener(self._url, self._headers_with_auth(), self._timeout)
+            payload = _json.loads(body)
+        except Exception:
+            return []
+        rows = _dig(payload, self._list_path) if self._list_path else payload
+        if not isinstance(rows, list):
+            return []
+        out: list[ModelRecord] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            try:
+                alias = str(_dig(row, self._field_map.get("alias", "id")) or "").strip()
+                if not alias:
+                    continue
+                d = _longest_prefix_meta(alias, self._family_map)
+                rel = self._field_map.get("release_date")
+                out.append(ModelRecord(
+                    alias=alias,
+                    family=str(d.get("family") or alias),
+                    provider=str(d.get("provider") or ""),
+                    tier=str(d.get("tier") or ""),
+                    release_date=str(_dig(row, rel) or "") if rel else "",
+                    context_window=int(d["context_window"]) if d.get("context_window") else None,
+                    source=self.key,
+                ))
+            except Exception:
+                continue
+        return out
+
+
+def _sources_config_path() -> Path:
+    from promptwise.asset_paths import resolve_asset
+    local = Path("config") / "model_sources.yaml"
+    return local if local.is_file() else resolve_asset("config/model_sources.yaml")
+
+
+def build_default_registry(config_path=None, *, openers=None, runners=None) -> SourceRegistry:
+    """Build the registry declared by config/model_sources.yaml.
+
+    Pinned and local are always registered, config or no config -- they are the
+    offline guarantee and the user's escape hatch, and neither should be
+    disableable by a malformed config file.
+    """
+    reg = SourceRegistry()
+    reg.register(PinnedCatalogSource())
+    reg.register(LocalOverrideSource())
+    try:
+        p = Path(config_path) if config_path else _sources_config_path()
+        if yaml is None or not p.is_file():
+            return reg
+        data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        entries = data.get("sources") or []
+        if not isinstance(entries, list):
+            return reg
+    except Exception:
+        return reg
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("enabled", True):
+            continue
+        kind = str(entry.get("kind") or "")
+        key = str(entry.get("key") or "")
+        if not key:
+            continue
+        try:
+            if kind == "cli":
+                reg.register(CliModelSource(
+                    key=key, command=entry.get("command") or [],
+                    pattern=entry.get("pattern") or r"(?P<alias>\S+)",
+                    family_map=entry.get("family_map") or {},
+                    priority=entry.get("priority", 20),
+                    timeout=entry.get("timeout", 8.0),
+                    runner=(runners or {}).get(key)))
+            elif kind == "api":
+                reg.register(ApiModelSource(
+                    key=key, url=entry.get("url") or "",
+                    auth_env=entry.get("auth_env") or "",
+                    headers=entry.get("headers") or {},
+                    list_path=entry.get("list_path") or "data",
+                    field_map=entry.get("field_map") or {},
+                    family_map=entry.get("family_map") or {},
+                    priority=entry.get("priority", 30),
+                    timeout=entry.get("timeout", 10.0),
+                    opener=(openers or {}).get(key)))
+        except Exception:
+            continue
+    return reg

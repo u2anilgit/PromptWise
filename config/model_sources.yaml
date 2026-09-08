@@ -1,0 +1,112 @@
+# PromptWise -- Model Discovery Sources
+#
+# Declarative source list for core/model_sources.py. Adding a provider is an
+# edit here, not a code change.
+#
+# Priority: higher wins on an alias conflict.
+#   pinned (10, implicit) < cli (20) < api (30) < local override (40, implicit)
+#
+# `pinned` and `local` are always registered and are NOT listed here -- they are
+# the offline guarantee and the user's escape hatch respectively, and neither
+# should be disableable by an edit to this file.
+#
+# An `api` source needs BOTH gates open before it touches the network:
+#   1. PROMPTWISE_MODEL_REFRESH=on   (global opt-in, off by default)
+#   2. its own `auth_env` variable set (per-provider credential)
+# Enabling network access globally must never call a provider the user has not
+# credentialed.
+#
+# `field_map` maps our field names to the provider's JSON keys (dotted paths are
+# supported). `family_map` maps an alias prefix to the family/provider/tier that
+# alias belongs to; the longest matching prefix wins. An alias matching no
+# prefix is still discovered, but with no tier -- so it is visible without being
+# silently routed to.
+schema_version: 1
+
+sources:
+  - key: anthropic
+    kind: api
+    enabled: true
+    priority: 30
+    url: https://api.anthropic.com/v1/models
+    auth_env: ANTHROPIC_API_KEY
+    headers:
+      x-api-key: "${TOKEN}"
+      anthropic-version: "2023-06-01"
+    list_path: data
+    field_map: {alias: id, release_date: created_at}
+    family_map:
+      claude-opus:   {family: claude-opus,   provider: claude, tier: powerful, context_window: 1000000}
+      claude-sonnet: {family: claude-sonnet, provider: claude, tier: balanced, context_window: 1000000}
+      claude-haiku:  {family: claude-haiku,  provider: claude, tier: fast,     context_window: 200000}
+
+  - key: openai
+    kind: api
+    enabled: true
+    priority: 30
+    url: https://api.openai.com/v1/models
+    auth_env: OPENAI_API_KEY
+    headers:
+      Authorization: "Bearer ${TOKEN}"
+    list_path: data
+    field_map: {alias: id}
+    family_map:
+      gpt-6:        {family: openai-flagship, provider: openai, tier: powerful}
+      gpt-5.6-sol:  {family: openai-flagship, provider: openai, tier: powerful}
+      gpt-5.6-terra: {family: openai-balanced, provider: openai, tier: balanced}
+      gpt-5.6-luna:  {family: openai-fast,     provider: openai, tier: fast}
+      gpt-5.4-nano:  {family: openai-fast,     provider: openai, tier: fast}
+      gpt-5.4:       {family: openai-balanced, provider: openai, tier: balanced}
+
+  - key: gemini
+    kind: api
+    enabled: true
+    priority: 30
+    url: https://generativelanguage.googleapis.com/v1beta/models
+    auth_env: GEMINI_API_KEY
+    headers:
+      x-goog-api-key: "${TOKEN}"
+    list_path: models
+    field_map: {alias: name}
+    family_map:
+      models/gemini: {family: gemini-flash, provider: gemini, tier: balanced}
+
+  - key: xai
+    kind: api
+    enabled: true
+    priority: 30
+    url: https://api.x.ai/v1/models
+    auth_env: XAI_API_KEY
+    headers:
+      Authorization: "Bearer ${TOKEN}"
+    list_path: data
+    field_map: {alias: id}
+    family_map:
+      grok-build: {family: grok-build,    provider: xai, tier: fast,     context_window: 256000}
+      grok-4.6:   {family: grok-flagship, provider: xai, tier: powerful, context_window: 500000}
+      grok-4.5:   {family: grok-flagship, provider: xai, tier: powerful, context_window: 500000}
+      grok-4:     {family: grok-fast,     provider: xai, tier: balanced, context_window: 1000000}
+
+  - key: deepseek
+    kind: api
+    enabled: true
+    priority: 30
+    url: https://api.deepseek.com/models
+    auth_env: DEEPSEEK_API_KEY
+    headers:
+      Authorization: "Bearer ${TOKEN}"
+    list_path: data
+    field_map: {alias: id}
+    family_map:
+      deepseek-v4-pro:   {family: deepseek-pro,   provider: deepseek, tier: balanced, context_window: 1000000}
+      deepseek-v4-flash: {family: deepseek-flash, provider: deepseek, tier: fast,     context_window: 1000000}
+
+  # A local runner needs no credential and no egress of our own, so it is a CLI
+  # probe rather than an api source and is available whenever the binary is.
+  - key: ollama
+    kind: cli
+    enabled: true
+    priority: 20
+    command: [ollama, list]
+    pattern: "^(?P<alias>[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+)\\s"
+    family_map: {}
