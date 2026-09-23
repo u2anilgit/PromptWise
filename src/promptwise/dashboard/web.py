@@ -589,7 +589,7 @@ def create_web_app(stats_service=None, memory_manager=None, require_auth: bool =
 
         total_in = sum(float(l.get("input_tokens", 0) or 0) for l in logs)
         total_out = sum(float(l.get("output_tokens", 0) or 0) for l in logs)
-        tokens_saved_estimate = int((total_in + total_out) * (h["tokens_saved_pct"] / 100))
+        tokens_saved_estimate = max(0, int((total_in + total_out) * (h["tokens_saved_pct"] / 100)))
 
         from promptwise.plugins.roi import ROITracker
         roi = ROITracker().calculate(
