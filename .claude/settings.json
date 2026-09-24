@@ -6,7 +6,8 @@
       "Edit(.claude/*)",
       "Edit(tests/*)",
       "Edit(docs/*)",
-      "Edit(docs_superpowers/*)"
+      "Edit(docs_superpowers/*)",
+      "Bash(git *)"
     ]
   }
 }
