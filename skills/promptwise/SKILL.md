@@ -147,7 +147,7 @@ Usage: describe your need and PromptWise selects the tool, or call a subcommand 
 - **"We got hit / something's off"** → `create_incident` to open the case, `detect_anomalies` to check for a behavioral-baseline deviation first.
 - **"Too many agents / is this agent misbehaving"** → `detect_sprawl` (capability-overlap/role duplication across the registered fleet) or `detect_agent_drift` (a specific agent's recent activity vs its registered role).
 - **"Did the AI invent this package"** → `validate_dependencies`.
-- **Standing exception needed** ("let me write to this file without re-asking", "trust this project for an hour") → `grant_jit_permission` (time-boxed, scoped), `list_jit_permissions` to review, `revoke_jit_permission` to pull it early.
+- **Standing exception needed** ("let me write to this file without re-asking", "trust this project for an hour") → `grant_jit_permission` (time-boxed, scoped), `list_jit_permissions` to review, `revoke_jit_permission` to pull it early. Grant expired ("JIT grant for Bash:git has expired")? Re-enable with `/promptwise:jit renew <signature>` (calls `grant_jit_permission`, which upserts a fresh TTL).
 - **Diagrams** ("draw the architecture / flow / ER / sequence") → `invoke_skill` the matching `*-diagram` pack (Mermaid out), then `validate_mermaid` before showing it.
 - **Tracking a build** ("track effort / tokens", "where's the project at") → `add_task` / `update_task` / `task_report`.
 - **Design help** ("which pattern", "make it faster", "solution/enterprise architecture") → `design-patterns`, `code-optimizer`, `solution-architecture`, `enterprise-architecture` packs.

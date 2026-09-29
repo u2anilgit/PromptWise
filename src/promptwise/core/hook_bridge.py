@@ -693,9 +693,14 @@ def jit_permission_guard(payload: dict) -> HookDecision:
         return HookDecision(
             action="ask", event="PreToolUse",
             reason=f"PromptWise JIT grant for {signature} has expired -- falling back to the "
-                   f"normal permission prompt. Re-grant with grant_jit_permission, or call "
-                   f"revoke_jit_permission to clear this record entirely.",
-            extra={"signature": signature},
+                   f"normal permission prompt. To re-enable: run /promptwise:jit renew {signature} "
+                   f"(or call grant_jit_permission(signature=\"{signature}\", ttl_minutes=60)). "
+                   f"To clear this record entirely: /promptwise:jit revoke {signature} "
+                   f"(revoke_jit_permission).",
+            extra={"signature": signature,
+                   "regrant": {"tool": "grant_jit_permission",
+                               "arguments": {"signature": signature, "ttl_minutes": 60}},
+                   "command": f"/promptwise:jit renew {signature}"},
         )
     except Exception as e:  # fail-open
         return HookDecision(action="allow", event="PreToolUse", extra={"hook_error": f"{type(e).__name__}: {e}"})

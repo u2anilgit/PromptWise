@@ -384,6 +384,8 @@ def test_jit_guard_asks_on_expired_grant(tmp_path, monkeypatch):
     assert "Bash:git" in d.reason
     assert "revoke_jit_permission" in d.reason
     assert "grant_jit_permission" in d.reason
+    assert "/promptwise:jit renew Bash:git" in d.reason
+    assert d.extra["regrant"]["arguments"]["signature"] == "Bash:git"
 
 
 def test_jit_guard_fails_open_on_error(tmp_path, monkeypatch):
